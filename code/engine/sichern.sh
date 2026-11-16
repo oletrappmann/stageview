@@ -10,7 +10,7 @@
 # Commit nur, wenn sich etwas geändert hat. Die verschlüsselte Datei wird nur neu geschrieben, wenn sich die Daten ändern.
 set -eu
 H=/home/hermes
-REPO=$(cat "$H/.hermes/stageview-backup-repo.txt" 2>/dev/null || echo "git@gh-stageview:oletrappmann/STAGEVIEW.git")
+REPO=$(cat "$H/.hermes/stageview-backup-repo.txt" 2>/dev/null || echo "git@gh-stageview:oletrappmann/stageview.git")
 EMPFAENGER=$(cat "$H/.hermes/stageview-backup-empfaenger.txt")
 ARBEIT="$H/.hermes/data/stageview-spiegel"
 LOG="$H/.hermes/logs/stageview-sichern.log"
