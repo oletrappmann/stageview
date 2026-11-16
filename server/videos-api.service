@@ -1,0 +1,13 @@
+[Unit]
+Description=Kommentare, Freigabe und Admin Dashboard fuer videos.stagecraft.media (Quelle Stagecraft OS, Skill stagecraft-stageview, engine/server/videos_api.py)
+
+[Service]
+ExecStart=/usr/bin/python3 /home/hermes/.hermes/scripts/videos-api.py
+EnvironmentFile=/home/hermes/.hermes/videos-api.env
+Restart=always
+RestartSec=3
+MemoryMax=300M
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

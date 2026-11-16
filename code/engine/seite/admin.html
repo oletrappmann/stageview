@@ -1,0 +1,945 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--ICON-->
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#121211">
+<title>StageView Admin</title>
+<link rel="preconnect" href="https://image.mux.com">
+<style>
+  /* Admin Dashboard für das Stagecraft Team (seit 14.11.2026, Ole: "Übersicht über alle Links, schnell reingehen, Namen bearbeiten,
+     im selben Design"). Liegt unter videos.stagecraft.media/admin, gebaut von `stageview bauen` aus seite/admin.html.
+     Keine Daten in der Seite: alles kommt nach dem Anmelden über /api/admin/ (server/videos_api.py). Anmeldung wie beim Aufgaben
+     Dashboard mit denselben Namen und Passwörtern (Brücke der TESS App), die Sitzung liegt als HttpOnly Cookie im Browser und gilt
+     auch auf allen Kundenseiten (dort ist man dann als Stagecraft unterwegs). */
+  :root { --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --bg: #121211; --panel: #1E1E1C; --panel-2: #2A2A27; --panel-3: #34342F; --linie: rgba(255,255,255,.08);
+    --text: #F3F2EE; --muted: rgba(243,242,238,.56); --leise: rgba(243,242,238,.36);
+    --akzent: #93AA98; --knopf: #48514A; --spur: rgba(255,255,255,.14);
+    --frei: #93AA98; --aenderung: #C4855A; --offen: #D9C3A5; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: clip; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  a { color: inherit; }
+  input, textarea, select { font: inherit; color: inherit; }
+  svg.i { width: var(--s, 24px); height: var(--s, 24px); display: block; flex: none; }
+  [hidden] { display: none !important; }
+  html.gesperrt, html.gesperrt body { overflow: hidden; overscroll-behavior: none; }
+  html.gesperrt body { padding-right: var(--leiste-breit, 0px); }
+  .app { container: app / inline-size; min-height: 100svh; display: flex; flex-direction: column; }
+  .label { font-weight: 500; font-size: 14px; letter-spacing: -.1px; color: var(--muted); }
+  .leise { color: var(--muted); }
+
+  /* ================= Kopfleiste wie auf den Kundenseiten */
+  .leiste { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); background: color-mix(in srgb, var(--bg) 84%, transparent);
+    backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); }
+  .logo { display: block; line-height: 0; }
+  .logo-bild { display: block; fill: #fff; height: 13px; width: 106px; }
+  @container app (min-width: 640px) { .logo-bild { height: 15px; width: 122px; } .leiste { padding-left: 24px; padding-right: 24px; } }
+  .admin-marke { font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--bg); background: var(--akzent); border-radius: 999px; padding: 2px 9px; }
+  .leiste .knoepfe { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .pille { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 16px 0 12px; border-radius: 999px; background: var(--panel-2);
+    color: var(--text); font-size: 15px; font-weight: 600; --s: 20px; transition: background .15s, transform .1s; white-space: nowrap; text-decoration: none; }
+  .pille:hover { background: var(--panel-3); }
+  .pille:active { transform: scale(.97); }
+  .pille.hell { background: #fff; color: #1c1c1e; }
+  .pille.hell:hover { background: #E9E8E3; }
+  .pille.klein { height: 36px; font-size: 14px; padding: 0 14px 0 11px; --s: 18px; }
+  .rund { width: 40px; height: 40px; border-radius: 50%; background: var(--panel-2); display: inline-flex; align-items: center; justify-content: center;
+    --s: 20px; transition: background .15s; text-decoration: none; flex: none; }
+  .rund:hover { background: var(--panel-3); }
+  .rund.klein { width: 36px; height: 36px; --s: 18px; }
+
+  /* ================= Aufbau B (Ole, 14.11.2026, aus vier Entwürfen: „finde B sehr geil“): links die Seitenleiste mit Menü,
+     Kunden und Konto, rechts eine kompakte Liste. Bewusst ohne Spalte „Neueste Kommentare“, ohne Umschalter Liste/Karten und
+     ohne Menüpunkt „Ohne Rückmeldung“ (Ole). Am Handy wird die Seitenleiste zur wischbaren Reihe unter der Kopfleiste */
+  .rahmen { display: flex; flex: 1; min-height: 0; }
+  .seitenleiste { flex: none; width: 248px; position: sticky; top: 0; align-self: flex-start; height: 100svh; overflow-y: auto; background: #161615;
+    padding: 18px 14px 16px; display: flex; flex-direction: column; gap: 18px; }
+  .sl-logo { display: flex; align-items: center; gap: 10px; padding: 2px 8px 6px; }
+  .sl-logo .logo-bild { height: 14px; width: 114px; }
+  .neu-gross { height: 44px; border-radius: 14px; background: #fff; color: #1c1c1e; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;
+    --s: 20px; transition: background .15s, transform .1s; }
+  .neu-gross:hover { background: #E9E8E3; }
+  .neu-gross:active { transform: scale(.98); }
+  .sl-gruppe { display: flex; flex-direction: column; gap: 2px; }
+  .sl-titel { font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 0 10px 6px; }
+  .sl-punkt { display: flex; align-items: center; gap: 11px; min-height: 40px; padding: 0 10px; border-radius: 11px; color: rgba(243,242,238,.75); text-align: left;
+    width: 100%; --s: 19px; transition: background .15s, color .15s; }
+  .sl-punkt:hover { background: #1F1F1D; color: var(--text); }
+  .sl-punkt.an { background: #262624; color: var(--text); font-weight: 600; }
+  .sl-punkt .name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sl-punkt .n { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 500; }
+  .sl-punkt .n.marke { min-width: 20px; height: 20px; border-radius: 10px; background: var(--offen); color: #1E1E1C; font-size: 12px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; }
+  .sl-punkt .n.orange { color: #DDAA88; }
+  /* Kunden (seit 14.11.2026, Ole: „neue Kunden anlegen oder löschen“): alle StageView Kunden, auch ohne Link (Zahl 0 leiser),
+     Plus zum Anlegen, beim gewählten Kunden oben Bearbeiten und Löschen */
+  .sl-titel-zeile { display: flex; align-items: center; justify-content: space-between; padding-right: 4px; }
+  .sl-titel-zeile .sl-titel { padding-bottom: 0; }
+  .sl-plus { width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); --s: 18px; transition: background .15s, color .15s; }
+  .sl-plus:hover { background: #1F1F1D; color: var(--text); }
+  .sl-kunden-titel { margin-bottom: 4px; }
+  .sl-punkt.ohne .name { color: var(--muted); }
+  .sl-punkt.ohne .n { color: var(--leise); }
+  .sl-neu-kunde { display: none !important; }
+  .kunde-aktionen { display: flex; gap: 8px; }
+  .kunde-aktionen:empty { display: none; }
+  .klein-dialog { width: min(460px, calc(100vw - 32px)); }
+  .kunde-ava { width: 24px; height: 24px; border-radius: 50%; font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+    flex: none; background: var(--c); color: var(--t, #fff); }
+  .sl-konto { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; background: var(--panel); }
+  .sl-konto .bild { width: 32px; height: 32px; border-radius: 50%; overflow: hidden; background: var(--panel-2); flex: none; display: inline-flex; align-items: center;
+    justify-content: center; font-weight: 600; }
+  .sl-konto .bild img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sl-konto b { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; }
+  .sl-konto button { color: var(--muted); font-size: 13px; padding: 6px 8px; border-radius: 8px; }
+  .sl-konto button:hover { background: var(--panel-2); color: var(--text); }
+  .haupt { flex: 1; min-width: 0; container: haupt / inline-size; padding: 22px 28px 0; display: flex; flex-direction: column; gap: 16px; }
+  .haupt-kopf { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+  .titel-block { flex: 1 1 260px; min-width: 0; }
+  .titel-block h1 { margin: 0; font-size: 30px; font-weight: 650; letter-spacing: -.025em; line-height: 1.15; }
+  .h-zahlen { font-size: 14px; color: var(--muted); margin-top: 4px; }
+  .suche { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px 0 12px; border-radius: 12px; background: #232321;
+    flex: 0 1 300px; min-width: 0; --s: 18px; color: var(--muted); }
+  .suche:focus-within { box-shadow: 0 0 0 2px var(--akzent); }
+  .suche input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--text); font-size: 16px; }
+  .suche input::placeholder { color: var(--leise); }
+  .suche input::-webkit-search-cancel-button { filter: invert(1) opacity(.5); }
+
+  /* Aufträge (neuer Link, Videos dazu): laufen ein paar Minuten bei Mux */
+  .auftraege { display: grid; gap: 8px; }
+  .auftraege:empty { display: none; }
+  .auftrag { display: flex; align-items: center; gap: 12px; background: var(--panel); border-radius: 16px; padding: 12px 14px; min-width: 0; }
+  .auftrag .text { min-width: 0; flex: 1; }
+  .auftrag b { display: block; font-size: 14.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .auftrag small { display: block; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .auftrag.fehler small { color: var(--aenderung); white-space: normal; }
+  .kreis { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid var(--spur); border-top-color: var(--akzent); animation: dreh 0.9s linear infinite; flex: none; }
+  @keyframes dreh { to { transform: rotate(360deg); } }
+  .auftrag .ok { color: var(--akzent); --s: 22px; }
+  .auftrag .weg { color: var(--muted); }
+
+  /* Liste: eine Zeile pro Link. Tipp auf die Zeile öffnet Bearbeiten, Kopieren und Öffnen gehen direkt */
+  .tabelle { display: flex; flex-direction: column; gap: 6px; }
+  .t-kopf, .zeile { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(130px, 1fr) 112px 104px 156px; gap: 16px; align-items: center; }
+  .t-kopf { padding: 0 14px 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .t-kopf button { color: inherit; font-weight: 600; display: inline-flex; align-items: center; gap: 3px; --s: 14px; width: fit-content; }
+  .t-kopf button:hover, .t-kopf button.an { color: var(--text); }
+  .zeile { padding: 12px 14px; border-radius: 16px; background: #1A1A19; cursor: pointer; transition: background .15s; }
+  .zeile:hover { background: #20201E; }
+  .z-projekt { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .z-bilder { display: flex; flex: none; width: 82px; }
+  .z-bilder img { width: 34px; height: 60px; object-fit: cover; border-radius: 8px; display: block; box-shadow: 0 0 0 2px #1A1A19; background: var(--panel-2); }
+  .z-bilder img + img { margin-left: -10px; }
+  .z-bilder img.quer { width: 82px; height: 46px; }
+  .z-bilder .warte { width: 82px; height: 46px; border-radius: 8px; background: var(--panel-2); display: flex; align-items: center; justify-content: center; }
+  .z-text { min-width: 0; }
+  .z-titel { display: block; max-width: 100%; text-align: left; font-size: 15.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .z-wer, .z-link, .z-klein { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .z-link { font-size: 12.5px; display: flex; align-items: center; gap: 5px; margin-top: 2px; --s: 13px; }
+  .z-link .dom { min-width: 0; overflow: hidden; text-overflow: ellipsis; margin-right: -5px; }
+  .z-link .code { flex: none; }  /* der Code ist das Wichtige, abgeschnitten wird nur die Domain */
+  .z-balken { display: flex; gap: 2px; }
+  .z-balken span { height: 5px; border-radius: 3px; background: var(--c); }
+  .z-klein { font-size: 12.5px; margin-top: 6px; }
+  .z-aktiv { font-size: 13.5px; color: rgba(243,242,238,.75); }
+  .keine { font-size: 13.5px; color: var(--leise); }
+  /* Kopieren, Öffnen, ⋯ groß mit eigener Fläche (Ole, 14.11.2026: „bitte größer, wir haben genug Platz“) */
+  .z-knoepfe { display: flex; gap: 6px; justify-content: flex-end; }
+  .z-knoepfe .rund { width: 46px; height: 46px; background: #262624; color: var(--text); --s: 22px; }
+  .z-knoepfe .rund:hover { background: var(--panel-3); }
+  .z-knoepfe .rund.fertig { color: var(--akzent); }
+  .nur-schmal { display: none; }
+  /* Schmal (Handy, kleines Fenster): Freigabe unter dem Projekt, Kommentare und Aktivität in der kleinen Zeile */
+  @container haupt (max-width: 760px) {
+    .t-kopf { display: none; }
+    .zeile { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 6px; padding: 12px; }
+    /* oben das Projekt über die volle Breite, darunter Freigabe und die großen Knöpfe nebeneinander */
+    .z-projekt { grid-column: 1 / -1; grid-row: 1; }
+    .z-freigabe { grid-column: 1; grid-row: 2; align-self: center; min-width: 0; }
+    .z-knoepfe { grid-column: 2; grid-row: 2; }
+    .z-klein { white-space: normal; }
+    .z-komm, .z-aktiv { display: none; }
+    .nur-schmal { display: inline; }
+  }
+
+  /* Desktop: die Kopfleiste steckt in der Seitenleiste. Schmal: Seitenleiste als wischbare Reihe */
+  @container app (min-width: 900px) { .app.im-dashboard .leiste { display: none; } }
+  @container app (max-width: 899px) {
+    .rahmen { flex-direction: column; }
+    .seitenleiste { width: auto; height: auto; position: static; background: none; flex-direction: row; overflow-x: auto; scrollbar-width: none; padding: 2px 16px 8px; gap: 6px; }
+    .seitenleiste::-webkit-scrollbar { display: none; }
+    .sl-logo, .neu-gross, .sl-konto, .sl-titel, .sl-titel-zeile { display: none; }
+    .sl-neu-kunde { display: flex !important; color: var(--muted); }
+    .sl-gruppe { flex-direction: row; gap: 6px; }
+    .sl-punkt { width: auto; flex: none; min-height: 38px; border-radius: 999px; background: var(--panel); padding: 0 13px; gap: 8px; white-space: nowrap; }
+    .sl-punkt svg.i { display: none; }
+    .sl-punkt.an { background: var(--text); color: var(--bg); }
+    .sl-punkt.an .n { color: inherit; }
+    .haupt { padding: 8px 16px 0; }
+    .titel-block h1 { font-size: 26px; }
+    .haupt-kopf .suche { flex: 1 1 100%; }
+  }
+
+  .status-wahl { position: relative; }
+  .status-menue { position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: 270px; max-width: calc(100vw - 32px);
+    background: var(--panel-3); border-radius: 18px; padding: 6px; box-shadow: 0 18px 44px rgba(0,0,0,.32); }
+  .status-menue button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 12px; border-radius: 12px; text-align: left; --s: 20px; }
+  .status-menue button:hover { background: var(--panel-2); }
+  .status-menue button b { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; }
+  .k-link { display: flex; align-items: center; gap: 8px; min-width: 0; height: 40px; padding: 0 4px 0 12px; border-radius: 12px; background: var(--panel-2); }
+  .k-link span { flex: 1; min-width: 0; font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .k-link button { height: 32px; padding: 0 10px; border-radius: 9px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; --s: 16px;
+    color: var(--text); transition: background .15s; }
+  .k-link button:hover { background: var(--panel-3); }
+  .k-link button.fertig { color: var(--akzent); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+    background: color-mix(in srgb, var(--c, #fff) 14%, transparent); color: color-mix(in srgb, var(--c, #fff) 80%, #fff); white-space: nowrap; }
+  button.chip { cursor: pointer; }
+  button.chip:hover { background: color-mix(in srgb, var(--c, #fff) 24%, transparent); }
+  .punkt { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; display: inline-block; }
+  .nichts { color: var(--muted); font-size: 15px; padding: 48px 16px; border-radius: 22px; border: 1px dashed var(--linie); text-align: center; }
+
+  /* ================= Anmeldung: derselbe Screen wie beim Aufgaben Dashboard (Ole, 14.11.2026), Maße und Farben aus
+     TESS_APP/web/aufgaben/stil.css (dunkel). Namen wählen, dann kommt das Passwort Feld mit rundem Pfeil */
+  .unsichtbar { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; padding: 0; margin: -1px; }
+  .anmeldung { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 16px 64px; }
+  .anmelde-karte { width: 100%; max-width: 400px; text-align: center; }
+  .anmelde-karte h1 { font-size: clamp(32px, 5.2vw, 46px); font-weight: 500; letter-spacing: -1px; margin: 0 0 30px; line-height: 1.06; }
+  .agenten { display: flex; justify-content: center; gap: 4px; margin-bottom: 26px; }
+  .agent { display: flex; flex-direction: column; align-items: center; gap: 9px; width: 84px; font-size: 15px; font-weight: 500; color: var(--muted); }
+  .agent .ava { width: 68px; height: 68px; border-radius: 50%; overflow: hidden; background: var(--panel-2); display: block; transition: transform .15s, box-shadow .2s; }
+  .agent .ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .agent.an { color: var(--text); font-weight: 600; }
+  .agent.an .ava, .agent:focus-visible .ava { box-shadow: 0 0 0 2.5px var(--bg), 0 0 0 4.5px #B3C1B5; }
+  .agent:active .ava { transform: scale(.94); }
+  .agent:focus-visible { outline: none; }
+  .anmelde-feld { position: relative; animation: feld-kommt .35s cubic-bezier(.2, .9, .25, 1); }
+  @keyframes feld-kommt { from { opacity: 0; translate: 0 12px; } }
+  #passwort { width: 100%; border: 0; background: #343432; color: var(--text); border-radius: 999px; padding: 15px 56px 15px 20px; font-size: 16px; outline: none;
+    box-shadow: inset 0 0 0 1px rgba(246,246,243,.10); }
+  #passwort::placeholder { color: var(--leise); }
+  #passwort:focus { box-shadow: 0 0 0 2px color-mix(in srgb, #B3C1B5 40%, transparent); }
+  .los { position: absolute; top: 6px; right: 6px; width: 40px; height: 40px; border-radius: 50%; background: var(--knopf); color: #fff; padding: 10px; display: grid; place-items: center; transition: opacity .2s; }
+  .los svg { width: 20px; height: 20px; display: block; }
+  .los:hover { opacity: .92; }
+  .los:disabled { opacity: .3; cursor: default; }
+  .los.laedt svg { animation: los-pulst 1s ease-in-out infinite; }
+  @keyframes los-pulst { 50% { opacity: .35; translate: 0 -2px; } }
+  .anmelde-fehler { min-height: 20px; margin: 10px 2px 0; font-size: 13.5px; color: var(--text); }
+  .anmelde-fehler:not(:empty)::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #C4855A; margin-right: 8px; vertical-align: 1px; }
+  .anmelde-karte.wackelt { animation: wackeln .38s; }
+  @keyframes wackeln { 20% { translate: -8px 0; } 40% { translate: 7px 0; } 60% { translate: -5px 0; } 80% { translate: 3px 0; } }
+  /* Konto oben rechts: Bild der angemeldeten Person, Menü mit Abmelden */
+  .konto-knopf { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; background: var(--panel-2); flex: none; transition: box-shadow .2s; }
+  .konto-knopf img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .konto-knopf[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px #B3C1B5; }
+  .konto-menue .menue-kopf { padding: 10px 12px 8px; }
+  .konto-menue .menue-kopf b { display: block; font-size: 15px; }
+  .konto-menue .menue-kopf small { display: block; font-size: 13px; color: var(--muted); }
+  .eingabe-feld { width: 100%; border: 0; outline: 0; background: var(--panel-2); color: var(--text); font-size: 16px; padding: 13px 14px; border-radius: 12px; }
+  .eingabe-feld:focus { box-shadow: 0 0 0 2px var(--akzent); }
+  .eingabe-feld::placeholder { color: var(--leise); }
+  .gross { width: 100%; height: 52px; margin-top: 14px; justify-content: center; padding: 0 20px; border-radius: 14px; background: #fff; color: #1c1c1e; font-weight: 600; font-size: 15px;
+    display: flex; align-items: center; gap: 8px; --s: 20px; transition: background .15s, transform .1s, opacity .15s; }
+  .gross:hover { background: #E9E8E3; }
+  .gross:active { transform: scale(.98); }
+  .gross:disabled { opacity: .5; cursor: default; }
+
+  /* ================= Fenster (Projekt bearbeiten, neuer Link, Rückfrage) */
+  dialog { border: 0; border-radius: 24px; padding: 0; background: var(--panel); color: var(--text); width: min(720px, calc(100vw - 32px));
+    max-height: min(88svh, 900px); box-shadow: 0 30px 80px rgba(0,0,0,.45); overflow: hidden; }
+  dialog[open] { display: flex; flex-direction: column; animation: auf .24s cubic-bezier(.32,.72,0,1); }
+  @keyframes auf { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+  dialog::backdrop { background: rgba(0,0,0,.5); backdrop-filter: blur(4px); }
+  dialog:focus { outline: none; }
+  .d-kopf { display: flex; align-items: center; gap: 12px; padding: 18px 16px 12px 22px; flex: none; }
+  .d-kopf h3 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.01em; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .d-inhalt { overflow-y: auto; overscroll-behavior: contain; padding: 4px 22px 24px; flex: 1; min-height: 0; }
+  .d-inhalt h4 { margin: 26px 0 10px; font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .d-inhalt h4 .n { font-variant-numeric: tabular-nums; }
+  .felder { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .feld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .feld.breit { grid-column: 1 / -1; }
+  .feld > span { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .feld textarea { resize: vertical; min-height: 48px; line-height: 1.4; }
+  .feld select { appearance: none; -webkit-appearance: none; padding-right: 40px; cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M10 13l6 6 6-6' fill='none' stroke='%23F3F2EE' stroke-opacity='.6' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center; background-size: 22px; }
+  .feld input[type="date"] { color-scheme: dark; min-height: 48px; }
+  @media (max-width: 360px) { .felder { grid-template-columns: 1fr; } }
+  .form-fuss { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; justify-content: flex-end; flex-wrap: wrap; }
+  .form-fuss .leise { flex: 1; min-width: 180px; font-size: 13px; }
+  .primaer { height: 42px; padding: 0 18px; border-radius: 999px; background: #fff; color: #1c1c1e; font-weight: 600; font-size: 14.5px; display: inline-flex; align-items: center; gap: 7px;
+    --s: 18px; transition: background .15s, opacity .15s, transform .1s; white-space: nowrap; }
+  .primaer:hover { background: #E9E8E3; }
+  .primaer:active { transform: scale(.97); }
+  .primaer:disabled { opacity: .35; cursor: default; transform: none; }
+  .haken { display: flex; align-items: center; gap: 10px; font-size: 14.5px; cursor: pointer; width: fit-content; }
+  .haken input { width: 20px; height: 20px; margin: 0; accent-color: var(--akzent); flex: none; }
+  .d-link { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+  .d-link .k-link { flex: 1; }
+  .hilfe { font-size: 13px; color: var(--leise); margin: 10px 0 0; }
+
+  /* Videos im Projekt */
+  .v-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .v-zeile { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 8px; border-radius: 16px; background: var(--panel-2); min-width: 0; }
+  .v-bild { width: 44px; height: 60px; border-radius: 10px; overflow: hidden; flex: none; background: var(--panel-3); display: block; }
+  .v-bild.quer { width: 76px; height: 43px; }
+  .v-bild img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .v-mitte { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .v-titel { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .v-titel .nr { font-size: 12px; font-weight: 700; color: var(--muted); background: var(--panel-3); border-radius: 7px; min-width: 24px; height: 22px; padding: 0 5px;
+    display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; flex: none; }
+  .v-titel input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 15px; font-weight: 600; padding: 5px 7px; margin-left: -7px; border-radius: 8px;
+    text-overflow: ellipsis; transition: background .15s, box-shadow .15s; }
+  .v-titel input:hover { background: var(--panel-3); }
+  .v-titel input:focus { background: var(--panel); box-shadow: 0 0 0 2px var(--akzent); }
+  .v-titel input.speichert { opacity: .5; }
+  .v-meta { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .v-meta .offen { color: var(--offen); font-weight: 600; }
+  .v-knoepfe { display: flex; gap: 4px; flex: none; }
+  .v-knoepfe .rund { background: transparent; color: var(--muted); }
+  .v-knoepfe .rund:hover { background: var(--panel-3); color: var(--text); }
+  .v-knoepfe .rund.fertig { color: var(--akzent); }
+  .v-zeile.wartet { opacity: .7; }
+  .dazu-form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .dazu-form .eingabe-feld { flex: 1 1 260px; min-width: 0; }
+  .dazu-form .titel-feld { flex: 1 1 200px; }
+
+  /* Offene Kommentare */
+  .km-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .km-liste a { display: block; padding: 12px 14px; border-radius: 16px; background: var(--panel-2); text-decoration: none; transition: background .15s; }
+  .km-liste a:hover { background: var(--panel-3); }
+  .km-kopf { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+  .km-kopf b { color: var(--text); font-weight: 600; }
+  .km-kopf .zeit { font-variant-numeric: tabular-nums; background: var(--panel-3); border-radius: 6px; padding: 0 6px; color: var(--text); font-weight: 600; font-size: 12px; }
+  .km-text { margin: 5px 0 0; font-size: 14.5px; line-height: 1.45; overflow-wrap: anywhere; }
+  .leer { color: var(--muted); font-size: 14px; padding: 16px; border-radius: 16px; border: 1px dashed var(--linie); text-align: center; }
+
+  .frage-dialog { width: min(400px, calc(100vw - 32px)); }
+  .frage-dialog .d-inhalt { padding-top: 0; }
+  .frage-dialog p { margin: 0 0 18px; color: var(--muted); font-size: 14.5px; }
+  .frage-dialog .knoepfe { display: flex; gap: 8px; justify-content: flex-end; }
+  .frage-dialog .knoepfe button { height: 42px; padding: 0 18px; border-radius: 999px; font-weight: 600; font-size: 14.5px; color: var(--muted); }
+  .frage-dialog .knoepfe button:hover { background: var(--panel-2); color: var(--text); }
+  .frage-dialog .knoepfe .gefahr { background: var(--aenderung); color: #fff; }
+  .frage-dialog .knoepfe .gefahr:hover { background: color-mix(in srgb, var(--aenderung) 85%, #fff); color: #fff; }
+
+  /* Handy: Fenster als Blatt von unten */
+  @media (max-width: 600px) {
+    dialog { width: 100vw; max-width: 100vw; max-height: 92svh; margin: auto 0 0; border-radius: 24px 24px 0 0; }
+    dialog[open] { animation: hoch .32s cubic-bezier(.32,.72,0,1); }
+    .frage-dialog { width: calc(100vw - 24px); margin: auto; border-radius: 24px; }
+    .d-inhalt { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+    .v-knoepfe .nur-gross { display: none; }
+  }
+  @keyframes hoch { from { transform: translateY(40px); opacity: 0; } }
+
+  .toast { position: fixed; left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translate(-50%, 12px); opacity: 0; pointer-events: none; z-index: 200;
+    background: var(--text); color: var(--bg); border-radius: 999px; padding: 10px 16px; font-size: 13.5px; font-weight: 500; transition: opacity .2s, transform .2s;
+    white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
+  .toast.zeigen { opacity: 1; transform: translate(-50%, 0); }
+  .toast.fehler { background: var(--aenderung); color: #fff; }
+  .fuss { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 8px 16px 56px; color: var(--leise); font-size: 12.5px; margin-top: auto; }
+  .fuss .made-bild { display: block; width: 110px; height: 25px; color: #fff; opacity: .5; }
+  @media (prefers-reduced-motion: reduce) { .pille, .toast, .zeile, dialog[open] { transition: none; animation: none; } .kreis { animation-duration: 3s; } }
+</style>
+</head>
+<body>
+<!--LOGO-->
+<div class="app" id="app">
+  <header class="leiste">
+    <a class="logo" href="/admin" aria-label="StageView Admin"><svg class="logo-bild" viewBox="0 0 341 42" role="img" aria-label="StageView"><use href="#stageview-logo"/></svg></a>
+    <span class="admin-marke">Admin</span>
+    <div class="knoepfe" id="kopf-knoepfe" hidden>
+      <button class="pille hell" id="neu-knopf" data-neu data-i="plus">Neuer Link</button>
+      <div class="status-wahl"><button type="button" class="konto-knopf" id="konto-knopf" aria-haspopup="menu" aria-expanded="false" aria-label="Konto"></button>
+        <div class="status-menue konto-menue" id="konto-menue" role="menu" hidden></div></div>
+    </div>
+  </header>
+
+  <!-- ================= Anmeldung wie beim Aufgaben Dashboard: Namen wählen, Passwort, geprüft von der TESS App Brücke -->
+  <section class="anmeldung" id="anmeldung" hidden>
+    <form id="anmelde-form" class="anmelde-karte" autocomplete="on" novalidate>
+      <h1>Wer bist du?</h1>
+      <div class="agenten" role="radiogroup" aria-label="Name">
+        <button type="button" class="agent" data-zugang="tess" role="radio" aria-checked="false"><span class="ava" aria-hidden="true"><img data-bild="tess" alt=""></span><span>Ole</span></button>
+        <button type="button" class="agent" data-zugang="alfred" role="radio" aria-checked="false"><span class="ava" aria-hidden="true"><img data-bild="alfred" alt=""></span><span>Jonas</span></button>
+      </div>
+      <!-- Für den Passwort Speicher des Browsers: ein Eintrag pro Name -->
+      <input id="anmelde-name" class="unsichtbar" type="text" name="username" autocomplete="username" value="" tabindex="-1" aria-hidden="true">
+      <div id="anmelde-feld" class="anmelde-feld" hidden>
+        <label class="unsichtbar" for="passwort">Passwort</label>
+        <input id="passwort" type="password" name="password" autocomplete="current-password" placeholder="Passwort" required>
+        <button id="anmelde-knopf" class="los" type="submit" disabled aria-label="Anmelden">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M6 11l6-6 6 6"/></svg>
+        </button>
+      </div>
+      <p id="anmelde-fehler" class="anmelde-fehler" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <!-- ================= Dashboard (Aufbau B): Seitenleiste mit Menü, Kunden und Konto, daneben die Liste -->
+  <div class="rahmen" id="dashboard" hidden>
+    <aside class="seitenleiste" aria-label="Menü">
+      <div class="sl-logo"><a class="logo" href="/admin" aria-label="StageView Admin"><svg class="logo-bild" viewBox="0 0 341 42" role="img" aria-label="StageView"><use href="#stageview-logo"/></svg></a><span class="admin-marke">Admin</span></div>
+      <button type="button" class="neu-gross" data-neu data-i="plus">Neuer Link</button>
+      <nav class="sl-gruppe" id="sl-ansichten" aria-label="Ansichten"></nav>
+      <div class="sl-gruppe" id="sl-kunden" role="group" aria-label="Kunden"></div>
+      <div class="sl-konto" id="sl-konto"></div>
+    </aside>
+    <main class="haupt">
+      <div class="haupt-kopf">
+        <div class="titel-block"><h1 id="h-titel">Alle Links</h1><div class="h-zahlen" id="h-zahlen"></div></div>
+        <div class="kunde-aktionen" id="kunde-aktionen"></div>
+        <label class="suche"><span data-i="suche"></span><input id="suche" type="search" placeholder="Suchen" aria-label="Suchen" autocomplete="off" enterkeyhint="search"></label>
+      </div>
+      <section class="auftraege" id="auftraege"></section>
+      <section class="tabelle" id="liste" aria-label="Links"></section>
+      <footer class="fuss"><svg class="made-bild" viewBox="0 0 393 90" role="img" aria-label="Made by Stagecraft"><use href="#madeby-logo" width="393" height="90"/></svg></footer>
+    </main>
+  </div>
+
+  <footer class="fuss" id="fuss-global">
+    <svg class="made-bild" viewBox="0 0 393 90" role="img" aria-label="Made by Stagecraft"><use href="#madeby-logo" width="393" height="90"/></svg>
+  </footer>
+</div>
+
+<dialog id="projekt-dialog" aria-labelledby="p-titel" tabindex="-1">
+  <div class="d-kopf"><h3 id="p-titel">Projekt</h3><button class="rund" data-zu title="Schließen" aria-label="Schließen" data-i="x-mark"></button></div>
+  <div class="d-inhalt" id="p-inhalt"></div>
+</dialog>
+
+<dialog id="neu-dialog" aria-labelledby="n-titel" tabindex="-1">
+  <div class="d-kopf"><h3 id="n-titel">Neuer Link</h3><button class="rund" data-zu title="Schließen" aria-label="Schließen" data-i="x-mark"></button></div>
+  <div class="d-inhalt">
+    <form class="felder" id="neu-form">
+      <label class="feld breit"><span>Titel der Seite</span><input class="eingabe-feld" name="titel" required maxlength="120" placeholder="Content Day November" autocomplete="off"></label>
+      <label class="feld breit"><span>Kunde</span><select class="eingabe-feld" name="kunde" id="neu-kunde" required></select></label>
+      <div class="feld breit" id="neu-kunde-felder" hidden style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+        <label class="feld"><span>Name des neuen Kunden</span><input class="eingabe-feld" name="neu_name" maxlength="80" autocomplete="off" placeholder="Vorname Nachname"></label>
+        <label class="feld"><span>Firma (optional)</span><input class="eingabe-feld" name="neu_firma" maxlength="80" autocomplete="off"></label>
+      </div>
+      <label class="feld breit"><span>Drive Ordner oder Videos</span><textarea class="eingabe-feld" name="quellen" rows="3" required placeholder="Link zum Export Ordner im Drive, oder Video Links (je einer pro Zeile)"></textarea></label>
+      <label class="haken breit feld" style="flex-direction:row"><input type="checkbox" name="unterordner"> Videos aus Unterordnern mitnehmen</label>
+      <label class="feld"><span>Drehtag (optional)</span><input class="eingabe-feld" type="date" name="dreh"></label>
+      <p class="hilfe breit feld">Titel der Videos kommen aus den Dateinamen und lassen sich danach hier ändern. Die Videos gehen in bis zu 4K zu Mux, der Link steht sofort fest, die Videos erscheinen nach ein paar Minuten.</p>
+      <div class="form-fuss"><button class="gross" type="submit" data-i="plus">Link anlegen</button></div>
+    </form>
+  </div>
+</dialog>
+
+<dialog class="klein-dialog" id="kunde-dialog" aria-labelledby="ku-titel" tabindex="-1">
+  <div class="d-kopf"><h3 id="ku-titel">Neuer Kunde</h3><button class="rund" data-zu title="Schließen" aria-label="Schließen" data-i="x-mark"></button></div>
+  <div class="d-inhalt">
+    <form class="felder" id="kunde-form">
+      <label class="feld breit"><span>Name</span><input class="eingabe-feld" name="kunde_name" required maxlength="80" placeholder="Vorname Nachname" autocomplete="off"></label>
+      <label class="feld breit"><span>Firma oder Zusatz (optional)</span><input class="eingabe-feld" name="kunde_firma" maxlength="80" autocomplete="off"></label>
+      <p class="hilfe breit feld" id="kunde-hilfe"></p>
+      <div class="form-fuss"><button class="primaer" type="submit">Anlegen</button></div>
+    </form>
+  </div>
+</dialog>
+
+<dialog class="frage-dialog" id="frage-dialog" aria-labelledby="f-titel" tabindex="-1">
+  <div class="d-kopf"><h3 id="f-titel"></h3></div>
+  <div class="d-inhalt"><p id="f-text"></p><div class="knoepfe"><button type="button" data-antwort="nein">Abbrechen</button><button type="button" class="gefahr" data-antwort="ja" id="f-ja"></button></div></div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+  const ICONS = /*ICONS*/{};
+  // Eigene Symbole fürs Dashboard, gezeichnet in derselben Strichstärke wie der Lautsprecher der Kundenseite
+  (() => {
+    const l = 'fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"';
+    ICONS['plus'] = `<path d="M16 8.5V23.5M8.5 16H23.5" ${l}/>`;
+    ICONS['stift'] = `<path d="M19.6 8.4L23.6 12.4M7.5 24.5L8.6 19.4L20.9 7.1C21.6 6.4 22.8 6.4 23.5 7.1L24.9 8.5C25.6 9.2 25.6 10.4 24.9 11.1L12.6 23.4L7.5 24.5Z" ${l}/>`;
+    ICONS['suche'] = `<circle cx="14.5" cy="14.5" r="7" ${l}/><path d="M19.8 19.8L25 25" ${l}/>`;
+    ICONS['oeffnen'] = `<path d="M14 8.5H10.5C9.4 8.5 8.5 9.4 8.5 10.5V21.5C8.5 22.6 9.4 23.5 10.5 23.5H21.5C22.6 23.5 23.5 22.6 23.5 21.5V18M18.5 8.5H23.5V13.5M23.2 8.8L15.5 16.5" ${l}/>`;
+    ICONS['kopieren'] = `<rect x="11.5" y="11.5" width="13" height="13" rx="3" ${l}/><path d="M20.5 8.5V8.3C20.5 7.3 19.7 6.5 18.7 6.5H9.3C8.3 6.5 7.5 7.3 7.5 8.3V17.7C7.5 18.7 8.3 19.5 9.3 19.5H9.5" ${l}/>`;
+    ICONS['muell'] = `<path d="M8 10H24M13.5 10V8.5C13.5 7.7 14.2 7 15 7H17C17.8 7 18.5 7.7 18.5 8.5V10M10 10L11 23.2C11.1 24.2 11.9 25 12.9 25H19.1C20.1 25 20.9 24.2 21 23.2L22 10" ${l}/>`;
+  })();
+  const icon = (n, s) => `<svg class="i" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"${s ? ` style="--s:${s}px"` : ''}>${ICONS[n] || ''}</svg>`;
+  function symbole(wurzel = document) {
+    wurzel.querySelectorAll('[data-i]').forEach(el => { el.insertAdjacentHTML('afterbegin', icon(el.dataset.i)); el.removeAttribute('data-i'); });
+  }
+  symbole();
+
+  // ---------- kleine Helfer (wie auf den Kundenseiten)
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const zeit = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const lies = k => { try { return localStorage.getItem(k); } catch { return null; } };
+  const merke = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
+  function toast(t, fehler) { const el = $('toast'); el.textContent = t; el.classList.toggle('fehler', !!fehler); el.classList.add('zeigen'); clearTimeout(toast.u); toast.u = setTimeout(() => el.classList.remove('zeigen'), fehler ? 4200 : 2400); }
+  function wann(iso) {
+    if (!iso) return ''; const d = (Date.now() - new Date(iso)) / 1000;
+    if (d < 60) return 'gerade eben'; if (d < 3600) return `vor ${Math.floor(d / 60)} Min`; if (d < 86400) return `vor ${Math.floor(d / 3600)} Std`;
+    if (d < 172800) return 'gestern'; const t = new Date(iso); return `am ${String(t.getDate()).padStart(2, '0')}.${String(t.getMonth() + 1).padStart(2, '0')}.`;
+  }
+  const kurz = url => String(url || '').replace(/^https?:\/\//, '');
+  const bild = (v, w) => `https://image.mux.com/${v.playback_id}/thumbnail.webp?width=${w}&time=${Math.min(2, (v.dauer || 4) / 2)}`;
+  const STATUS = {
+    'zur-freigabe': { t: 'Zur Freigabe', c: 'var(--offen)' },
+    'aenderung': { t: 'Änderung gewünscht', c: 'var(--aenderung)' },
+    'freigegeben': { t: 'Freigegeben', c: 'var(--frei)' },
+  };
+  const mehrzahl = (n, eins, viele) => `${n} ${n === 1 ? eins : viele}`;
+
+  // Profilbilder für die Anmeldung, beim Bauen eingesetzt (von der Aufgaben Seite auf demselben Server)
+  const BILDER = /*BILDER*/{};
+  document.querySelectorAll('img[data-bild]').forEach(i => {
+    if (BILDER[i.dataset.bild]) i.src = BILDER[i.dataset.bild];
+    else i.replaceWith(Object.assign(document.createElement('span'), { textContent: i.closest('.agent').textContent.trim()[0], style: 'display:grid;place-items:center;height:100%;font-size:26px;font-weight:600;color:var(--text)' }));
+  });
+
+  // Anmeldung über die Brücke der TESS App, danach steckt die Sitzung in einem HttpOnly Cookie (das Skript sieht sie nie)
+  class NichtAngemeldet extends Error {}
+  async function api(pfad, opt = {}) {
+    const kopf = {};
+    if (opt.body) kopf['Content-Type'] = 'application/json';
+    const r = await fetch('/api/admin/' + pfad, { method: opt.method || 'GET', headers: kopf, body: opt.body ? JSON.stringify(opt.body) : undefined, cache: 'no-store', credentials: 'same-origin' });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 401) throw new NichtAngemeldet();
+    if (!r.ok) throw new Error(d.fehler || 'Das hat nicht geklappt');
+    return d;
+  }
+
+  // Fenster: Seite dahinter scrollt nicht (wie auf den Kundenseiten)
+  function fensterAuf(d) {
+    const h = document.documentElement, breit = innerWidth - h.clientWidth;
+    h.style.setProperty('--leiste-breit', breit > 0 ? breit + 'px' : '0px'); h.classList.add('gesperrt');
+    if (!d.open) { d.showModal(); d.focus(); }
+  }
+  document.querySelectorAll('dialog').forEach(d => {
+    d.addEventListener('close', () => { if (!document.querySelector('dialog[open]')) document.documentElement.classList.remove('gesperrt'); });
+    d.addEventListener('click', e => {   // Klick neben das Fenster schließt es
+      if (e.target.closest('[data-zu]')) return d.close();
+      if (e.target !== d) return; const r = d.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close();
+    });
+  });
+  function frage(titel, text, ja) {
+    const d = $('frage-dialog'); $('f-titel').textContent = titel; $('f-text').textContent = text; $('f-ja').textContent = ja;
+    return new Promise(fertig => {
+      const klick = e => { const b = e.target.closest('[data-antwort]'); if (!b) return; d.removeEventListener('click', klick); d.close(); fertig(b.dataset.antwort === 'ja'); };
+      d.addEventListener('click', klick); d.addEventListener('close', () => { d.removeEventListener('click', klick); fertig(false); }, { once: true });
+      fensterAuf(d);
+    });
+  }
+  async function kopieren(url, knopf) {
+    let ok = false;
+    try { await navigator.clipboard.writeText(url); ok = true; } catch {}
+    if (!ok) {
+      const f = document.createElement('textarea'); f.value = url; f.readOnly = true; f.style.cssText = 'position:fixed;opacity:0;font-size:16px';
+      (document.querySelector('dialog[open]') || document.body).appendChild(f); f.select(); f.setSelectionRange(0, url.length);
+      try { ok = document.execCommand('copy'); } catch {} f.remove();
+    }
+    toast(ok ? 'Link kopiert' : 'Bitte von Hand kopieren', !ok);
+    if (ok && knopf) { knopf.classList.add('fertig'); setTimeout(() => knopf.classList.remove('fertig'), 1600); }
+  }
+
+  // ---------- Zustand
+  let D = null, OFFEN = null;  // Daten vom Server, Schlüssel des offenen Projekts
+  let ANSICHT = ['alle', 'kommentare', 'aenderung', 'fertig'].includes(lies('sc-admin-ansicht')) ? lies('sc-admin-ansicht') : 'alle';
+  let KUNDE = null, SUCHE = '';
+  const aktiv = p => p.letzte || p.angelegt || '';  // nur echte Aktivität (Kommentare, Status), Neubauten der Seite zählen nicht
+  const SORTIERUNG = {
+    aktiv: (a, b) => (aktiv(b) || '').localeCompare(aktiv(a) || '') || a.titel.localeCompare(b.titel, 'de'),
+    name: (a, b) => a.titel.localeCompare(b.titel, 'de'),
+  };
+  let SORT = SORTIERUNG[lies('sc-admin-sort')] ? lies('sc-admin-sort') : 'aktiv';
+  const zaehle = p => {
+    const z = { frei: 0, aenderung: 0, offen: 0, kommentare: 0 };
+    p.videos.forEach(v => { if (v.status === 'freigegeben') z.frei++; else if (v.status === 'aenderung') z.aenderung++; else z.offen++; z.kommentare += v.offen; });
+    return z;
+  };
+  const summe = (P, k) => P.reduce((s, p) => s + zaehle(p)[k], 0);
+  // Menü der Seitenleiste (ohne „Ohne Rückmeldung“, Ole 14.11.2026)
+  const ANSICHTEN = {
+    alle: { t: 'Alle Links', i: 'link', f: () => true, n: P => P.length },
+    kommentare: { t: 'Offene Kommentare', i: 'comment', f: p => zaehle(p).kommentare > 0, n: P => summe(P, 'kommentare'), marke: true },
+    aenderung: { t: 'Änderung gewünscht', i: 'stift', f: p => zaehle(p).aenderung > 0, n: P => summe(P, 'aenderung'), orange: true },
+    fertig: { t: 'Komplett freigegeben', i: 'check', f: p => p.videos.length > 0 && zaehle(p).frei === p.videos.length, n: P => P.filter(p => p.videos.length > 0 && zaehle(p).frei === p.videos.length).length },
+  };
+  const KUNDEN_FARBEN = [['#48514A', '#fff'], ['#8F6E4E', '#fff'], ['#6F8574', '#fff'], ['#C4855A', '#fff'], ['#5E6B73', '#fff']];
+  const kundeVon = p => p.kunde || 'Ohne Kunde';
+  const gehoertZu = (p, k) => p.kunde_ordner === k.id || (!p.kunde_ordner && (p.kunde || '') === k.name);
+  const kundeIdVon = p => { const k = D.kunden.find(k => gehoertZu(p, k)); return k ? k.id : ''; };
+  const kundeMit = id => D && D.kunden.find(k => k.id === id);
+  const kundeFarbe = name => { if (/^stagecraft$/i.test(name)) return ['#E8DDD0', '#1E1E1C']; let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0; return KUNDEN_FARBEN[h % KUNDEN_FARBEN.length]; };
+  const kuerzel = name => /^stagecraft$/i.test(name) ? 'SC' : name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+
+  // ---------- Laden
+  let ladeUhr = null;
+  async function laden(still) {
+    clearTimeout(ladeUhr);
+    try {
+      D = await api('uebersicht');
+      zeigen('dashboard'); zeichnen(); kontoZeichnen();
+      if (OFFEN && $('projekt-dialog').open && !dialogBeschaeftigt()) projektZeichnen();
+    } catch (e) {
+      if (e instanceof NichtAngemeldet) { D = null; return zeigen('anmeldung'); }
+      if (!still) toast(e.message || 'Keine Verbindung', true);
+    }
+    // Läuft ein Auftrag, alle 4 s nachsehen, sonst alle 30 s (nur wenn die Seite sichtbar ist)
+    const laeuft = D && D.auftraege.some(a => a.laeuft);
+    ladeUhr = setTimeout(() => { if (!document.hidden) laden(true); }, laeuft ? 4000 : 30000);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && D) laden(true); });
+
+  function zeigen(was) {
+    $('anmeldung').hidden = was !== 'anmeldung'; $('dashboard').hidden = was !== 'dashboard';
+    $('kopf-knoepfe').hidden = was !== 'dashboard'; $('fuss-global').hidden = was === 'dashboard';
+    $('app').classList.toggle('im-dashboard', was === 'dashboard');
+    if (was === 'anmeldung') { const z = lies('sc-admin-zugang'); if (z) zugangWaehlen(z); }
+  }
+
+  // ---------- Anmeldung wie beim Aufgaben Dashboard (app.js dort: agentWaehlen, anmelden, geraetName)
+  const PERSON = { tess: 'Ole', alfred: 'Jonas' };
+  let WAHL = null;
+  function geraetName() {
+    const ua = navigator.userAgent;
+    const system = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'iPad'
+      : /Macintosh/.test(ua) ? 'Mac' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : 'Linux';
+    const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : '';
+    return `${system}${browser ? ' ' + browser : ''}`;
+  }
+  function zugangWaehlen(z) {
+    if (!PERSON[z]) return;
+    WAHL = z;
+    document.querySelectorAll('.agent').forEach(k => { const an = k.dataset.zugang === z; k.classList.toggle('an', an); k.setAttribute('aria-checked', String(an)); });
+    $('anmelde-feld').hidden = false; $('anmelde-name').value = PERSON[z];
+    setTimeout(() => $('passwort').focus(), 50);
+  }
+  document.querySelectorAll('.agent').forEach(k => k.addEventListener('click', () => { zugangWaehlen(k.dataset.zugang); $('anmelde-fehler').textContent = ''; }));
+  $('passwort').addEventListener('input', () => { $('anmelde-knopf').disabled = !$('passwort').value; });
+  $('anmelde-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const feld = $('passwort'), knopf = $('anmelde-knopf'), fehler = $('anmelde-fehler');
+    if (!WAHL || !feld.value || knopf.disabled) return;
+    knopf.disabled = true; knopf.classList.add('laedt'); fehler.textContent = '';
+    try {
+      let r;
+      try { r = await fetch('/api/admin/anmelden', { method: 'POST', cache: 'no-store', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zugang: WAHL, passwort: feld.value, geraet: geraetName() }) }); }
+      catch { throw new Error('Keine Verbindung, bitte nochmal versuchen.'); }
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 401) throw new Error('Passwort falsch.');
+      if (!r.ok) throw new Error(d.fehler || `Der Server antwortet nicht (Fehler ${r.status}).`);
+      merke('sc-admin-zugang', WAHL); feld.value = '';
+      await laden();
+    } catch (err) {
+      fehler.textContent = err.message;
+      const karte = $('anmelde-form'); karte.classList.remove('wackelt'); void karte.offsetWidth; karte.classList.add('wackelt');
+      feld.select();
+    } finally { knopf.classList.remove('laedt'); knopf.disabled = !feld.value; }
+  });
+
+  // Konto oben rechts: wer angemeldet ist, Abmelden (meldet das Gerät auch in der TESS App ab)
+  $('konto-knopf').addEventListener('click', e => {
+    e.stopPropagation(); const m = $('konto-menue'), k = $('konto-knopf');
+    if (!m.hidden) { m.hidden = true; return k.setAttribute('aria-expanded', 'false'); }
+    m.innerHTML = `<div class="menue-kopf"><b>Angemeldet als ${esc(D && D.ich ? D.ich.name : '')}</b><small>Browser StageView ${esc(geraetName())}</small></div>
+      <button type="button" data-abmelden><b>Abmelden</b></button>`;
+    m.hidden = false; k.setAttribute('aria-expanded', 'true');
+  });
+  async function abmelden() {
+    $('konto-menue').hidden = true; $('konto-knopf').setAttribute('aria-expanded', 'false');
+    try { await fetch('/api/admin/abmelden', { method: 'POST', credentials: 'same-origin' }); } catch {}
+    D = null; clearTimeout(ladeUhr); zeigen('anmeldung');
+  }
+  function kontoZeichnen() {
+    const z = D && D.ich ? D.ich.zugang : '';
+    $('konto-knopf').innerHTML = BILDER[z] ? `<img src="${BILDER[z]}" alt="">` : `<span style="font-weight:600">${esc((D && D.ich ? D.ich.name : '?')[0])}</span>`;
+    $('konto-knopf').title = D && D.ich ? 'Angemeldet als ' + D.ich.name : '';
+  }
+
+  // ---------- Übersicht zeichnen (Aufbau B)
+  function sichtbar() {
+    const s = SUCHE.trim().toLowerCase();
+    const k = KUNDE && kundeMit(KUNDE);
+    return D.projekte.filter(p => k ? gehoertZu(p, k) : ANSICHTEN[ANSICHT].f(p))
+      .filter(p => !s || [p.titel, p.kunde, p.firma, p.code, p.schluessel].some(x => String(x || '').toLowerCase().includes(s)))
+      .sort(SORTIERUNG[SORT]);
+  }
+  function zeichnen() {
+    const P = D.projekte;
+    $('sl-ansichten').innerHTML = Object.entries(ANSICHTEN).map(([k, a]) => {
+      const n = a.n(P), an = !KUNDE && ANSICHT === k;
+      const zahl = a.marke && n ? `<span class="n marke">${n}</span>` : `<span class="n${a.orange && n ? ' orange' : ''}">${n}</span>`;
+      return `<button type="button" class="sl-punkt${an ? ' an' : ''}" data-ansicht="${k}"${an ? ' aria-current="page"' : ''}>${icon(a.i, 19)}<span class="name">${a.t}</span>${zahl}</button>`;
+    }).join('');
+    if (KUNDE && !kundeMit(KUNDE)) KUNDE = null;  // gelöscht oder umbenannt
+    $('sl-kunden').innerHTML = `<div class="sl-titel-zeile sl-kunden-titel"><span class="sl-titel">Kunden</span><button type="button" class="sl-plus" data-kunde-neu title="Neuer Kunde" aria-label="Neuer Kunde">${icon('plus', 18)}</button></div>`
+      + D.kunden.map(k => {
+        const [c, t] = kundeFarbe(k.name), an = KUNDE === k.id;
+        return `<button type="button" class="sl-punkt${an ? ' an' : ''}${k.links ? '' : ' ohne'}" data-kunde="${esc(k.id)}"${an ? ' aria-current="page"' : ''}><span class="kunde-ava" style="--c:${c};--t:${t}">${esc(kuerzel(k.name))}</span><span class="name">${esc(k.name)}</span><span class="n">${k.links}</span></button>`;
+      }).join('') + `<button type="button" class="sl-punkt sl-neu-kunde" data-kunde-neu>${icon('plus', 16)}Neuer Kunde</button>`;
+    const ich = D.ich || {};
+    $('sl-konto').innerHTML = `<span class="bild">${BILDER[ich.zugang] ? `<img src="${BILDER[ich.zugang]}" alt="">` : esc((ich.name || '?')[0])}</span><b>${esc(ich.name || '')}</b><button type="button" data-abmelden>Abmelden</button>`;
+    const liste = sichtbar(), vids = liste.flatMap(p => p.videos), frei = vids.filter(v => v.status === 'freigegeben').length;
+    const gewaehlt = KUNDE && kundeMit(KUNDE);
+    $('h-titel').textContent = gewaehlt ? gewaehlt.name : ANSICHTEN[ANSICHT].t;
+    $('h-zahlen').textContent = [gewaehlt && gewaehlt.firma, mehrzahl(liste.length, 'Link', 'Links'), mehrzahl(vids.length, 'Video', 'Videos'), `${frei} von ${vids.length} freigegeben`].filter(Boolean).join(' · ');
+    $('kunde-aktionen').innerHTML = gewaehlt ? `<button type="button" class="pille klein" data-kunde-bearbeiten="${esc(gewaehlt.id)}" data-i="stift">Bearbeiten</button><button type="button" class="pille klein" data-kunde-loeschen="${esc(gewaehlt.id)}" data-i="muell">Löschen</button>` : '';
+    symbole($('kunde-aktionen')); symbole($('sl-kunden'));
+    auftraegeZeichnen();
+    const kopf = (k, t) => `<button type="button" data-sort="${k}" class="${SORT === k ? 'an' : ''}"${SORT === k ? ' aria-pressed="true"' : ''}>${t}${SORT === k ? icon('chevron-down', 14) : ''}</button>`;
+    $('liste').innerHTML = liste.length
+      ? `<div class="t-kopf">${kopf('name', 'Projekt')}<span>Freigabe</span><span>Kommentare</span>${kopf('aktiv', 'Aktivität')}<span></span></div>` + liste.map(zeile).join('')
+      : `<div class="nichts">${!P.length ? 'Noch keine Links. „Neuer Link“ legt den ersten an.' : SUCHE ? 'Nichts gefunden.' : 'Hier ist gerade nichts.'}</div>`;
+    symbole($('liste'));
+  }
+
+  function zeile(p) {
+    const z = zaehle(p), n = p.videos.length;
+    const quer = n && p.videos.every(v => (v.seitenverhaeltnis || 0) >= 1);
+    const bilder = !n ? '<span class="warte"><span class="kreis"></span></span>'
+      : quer ? `<img class="quer" src="${bild(p.videos[0], 200)}" alt="" loading="lazy">`
+      : p.videos.slice(0, 3).map(v => `<img src="${bild(v, 120)}" alt="" loading="lazy">`).join('');
+    const wer = [kundeVon(p), p.firma, n ? mehrzahl(n, 'Video', 'Videos') : p.wartend ? `${p.wartend} bei Mux` : ''].filter(Boolean).join(' · ');
+    const teile = [['var(--frei)', z.frei], ['var(--aenderung)', z.aenderung], ['#3A3A35', z.offen]].filter(([, k]) => k);
+    const balken = n ? `<div class="z-balken" aria-hidden="true">${teile.map(([c, k]) => `<span style="flex:${k};--c:${c}"></span>`).join('')}</div>` : '';
+    const freiText = n ? `${z.frei} von ${n}${z.aenderung ? ' · ' + mehrzahl(z.aenderung, 'Änderung', 'Änderungen') : ''}` : p.wartend ? 'Mux bereitet die Videos vor' : '';
+    const schmal = (z.kommentare ? ` · <b style="color:var(--offen);font-weight:600">${mehrzahl(z.kommentare, 'offener Kommentar', 'offene Kommentare')}</b>` : '') + (p.letzte ? ' · ' + wann(p.letzte) : '');
+    const komm = z.kommentare ? `<button type="button" class="chip" style="--c:var(--offen)" data-bearbeiten="${esc(p.schluessel)}" data-ziel="kommentare">${z.kommentare} offen</button>` : '<span class="keine">keine</span>';
+    return `<article class="zeile" data-zeile="${esc(p.schluessel)}">
+      <div class="z-projekt"><div class="z-bilder">${bilder}</div><div class="z-text"><button type="button" class="z-titel" data-bearbeiten="${esc(p.schluessel)}">${esc(p.titel)}</button><div class="z-wer">${esc(wer)}</div>${p.code ? `<div class="z-link">${icon('link', 13)}<span class="dom">videos.stagecraft.media/</span><span class="code">${esc(p.code)}</span></div>` : ''}</div></div>
+      <div class="z-freigabe">${balken}<div class="z-klein">${freiText}<span class="nur-schmal">${schmal}</span></div></div>
+      <div class="z-komm">${komm}</div>
+      <div class="z-aktiv">${p.letzte ? wann(p.letzte) : 'noch keine'}</div>
+      <div class="z-knoepfe">${p.link ? `<button type="button" class="rund" data-kopieren="${esc(p.link)}" data-i="kopieren" title="Link kopieren" aria-label="Link kopieren"></button><a class="rund nur-breit" href="${esc(p.link)}" target="_blank" rel="noopener" data-i="oeffnen" title="Öffnen" aria-label="Öffnen"></a>` : ''}<button type="button" class="rund" data-bearbeiten="${esc(p.schluessel)}" data-i="menu-horizontal" title="Bearbeiten" aria-label="${esc(p.titel)} bearbeiten"></button></div>
+    </article>`;
+  }
+
+  function auftraegeZeichnen() {
+    const grenze = Date.now() - 2 * 3600e3, weg = JSON.parse(lies('sc-admin-weg') || '[]');
+    const liste = D.auftraege.filter(a => a.laeuft || (new Date(a.start) > grenze && !weg.includes(a.id)));
+    const ARTEN = { neu: 'Neuer Link', dazu: 'Videos dazu' };  // Titel: bei „dazu“ das Projekt
+    $('auftraege').innerHTML = liste.map(a => {
+      const titel = `${ARTEN[a.art] || 'Auftrag'}: ${esc(a.titel)}`;
+      if (a.laeuft) return `<div class="auftrag"><span class="kreis"></span><div class="text"><b>${titel}</b><small>${esc(schoen(a.zuletzt))}</small></div></div>`;
+      if (a.ok) return `<div class="auftrag"><span class="ok" data-i="check"></span><div class="text"><b>${titel}</b><small>${a.link ? 'Fertig · ' + esc(kurz(a.link)) : 'Fertig'}</small></div>
+        ${a.link ? `<button type="button" class="rund klein" data-kopieren="${esc(a.link)}" data-i="kopieren" title="Link kopieren" aria-label="Link kopieren"></button><a class="rund klein" href="${esc(a.link)}" target="_blank" rel="noopener" data-i="oeffnen" title="Öffnen" aria-label="Öffnen"></a>` : ''}
+        <button type="button" class="rund klein weg" data-weg="${esc(a.id)}" data-i="x-mark" title="Ausblenden" aria-label="Ausblenden"></button></div>`;
+      return `<div class="auftrag fehler"><div class="text"><b>${titel}</b><small>Hat nicht geklappt: ${esc(a.fehler || 'unbekannter Fehler')}</small></div>
+        <button type="button" class="rund klein weg" data-weg="${esc(a.id)}" data-i="x-mark" title="Ausblenden" aria-label="Ausblenden"></button></div>`;
+    }).join('');
+    symbole($('auftraege'));
+  }
+  // Protokollzeilen von stageview lesbar machen
+  function schoen(z) {
+    z = String(z || '');
+    let m = z.match(/warte auf Mux: (.*)/); if (m) { const p = [...m[1].matchAll(/(\d+) %/g)].map(x => +x[1]); return p.length ? `Mux bereitet vor: ${Math.round(p.reduce((a, b) => a + b, 0) / p.length)} %` : 'Mux bereitet vor'; }
+    if (/zu Mux/.test(z)) return 'Videos gehen zu Mux';
+    if (/^Link:/.test(z)) return 'Link steht, Mux startet';
+    if (/Mux fertig/.test(z)) return 'Mux fertig, Seite wird gebaut';
+    return z || 'startet';
+  }
+
+  // ---------- Klicks in der Übersicht
+  document.addEventListener('click', e => {
+    const k = e.target.closest('[data-kopieren]'); if (k) { e.preventDefault(); return kopieren(k.dataset.kopieren, k); }
+    const b = e.target.closest('[data-bearbeiten]'); if (b) return projektAuf(b.dataset.bearbeiten, b.dataset.ziel);
+    const a = e.target.closest('[data-ansicht]'); if (a) { ANSICHT = a.dataset.ansicht; KUNDE = null; merke('sc-admin-ansicht', ANSICHT); return zeichnen(); }
+    const ku = e.target.closest('[data-kunde]'); if (ku) { KUNDE = KUNDE === ku.dataset.kunde ? null : ku.dataset.kunde; return zeichnen(); }
+    const so = e.target.closest('[data-sort]'); if (so) { SORT = so.dataset.sort; merke('sc-admin-sort', SORT); return zeichnen(); }
+    if (e.target.closest('[data-neu]')) return neuAuf();
+    if (e.target.closest('[data-kunde-neu]')) return kundeDialog(null);
+    const kb = e.target.closest('[data-kunde-bearbeiten]'); if (kb) return kundeDialog(kb.dataset.kundeBearbeiten);
+    const kl = e.target.closest('[data-kunde-loeschen]'); if (kl) return kundeLoeschen(kl.dataset.kundeLoeschen);
+    if (e.target.closest('[data-abmelden]')) return abmelden();
+    const w = e.target.closest('[data-weg]'); if (w) { const weg = JSON.parse(lies('sc-admin-weg') || '[]'); weg.push(w.dataset.weg); merke('sc-admin-weg', JSON.stringify(weg.slice(-40))); return auftraegeZeichnen(); }
+    if (!e.target.closest('.status-wahl')) { $('konto-menue').hidden = true; $('konto-knopf').setAttribute('aria-expanded', 'false'); }
+  });
+  $('suche').addEventListener('input', e => { SUCHE = e.target.value; zeichnen(); });
+  // Tipp irgendwo auf die Zeile öffnet Bearbeiten. Der Listener hängt an der Liste selbst, sonst schickt das iPhone für normale Flächen keinen Klick
+  $('liste').addEventListener('click', e => { const z = e.target.closest('[data-zeile]'); if (z && !e.target.closest('a, button')) projektAuf(z.dataset.zeile); });
+
+  // ---------- Projekt bearbeiten
+  const projekt = s => D && D.projekte.find(p => p.schluessel === s);
+  function projektAuf(s, ziel) {
+    OFFEN = s; projektZeichnen(); fensterAuf($('projekt-dialog'));
+    const inhalt = $('p-inhalt');
+    if (ziel === 'kommentare') requestAnimationFrame(() => { const h = $('p-kommentare'); if (h) inhalt.scrollTop = h.offsetTop - 12; });
+    else inhalt.scrollTop = 0;
+  }
+  // Während man tippt, nichts neu zeichnen
+  function dialogBeschaeftigt() {
+    const d = $('projekt-dialog'), a = document.activeElement;
+    return (a && d.contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) || d.querySelector('.kopf-form.geaendert') || d.querySelector('.speichert');
+  }
+  function projektZeichnen() {
+    const p = projekt(OFFEN); const inhalt = $('p-inhalt');
+    if (!p) { $('projekt-dialog').close(); return; }
+    const oben = inhalt.scrollTop;
+    $('p-titel').textContent = p.titel;
+    const linkVideo = v => `${p.link}/${v.nr}`;
+    const laufend = D.auftraege.filter(a => a.laeuft && a.code === p.code);
+    const titelNach = new Map(p.videos.map(v => [v.id, v]));
+    inhalt.innerHTML = `
+      <form class="felder kopf-form" id="kopf-form">
+        <label class="feld breit"><span>Titel</span><input class="eingabe-feld" name="titel" maxlength="120" required value="${esc(p.titel)}"></label>
+        <label class="feld"><span>Kunde</span><select class="eingabe-feld" name="kunde_id">${D.kunden.map(k => `<option value="${esc(k.id)}"${k.id === kundeIdVon(p) ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select></label>
+        <label class="feld"><span>Firma oder Zusatz</span><input class="eingabe-feld" name="firma" maxlength="80" value="${esc(p.firma)}"></label>
+        <label class="feld breit"><span>Hinweis oben auf der Seite (leer lassen für den Standard Text)</span><textarea class="eingabe-feld" name="hinweis" rows="2" maxlength="400">${esc(p.hinweis)}</textarea></label>
+        <div class="form-fuss"><span class="leise">Der Link bleibt immer gleich, auch wenn sich der Titel ändert.</span><button class="primaer" type="submit" disabled>Speichern</button></div>
+      </form>
+      ${p.link ? `<h4>Link</h4><div class="d-link"><div class="k-link"><span>${esc(kurz(p.link))}</span><button type="button" data-kopieren="${esc(p.link)}" data-i="kopieren">Kopieren</button></div>
+        <a class="rund" href="${esc(p.link)}" target="_blank" rel="noopener" data-i="oeffnen" title="Öffnen" aria-label="Öffnen"></a></div>` : ''}
+      <h4>Videos <span class="n">${p.videos.length}</span></h4>
+      ${p.videos.length ? `<ul class="v-liste">${p.videos.map(v => `
+        <li class="v-zeile">
+          <a class="v-bild${v.seitenverhaeltnis >= 1 ? ' quer' : ''}" href="${esc(linkVideo(v))}" target="_blank" rel="noopener" aria-label="Video ${v.nr} öffnen"><img src="${bild(v, 160)}" alt="" loading="lazy"></a>
+          <div class="v-mitte">
+            <div class="v-titel"><span class="nr">${v.nr}</span><input value="${esc(v.titel)}" data-nr="${v.nr}" data-alt="${esc(v.titel)}" maxlength="120" aria-label="Titel von Video ${v.nr}" enterkeyhint="done"></div>
+            <div class="v-meta"><span class="punkt" style="--c:${STATUS[v.status].c}"></span>${STATUS[v.status].t} · ${zeit(v.dauer)}${v.offen ? ` · <span class="offen">${mehrzahl(v.offen, 'offener Kommentar', 'offene Kommentare')}</span>` : ''}</div>
+          </div>
+          <div class="v-knoepfe">
+            <button type="button" class="rund klein" data-kopieren="${esc(linkVideo(v))}" data-i="kopieren" title="Link zum Video kopieren" aria-label="Link zum Video kopieren"></button>
+            <a class="rund klein nur-gross" href="${esc(linkVideo(v))}" target="_blank" rel="noopener" data-i="oeffnen" title="Video öffnen" aria-label="Video öffnen"></a>
+            <button type="button" class="rund klein" data-entfernen="${v.nr}" data-i="muell" title="Von der Seite nehmen" aria-label="Von der Seite nehmen"></button>
+          </div>
+        </li>`).join('')}</ul>` : '<div class="leer">Noch keine Videos online.</div>'}
+      ${p.wartend ? `<p class="hilfe">${mehrzahl(p.wartend, 'Video ist', 'Videos sind')} noch bei Mux und ${p.wartend === 1 ? 'erscheint' : 'erscheinen'} gleich von selbst.</p>` : ''}
+      ${laufend.map(a => `<div class="auftrag" style="margin-top:10px;background:var(--panel-2)"><span class="kreis"></span><div class="text"><b>Videos dazu</b><small>${esc(schoen(a.zuletzt))}</small></div></div>`).join('')}
+      ${p.code ? `<h4>Videos dazu</h4>
+      <form class="dazu-form" id="dazu-form">
+        <input class="eingabe-feld" name="quellen" required placeholder="Drive Link zu Ordner oder Video" autocomplete="off">
+        <input class="eingabe-feld titel-feld" name="titel" maxlength="120" placeholder="Titel (optional)" autocomplete="off">
+        <button class="primaer" type="submit" data-i="plus">Dazu</button>
+      </form>
+      <p class="hilfe">Neue Schnittfassung? Einfach dazu, die alte bleibt mit ihren Kommentaren daneben stehen. Nur Videos, die es noch nicht gibt, gehen zu Mux.</p>` : ''}
+      <h4 id="p-kommentare">Offene Kommentare <span class="n">${p.kommentare.length}</span></h4>
+      ${p.kommentare.length ? `<ul class="km-liste">${p.kommentare.map(k => { const v = titelNach.get(k.video); return `<li><a href="${esc(linkVideo({ nr: k.nr }))}${k.zeit != null ? '?t=' + Math.floor(k.zeit) : ''}" target="_blank" rel="noopener">
+          <div class="km-kopf"><b>${esc(k.name)}</b>${k.rolle === 'team' ? ' · Stagecraft' : ''} · ${esc(v ? v.titel : 'Video ' + k.nr)}${k.zeit != null ? ` <span class="zeit">${zeit(k.zeit)}</span>` : ''} · ${wann(k.erstellt)}</div>
+          <p class="km-text">${esc(k.text)}</p></a></li>`; }).join('')}</ul>
+        <p class="hilfe">Tippen öffnet das Video an der Stelle. Dort antworten und abhaken, du bist als Stagecraft angemeldet.</p>`
+        : '<div class="leer">Keine offenen Kommentare.</div>'}`;
+    symbole(inhalt);
+    inhalt.scrollTop = oben;
+  }
+
+  // Kopf speichern: Knopf erst aktiv, wenn sich etwas geändert hat
+  $('p-inhalt').addEventListener('input', e => {
+    const f = e.target.closest('#kopf-form'); if (!f) return;
+    const p = projekt(OFFEN); const fd = new FormData(f);
+    if (e.target.name === 'kunde_id') { const k = kundeMit(e.target.value); if (k) f.elements.firma.value = k.firma; }  // Firma vom gewählten Kunden vorschlagen
+    const anders = fd.get('kunde_id') !== kundeIdVon(p) || ['titel', 'firma', 'hinweis'].some(k => (new FormData(f).get(k) || '').trim() !== (p[k] || '').trim());
+    f.classList.toggle('geaendert', anders); f.querySelector('[type="submit"]').disabled = !anders || !(fd.get('titel') || '').trim();
+  });
+  $('p-inhalt').addEventListener('submit', async e => {
+    e.preventDefault(); const f = e.target, p = projekt(OFFEN), knopf = f.querySelector('[type="submit"]');
+    const fd = new FormData(f); knopf.disabled = true;
+    if (f.id === 'kopf-form') {
+      const body = {}; ['titel', 'firma', 'hinweis'].forEach(k => { const w = (fd.get(k) || '').trim(); if (w !== (p[k] || '').trim()) body[k] = w; });
+      if (fd.get('kunde_id') && fd.get('kunde_id') !== kundeIdVon(p)) body.kunde_id = fd.get('kunde_id');
+      knopf.textContent = 'Speichert …'; f.classList.add('speichert');
+      try { await api('projekt/' + p.code, { method: 'POST', body }); f.classList.remove('geaendert', 'speichert'); toast('Gespeichert, die Seite ist aktualisiert'); await laden(true); projektZeichnen(); }
+      catch (err) { f.classList.remove('speichert'); knopf.textContent = 'Speichern'; knopf.disabled = false; toast(err.message, true); }
+    }
+    if (f.id === 'dazu-form') {
+      try {
+        await api(`projekt/${p.code}/dazu`, { method: 'POST', body: { quellen: fd.get('quellen'), titel: fd.get('titel') } });
+        toast('Läuft, Mux braucht ein paar Minuten'); f.reset(); await laden(true); projektZeichnen();
+      } catch (err) { toast(err.message, true); knopf.disabled = false; }
+    }
+  });
+  // Videotitel: speichern mit Enter oder beim Verlassen des Feldes
+  async function titelSpeichern(feld) {
+    const neu = feld.value.trim(), alt = feld.dataset.alt, p = projekt(OFFEN);
+    if (!neu) { feld.value = alt; return; }
+    if (neu === alt || feld.classList.contains('speichert')) return;
+    feld.classList.add('speichert'); feld.dataset.alt = neu;
+    try { await api(`projekt/${p.code}/video/${feld.dataset.nr}`, { method: 'POST', body: { titel: neu } }); toast('Titel gespeichert'); }
+    catch (err) { feld.dataset.alt = alt; feld.value = alt; toast(err.message, true); }
+    feld.classList.remove('speichert');
+    await laden(true);
+  }
+  $('p-inhalt').addEventListener('keydown', e => {
+    const feld = e.target.closest('.v-titel input'); if (!feld) return;
+    if (e.key === 'Enter') { e.preventDefault(); feld.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); feld.value = feld.dataset.alt; feld.blur(); }
+  });
+  $('p-inhalt').addEventListener('focusout', e => { const feld = e.target.closest('.v-titel input'); if (feld) titelSpeichern(feld); });
+  $('p-inhalt').addEventListener('click', async e => {
+    const b = e.target.closest('[data-entfernen]'); if (!b) return;
+    const p = projekt(OFFEN), v = p.videos.find(x => String(x.nr) === b.dataset.entfernen);
+    if (!await frage('Von der Seite nehmen?', `„${v.titel}“ verschwindet von der Seite. Das Video im Drive, bei Mux und alle Kommentare bleiben, die Nummer ${v.nr} wird nie neu vergeben.`, 'Entfernen')) return;
+    try { await api(`projekt/${p.code}/video/${v.nr}/entfernen`, { method: 'POST', body: {} }); toast('Von der Seite genommen'); await laden(true); projektZeichnen(); }
+    catch (err) { toast(err.message, true); }
+  });
+  $('projekt-dialog').addEventListener('close', () => { OFFEN = null; });
+
+  // ---------- Neuer Link
+  function neuAuf() {
+    $('neu-kunde').innerHTML = '<option value="" disabled selected>Kunde wählen …</option>'
+      + D.kunden.map(k => `<option value="${esc(k.id)}"${k.id === KUNDE ? ' selected' : ''}>${esc(k.name)}${k.firma ? ' · ' + esc(k.firma) : ''}</option>`).join('')
+      + '<option value="__neu__">Neuen Kunden anlegen …</option>';
+    $('neu-kunde-felder').hidden = true;
+    fensterAuf($('neu-dialog')); setTimeout(() => $('neu-form').titel.focus(), 60);
+  }
+  $('neu-kunde').addEventListener('change', e => {
+    const neu = e.target.value === '__neu__'; $('neu-kunde-felder').hidden = !neu;
+    if (neu) setTimeout(() => $('neu-form').elements.neu_name.focus(), 30);
+  });
+  $('neu-form').addEventListener('submit', async e => {
+    e.preventDefault(); const f = e.target, knopf = f.querySelector('[type="submit"]'), fd = new FormData(f);
+    if (!fd.get('kunde')) return toast('Bitte einen Kunden wählen', true);
+    knopf.disabled = true;
+    try {
+      let kunde = fd.get('kunde');
+      if (kunde === '__neu__') {  // neuen Kunden zuerst anlegen, dann den Link für ihn
+        if (!(fd.get('neu_name') || '').trim()) throw new Error('Name des neuen Kunden fehlt');
+        const r = await api('kunden', { method: 'POST', body: { name: fd.get('neu_name'), firma: fd.get('neu_firma') } });
+        kunde = r.id;
+      }
+      await api('neu', { method: 'POST', body: { titel: fd.get('titel'), kunde, quellen: fd.get('quellen'), unterordner: !!fd.get('unterordner'), dreh: fd.get('dreh') } });
+      f.reset(); $('neu-dialog').close(); toast('Läuft, der Link erscheint gleich oben'); await laden(true); scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) { toast(err.message, true); }
+    knopf.disabled = false;
+  });
+
+  // ---------- Kunden: anlegen, bearbeiten (gilt für alle Links des Kunden), löschen (nur ohne Links)
+  let KUNDE_EDIT = null;
+  function kundeDialog(id) {
+    const k = id ? kundeMit(id) : null, f = $('kunde-form'); KUNDE_EDIT = k ? k.id : null;
+    f.reset(); f.elements.kunde_name.value = k ? k.name : ''; f.elements.kunde_firma.value = k ? k.firma : '';
+    $('ku-titel').textContent = k ? 'Kunde bearbeiten' : 'Neuer Kunde';
+    f.querySelector('[type="submit"]').textContent = k ? 'Speichern' : 'Anlegen';
+    $('kunde-hilfe').textContent = !k ? 'Neue Kunden gibt es nur in StageView, das Kundenregister im Content Brain bleibt, wie es ist.'
+      : k.links ? `Gilt für ${mehrzahl(k.links, 'Link', 'Links')}, die Seiten werden dabei neu gebaut.` : 'Bei diesem Kunden gibt es noch keinen Link.';
+    fensterAuf($('kunde-dialog')); setTimeout(() => f.elements.kunde_name.focus(), 60);
+  }
+  $('kunde-form').addEventListener('submit', async e => {
+    e.preventDefault(); const f = e.target, knopf = f.querySelector('[type="submit"]'), text = knopf.textContent;
+    knopf.disabled = true; knopf.textContent = KUNDE_EDIT ? 'Speichert …' : 'Legt an …';
+    try {
+      const body = { name: f.elements.kunde_name.value, firma: f.elements.kunde_firma.value };
+      if (KUNDE_EDIT) { await api('kunden/' + KUNDE_EDIT, { method: 'POST', body }); toast('Kunde gespeichert'); }
+      else { const r = await api('kunden', { method: 'POST', body }); toast('Kunde angelegt'); if (r.id) KUNDE = r.id; }
+      $('kunde-dialog').close(); await laden(true);
+    } catch (err) { toast(err.message, true); }
+    knopf.disabled = false; knopf.textContent = text;
+  });
+  async function kundeLoeschen(id) {
+    const k = kundeMit(id); if (!k) return;
+    if (k.links) return toast(`${k.name} hat noch ${mehrzahl(k.links, 'Link', 'Links')}. Erst einem anderen Kunden zuteilen, dann löschen.`, true);
+    if (!await frage('Kunden löschen?', k.quelle === 'content-brain' ? `${k.name} verschwindet aus StageView. Im Content Brain bleibt der Kunde, wie er ist.` : `${k.name} verschwindet aus StageView.`, 'Löschen')) return;
+    try { await api(`kunden/${id}/loeschen`, { method: 'POST', body: {} }); toast('Kunde gelöscht'); KUNDE = null; await laden(true); }
+    catch (err) { toast(err.message, true); }
+  }
+
+  // ---------- Start: der Server weiß, ob das Cookie noch gilt (Brücke der TESS App)
+  laden();
+</script>
+</body>
+</html>

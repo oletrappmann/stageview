@@ -1,0 +1,1727 @@
+<!doctype html>
+<html lang="de" data-farbe="dunkel">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="dark">
+<!--KOPF-->
+<link rel="preconnect" href="https://stream.mux.com">
+<link rel="preconnect" href="https://image.mux.com">
+<script src="https://cdn.jsdelivr.net/npm/media-chrome@4.19.4/dist/iife/all.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mux/mux-video@0.31.6/dist/mux-video.js"></script>
+<style>
+  /* Projektseite (Content Day) wie ein Pixieset Link, seit 12.11.2026.
+     Oben Titel des Content Days, darunter alle Videos als Kacheln. Tippen öffnet die Videoseite
+     (Steuerung unter dem Video, Kommentare rechts bzw. darunter, darunter die weiteren Videos).
+     Daten: projekt.json im selben Ordner (gebaut von portal/daten.py), Kommentare und Status: /api/<ordner>/ (server/videos_api.py).
+     Quelle: STAGECRAFT_VIDEOPLAYER/portal/projekt.html */
+  :root { --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  :root[data-farbe="dunkel"] {
+    --bg: #121211; --viewer: #050505; --panel: #1E1E1C; --panel-2: #2A2A27; --panel-3: #34342F; --linie: rgba(255,255,255,.08);
+    --text: #F3F2EE; --muted: rgba(243,242,238,.56); --leise: rgba(243,242,238,.36);
+    --akzent: #93AA98; --knopf: #48514A; --knopf-text: #fff; --spur: rgba(255,255,255,.14); --glas: rgba(38,38,36,.55); --logo: invert(1); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+  /* Nie seitlich scrollen oder wischen (Ole, 13.11.2026) */
+  html, body { overflow-x: clip; }
+  .app { touch-action: pan-y pinch-zoom; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  a { color: inherit; }
+  svg.i { width: var(--s, 24px); height: var(--s, 24px); display: block; flex: none; }
+  [hidden] { display: none !important; }
+  .app { --app-h: 100svh; container: app / inline-size; min-height: 100svh; position: relative; overflow-x: clip; }
+  .label { font-weight: 500; font-size: 14px; letter-spacing: -.1px; color: var(--muted); }
+  .rund { width: 44px; height: 44px; border-radius: 50%; background: var(--panel-2); display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text); --s: 24px; transition: background .15s; text-decoration: none; flex: none; }
+  .rund:hover { background: var(--panel-3); }
+
+  /* ================= Übersicht (wie Pixieset) */
+  .leiste { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); background: color-mix(in srgb, var(--bg) 84%, transparent);
+    backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); }
+  .logo { display: block; line-height: 0; }
+  /* Seitenlogo StageView (seit 13.11.2026, Ole): weiß, darum ohne Umkehr Filter. Als Symbol fest in der Seite, eingesetzt von logo_symbol() in daten.py */
+  .logo-bild { display: block; aspect-ratio: 341 / 42; width: auto; fill: #fff; }
+  .logo .logo-bild { height: 13px; width: 106px; }  /* Ole: kleiner (20, dann 15 px) */
+  .leiste .mitte-titel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-weight: 600; font-size: 15px; opacity: 0;
+    transition: opacity .2s; white-space: nowrap; pointer-events: none; max-width: 46cqw; overflow: hidden; text-overflow: ellipsis; }
+  .leiste.mit-titel .mitte-titel { opacity: 1; }
+  .knoepfe { display: flex; gap: 8px; align-items: center; }
+  .leiste .rund { width: 40px; height: 40px; --s: 22px; }
+  /* Teilen oben in der Übersicht ausgeschrieben (Ole, 13.11.), auf der Videoseite bleibt der kleine runde Knopf */
+  .pille { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 16px 0 12px; border-radius: 999px; background: var(--panel-2);
+    color: var(--text); font-size: 15px; font-weight: 600; --s: 20px; transition: background .15s; white-space: nowrap; }
+  .pille:hover { background: var(--panel-3); }
+  /* Am Handy ist neben dem großen Logo kein Platz für den Titel in der Mitte */
+  @container app (max-width: 639px) { .leiste .mitte-titel { display: none; } }
+  .held { position: relative; padding: 36px 16px 30px; text-align: center; }
+  /* Verlauf oben (Ole, 13.11.2026): überall derselbe im Stagecraft Grün (forest #48514A, Salbei #93AA98), nicht mehr aus dem ersten Video */
+  .held .ambient { position: absolute; left: 0; right: 0; top: -80px; height: calc(100% + 80px);
+    background: radial-gradient(42% 60% at 34% 42%, rgba(147,170,152,.95), transparent 72%),
+                radial-gradient(46% 64% at 68% 36%, rgba(72,96,78,1), transparent 74%),
+                radial-gradient(70% 80% at 50% 30%, rgba(72,81,74,.45), transparent 80%);
+    filter: blur(50px) saturate(2.2); opacity: .85; z-index: 0; pointer-events: none;
+    -webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent); mask-image: linear-gradient(to bottom, #000 30%, transparent); }
+  .held > :not(.ambient) { position: relative; }
+  .held h1 { font-size: clamp(36px, 8cqw, 68px); letter-spacing: -.035em; line-height: 1.02; font-weight: 650; margin: 12px 0 14px; text-wrap: balance; }
+  .fortschritt { display: flex; gap: 3px; width: min(320px, 80%); margin: 24px auto 0; }
+  .fortschritt span { flex: 1; height: 4px; border-radius: 2px; background: var(--c, var(--spur)); transition: background .3s; }
+  .fortschritt-text { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); margin-top: 9px; }
+  .hinweis { margin: 18px auto 0; max-width: 440px; color: var(--leise); font-size: 13.5px; text-wrap: balance; }
+  /* Sortierung über den Videos (Ole, 13.11.2026): Posting Datum, zuletzt hinzugefügt, Name, Freigabe. Wahl merkt sich das Gerät */
+  .sortier-leiste { display: flex; justify-content: flex-end; max-width: 1360px; margin: 0 auto; padding: 0 16px 10px; }
+  @container app (min-width: 640px) { .sortier-leiste { padding: 0 24px 12px; } }
+  .sortier-knopf { height: 38px; padding: 0 10px 0 14px; gap: 4px; font-size: 14px; font-weight: 500; --s: 18px; }
+  .sortier-knopf .leise { color: var(--muted); }
+  .sortier-knopf svg { color: var(--muted); }
+  .sortier-menue { width: 290px; }
+  .sortier-menue button svg { color: var(--akzent); }
+  .raster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 10px; padding: 8px 16px 40px; max-width: 1360px; margin: 0 auto; }
+  @container app (min-width: 640px) { .raster { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 30px 16px; padding: 12px 24px 56px; } }
+  @container app (min-width: 980px) { .raster { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  @container app (min-width: 1300px) { .raster { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+  .kachel { display: block; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  .kachel .bild { position: relative; aspect-ratio: 3 / 4; border-radius: 16px; overflow: hidden; background: var(--panel-2); isolation: isolate; }
+  .kachel .bild img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .5s cubic-bezier(.2,.7,.2,1), opacity .25s; }
+  .kachel:hover .bild img { transform: scale(1.035); }
+  .kachel .bewegt { opacity: 0; }
+  /* Querformat in der 3:4 Kachel: das ganze Bild, dahinter dasselbe Bild groß und weich (13.11.2026) */
+  .kachel .bild.quer img.still, .kachel .bild.quer img.bewegt { object-fit: contain; }
+  .kachel .bild.quer img.hinten { object-fit: cover; filter: blur(22px) saturate(1.3) brightness(.55); transform: scale(1.25); }
+  .kachel:hover .bild.quer img.hinten { transform: scale(1.25); }
+  .kachel.vorschau .bewegt { opacity: 1; }
+  /* Nur Querformat Videos im Projekt (z.B. ein YouTube Video, Ole 13.11.2026): Vorschau im klassischen 16:9 ohne Rand,
+     am Handy ein Video pro Reihe über die ganze Breite, am Rechner zwei bis drei nebeneinander. Gemischte Projekte bleiben 3:4 */
+  .app.alles-quer .kachel .bild { aspect-ratio: 16 / 9; }
+  .app.alles-quer .kachel .bild.quer img.still, .app.alles-quer .kachel .bild.quer img.bewegt { object-fit: cover; }
+  .app.alles-quer .kachel .bild.quer img.hinten { display: none; }
+  .app.alles-quer .raster { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  @container app (min-width: 640px) { .app.alles-quer .raster { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 18px; } }
+  @container app (min-width: 1100px) { .app.alles-quer .raster { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .kachel .dauer, .kachel .kz, .kachel .naechstes { position: absolute; z-index: 2; font-size: 12px; font-weight: 600; color: #fff;
+    background: rgba(18,18,17,.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 999px; }
+  .kachel .dauer { right: 8px; bottom: 8px; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12px; padding: 3px 8px; }
+  .kachel .kz { right: 8px; top: 8px; display: inline-flex; gap: 4px; align-items: center; padding: 3px 9px 3px 7px; --s: 14px; }
+  .kachel .naechstes { left: 8px; top: 8px; padding: 4px 10px; background: var(--knopf); font-size: 11.5px; }
+  .kachel h3 { font-size: 14.5px; font-weight: 600; margin: 10px 2px 2px; line-height: 1.3; letter-spacing: -.1px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .kachel .meta { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); margin: 0 2px; white-space: nowrap; overflow: hidden; }
+  .punkt { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; }
+  .fuss { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 16px 56px; color: var(--leise); font-size: 12.5px; }
+  /* Fußzeile "Made by Stagecraft" als Schriftzug (Oles Datei, 13.11.2026), fest in der Seite wie das StageView Logo */
+  .fuss .made-bild { display: block; width: 110px; height: 25px; color: #fff; opacity: .5; }  /* "Made by" + Stagecraft Logo (Ole, 13.11.2026), oben StageView */  /* unten bleibt das Stagecraft Logo (Ole, 13.11.2026), oben StageView */
+
+  /* ================= Videoseite (Entwurf vom 12.11., abgenommen) */
+  .kopf { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 92px minmax(0, 1fr) 92px; align-items: center; gap: 8px;
+    padding: 12px 16px 10px; padding-top: max(12px, env(safe-area-inset-top)); background: var(--bg); }
+  .kopf .links { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .kopf .rechts { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+  .kopf .rund { width: 42px; height: 42px; }
+  .titel { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; }
+  .titel .projekt-name { display: none; font-size: 13px; color: var(--muted); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .titel .projekt-name:hover { color: var(--text); }
+  .titel h1 { margin: 0; font-size: 15.5px; line-height: 1.25; font-weight: 600; letter-spacing: -.1px; text-align: center; max-width: 100%;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  /* Freigabe Status: großer Knopf mit Menü. Rechner oben rechts neben Download, Handy breit unter der Steuerung (seit 12.11. abends, Ole: größer) */
+  .status-wahl { position: relative; }
+  .status-wahl.oben { display: none; }
+  .status-zeile { display: flex; gap: 8px; align-items: stretch; background: var(--panel); padding: 4px 16px 8px; }
+  .status-wahl.unten { flex: 1; min-width: 0; }
+  .k-knopf { position: relative; width: 54px; height: 54px; border-radius: 16px; background: var(--panel-2); display: inline-flex; align-items: center;
+    justify-content: center; --s: 24px; flex: none; color: var(--text); transition: background .15s; }
+  .k-knopf:hover { background: var(--panel-3); }
+  .k-knopf .zahl { position: absolute; top: 7px; right: 6px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--akzent);
+    color: var(--panel); font-size: 10.5px; font-weight: 700; line-height: 17px; text-align: center; font-variant-numeric: tabular-nums; }
+  .status-knopf { display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px 0 16px; border-radius: 999px; white-space: nowrap;
+    background: color-mix(in srgb, var(--c, #D9C3A5) 22%, var(--panel-2)); font-size: 14.5px; font-weight: 600; --s: 18px; transition: background .2s; }
+  .status-knopf:hover { background: color-mix(in srgb, var(--c, #D9C3A5) 32%, var(--panel-2)); }
+  .status-knopf .punkt { width: 10px; height: 10px; }
+  .status-knopf .aendern { display: none; margin-left: auto; color: var(--muted); font-weight: 500; font-size: 14px; }
+  .status-wahl.unten .status-knopf { width: 100%; height: 54px; border-radius: 16px; padding: 0 14px 0 18px; font-size: 16px; }
+  .status-wahl.unten .status-knopf .aendern { display: inline; }
+  .status-menue { position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: 310px; max-width: calc(100vw - 32px);
+    background: var(--panel-3); border-radius: 18px; padding: 6px; box-shadow: 0 18px 44px rgba(0,0,0,.32); }
+  .status-wahl.unten .status-menue { left: 0; right: -62px; top: calc(100% + 6px); width: auto; max-width: none; }
+  .status-menue button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 12px; border-radius: 12px; text-align: left; --s: 20px; }
+  .status-menue button:hover { background: var(--panel-2); }
+  .status-menue button.an { background: color-mix(in srgb, var(--c) 16%, transparent); }
+  .status-menue button .punkt { width: 12px; height: 12px; }
+  .status-menue button b { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; }
+  .status-menue button small { display: block; font-size: 13px; color: var(--muted); line-height: 1.35; }
+  .status-menue button svg { margin-left: auto; color: var(--akzent); }
+  .status-menue .von { font-size: 12.5px; color: var(--muted); padding: 8px 12px 6px; border-top: 1px solid var(--linie); margin-top: 4px; }
+  .dl-pill { display: none; align-items: center; gap: 8px; padding: 10px 16px 10px 12px; border-radius: 999px; background: var(--knopf); color: var(--knopf-text);
+    text-decoration: none; font-size: 14px; font-weight: 500; --s: 22px; white-space: nowrap; }
+  .dl-pill span { opacity: .65; font-weight: 400; }
+  /* Download weiß (Ole, 13.11.2026): Pille am Rechner und runder Knopf am Handy, auch quer */
+  #dl, #dl-rund, #app.quer #dl-rund { background: #fff; color: #1c1c1e; }
+  #dl:hover, #dl-rund:hover { background: #E9E8E3; }
+
+  .inhalt { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .trenner { display: none; }
+  #app.quer .trenner, .app.blatt-modus .trenner, #viewer.vollbild ~ .trenner { display: none; }
+  html.zieht-breite, html.zieht-breite * { cursor: col-resize !important; user-select: none !important; -webkit-user-select: none !important; }
+  .viewer { background: var(--viewer); position: relative; display: flex; flex-direction: column; }
+  .video-flaeche { display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; }
+  .video-box { --ar: .5625; height: min(calc(100cqw / var(--ar)), calc(var(--app-h) * .58)); aspect-ratio: var(--ar); max-width: 100%; position: relative;
+    transition: transform .18s ease, opacity .18s ease; }
+  .video-box media-controller { width: 100%; height: 100%; display: block; --media-control-background: transparent; --media-control-hover-background: transparent;
+    --media-primary-color: #fff; --media-background-color: var(--viewer); }
+  .video-box mux-video { width: 100%; height: 100%; }
+  /* Großer Knopf in der Mitte im StageView Design (Ole, 16.11.2026: eigener Play Knopf, eher dunkel): dunkles Glas mit feiner
+     Lichtkante und weißem Symbol, mit der Maus ein Hauch Salbei wie das Logo. Beim Abspielen wächst er weich aus dem Bild,
+     beim Anhalten kommt er so wieder herein. Vorher eine weiße Scheibe mit schwarzem Dreieck */
+  .mitte { --media-control-background: rgba(22,22,20,.46); --media-control-hover-background: rgba(30,30,28,.6); --media-primary-color: #fff;
+    --media-control-padding: 20px; border-radius: 999px; backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), inset 0 1px 0 rgba(255,255,255,.24), 0 12px 32px rgba(0,0,0,.34);
+    transition: opacity .28s ease, transform .34s cubic-bezier(.2,.9,.25,1), box-shadow .22s ease; }
+  .mitte svg.i { --s: 32px; }
+  .mitte svg[slot="play"] { transform: translateX(1.5px); }  /* Dreieck optisch mittig */
+  @media (hover: hover) { .mitte:hover { transform: scale(1.06); box-shadow: inset 0 0 0 1px rgba(147,170,152,.6), inset 0 1px 0 rgba(255,255,255,.24),
+    0 0 0 7px rgba(147,170,152,.16), 0 12px 32px rgba(0,0,0,.34); } }
+  .mitte:active { transform: scale(.94); }
+  @container app (max-width: 899px) { .mitte { --media-control-padding: 13px; } .mitte svg.i { --s: 28px; } }
+  .viewer:not(.pausiert) .mitte, .viewer.spult .mitte { opacity: 0; pointer-events: none; transform: scale(1.18); }
+  /* Play und Pause in der Leiste springen beim Wechsel kurz auf */
+  @keyframes knopf-auf { from { transform: scale(.6); opacity: .3; } to { transform: none; opacity: 1; } }
+  .reihe media-play-button svg { animation: knopf-auf .26s cubic-bezier(.34,1.42,.5,1); }
+  /* Nächstes Video beim Wischen am Handy (wie Reels): Vorschaubild kommt von unten bzw. oben rein */
+  .nachbar { --ar: .5625; position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  .nachbar img { display: block; width: min(100cqw, 100cqh * var(--ar)); height: min(100cqh, 100cqw / var(--ar)); object-fit: cover; }
+  .wischen { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 10px;
+    padding: 8px 10px 8px 14px; border-radius: 999px; background: rgba(40,40,38,.62); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    color: #fff; font-size: 13.5px; white-space: nowrap; z-index: 3; }
+  .wischen .pfeile { color: #93AA98; font-weight: 600; letter-spacing: -2px; font-size: 17px; line-height: 1; }
+  .wischen button { width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,.18); display: inline-flex; align-items: center; justify-content: center; --s: 14px; }
+  .weiter { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 4; display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 10px 9px 16px; border-radius: 999px; background: rgba(255,255,255,.95); color: #1c1c1e; font-size: 14px; --s: 18px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); max-width: calc(100% - 32px); white-space: nowrap; }
+  .weiter span { color: rgba(28,28,30,.55); }
+  .video-fehler { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    padding: 24px; text-align: center; background: rgba(5,5,5,.82); color: #fff; font-size: 14px; }
+  .video-fehler b { font-size: 17px; }
+  .viewer.gestoert .mitte { display: none; }
+  .video-fehler span { color: rgba(255,255,255,.65); max-width: 280px; }
+  .video-fehler .knoepfe { margin-top: 12px; }
+  .video-fehler .knoepfe > * { padding: 10px 16px; border-radius: 999px; font-weight: 500; font-size: 14px; text-decoration: none; }
+  .video-fehler button { background: #fff; color: #1c1c1e; }
+  .video-fehler a { background: rgba(255,255,255,.14); color: #fff; }
+  .weiter b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+
+  .steuerung { background: var(--panel); padding: 14px 16px 10px; border-radius: 22px 22px 0 0; margin-top: -2px; position: relative;
+    --media-primary-color: var(--text); --media-text-color: var(--text); --media-control-background: transparent; --media-control-hover-background: transparent;
+    --media-font-family: var(--sans); --media-font-size: 15px; --media-tooltip-display: none; }
+  .griff-zone { display: none; }
+  .griff { width: 38px; height: 5px; border-radius: 3px; background: var(--panel-3); margin: 0 auto; transition: width .25s, background .25s; }
+  .zeitleiste { position: relative; height: 26px; }
+  /* Touch: Tippen auf die Leiste springt nicht mehr, nur Wischen spult (wie bei Apple). Die Fläche liegt über der Leiste und fängt die Finger ab */
+  .zeit-fang { position: absolute; left: -8px; right: -8px; top: -12px; bottom: -10px; z-index: 1; display: none; touch-action: none; -webkit-tap-highlight-color: transparent; }
+  @media (pointer: coarse) { .zeit-fang { display: block; } }
+  .spul-zeit { position: absolute; bottom: calc(100% + 14px); left: 0; transform: translateX(-50%); z-index: 3; pointer-events: none; white-space: nowrap;
+    background: var(--panel-3); color: var(--text); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; padding: 5px 11px; border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+  .zeitleiste.spult media-time-range { --media-range-track-height: 9px; --media-range-thumb-opacity: 1; --media-range-thumb-width: 18px; --media-range-thumb-height: 18px; }
+  .zeitleiste media-time-range { width: 100%; height: 26px; --media-control-padding: 0; --media-range-track-height: 5px; --media-range-track-border-radius: 5px;
+    --media-range-bar-color: var(--akzent); --media-range-track-background: var(--spur); --media-time-range-buffered-color: var(--spur);
+    --media-range-thumb-width: 14px; --media-range-thumb-height: 14px; --media-range-thumb-background: #fff; --media-range-thumb-opacity: 0;
+    --media-range-thumb-box-shadow: 0 1px 4px rgba(0,0,0,.4); --media-preview-thumbnail-border-radius: 10px; --media-preview-thumbnail-max-width: 140px;
+    --media-preview-thumbnail-max-height: 140px; --media-preview-time-text-shadow: none; }
+  .zeitleiste:hover media-time-range { --media-range-thumb-opacity: 1; }
+  .marker { position: absolute; top: -11px; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; background: var(--c); color: var(--ct, #fff);
+    font-size: 9.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--panel); z-index: 2;
+    transition: transform .15s; }
+  .marker:hover, .marker.an { transform: scale(1.25); }
+  .marker.erledigt { opacity: .4; }
+  .marker .blase { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 220px;
+    background: var(--panel-3); color: var(--text); font-size: 12.5px; font-weight: 400; line-height: 1.35; padding: 7px 10px; border-radius: 10px;
+    opacity: 0; pointer-events: none; transition: opacity .15s; text-align: left; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+  .marker:hover .blase { opacity: 1; }
+  .marker.links .blase { left: -4px; transform: none; }
+  .marker.rechts .blase { left: auto; right: -4px; transform: none; }
+  .reihe { display: flex; align-items: center; gap: 4px; margin-top: 8px; }
+  .reihe .platz { flex: 1; }
+  .reihe > :is(media-play-button, media-mute-button, .zahnrad, .vollbild-knopf) { width: 44px; height: 44px; border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center; --media-control-padding: 0; color: var(--text); flex: none; --s: 28px; }
+  /* Nur mit Maus: am Handy bliebe der Hintergrund nach dem Tippen sonst stehen */
+  @media (hover: hover) { .reihe > :is(media-play-button, media-mute-button, .zahnrad, .vollbild-knopf):hover { background: var(--panel-2); } }
+  .reihe media-play-button { --s: 32px; margin-left: -6px; }
+  .reihe media-time-display { font-size: 16px; font-variant-numeric: tabular-nums; --media-control-padding: 0 6px; }
+  .reihe media-volume-range { width: 84px; display: none; --media-control-padding: 0 6px; --media-range-track-height: 4px; --media-range-bar-color: var(--text);
+    --media-range-track-background: var(--spur); --media-range-thumb-width: 12px; --media-range-thumb-height: 12px; --media-range-thumb-background: var(--text); }
+  /* Zahnrad dreht sich bei jedem Drücken ein Stück weiter, mit leichtem Nachfedern (Ole, 13.11.). 120 Grad, das Rad hat sechs Zähne */
+  .reihe .zahnrad svg { transition: transform .62s cubic-bezier(.34,1.42,.5,1); }
+  /* Einstellungen (seit 13.11.2026 eigenes Fenster statt media-chrome Menü, das am iPhone nicht richtig aufging): Tempo und Qualität
+     als große Knöpfe ohne Untermenüs, Aufbau und Schließen wie beim Status Menü */
+  .steuerung .einstell-menue { top: auto; bottom: 64px; right: 12px; left: auto; width: 300px; padding: 14px 14px 16px; z-index: 6; text-align: left; }
+  /* Sehr schmale Handys (iPhone SE): "Status ändern" passt nicht mehr neben den Status, dann nur Status und Pfeil */
+  @container app (max-width: 359px) { .app .status-wahl.unten .status-knopf .aendern { display: none; } }
+  .einstell-menue .e-titel { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 2px 8px; }
+  .einstell-menue .chips { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  .einstell-menue .chips + .e-titel { margin-top: 16px; }
+  .einstell-menue .chips button { width: auto; height: 42px; padding: 0 2px; border-radius: 10px; justify-content: center; gap: 0; background: var(--panel-2);
+    font-size: 14.5px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .einstell-menue .chips button.an { background: var(--text); color: var(--bg); }
+  .einstell-menue .auto-info { font-size: 14px; color: var(--muted); padding: 0 2px; }
+
+  .eingabe { padding: 10px 16px 14px; background: var(--panel); display: flex; flex-direction: column; gap: 8px; }
+  /* Kommentarfeld (Ole, 16.11.2026): immer zwei Zeilen, oben der Text in voller Breite, darunter Zeitmarke und Senden. So springt
+     beim Tippen nichts um. Der Text wächst nach oben mit, die Knöpfe bleiben unten */
+  .feld { display: flex; flex-wrap: wrap; align-items: center; row-gap: 4px; column-gap: 8px; background: var(--panel-2); border-radius: 20px; padding: 6px; }
+  .feld .senden { margin-left: auto; }
+  .zeit-chip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px 6px 8px; border-radius: 999px; background: var(--panel-3);
+    font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 500; color: var(--muted); --s: 16px; flex: none; }
+  .zeit-chip.an { background: var(--knopf); color: #fff; }
+  .feld textarea { order: -1; flex: 1 1 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 16px;
+    line-height: 1.38; padding: 6px 8px 2px; min-height: 30px; resize: none; overflow-y: hidden; display: block; }
+  .feld textarea::placeholder { color: var(--leise); }
+  /* Mit Maus so groß wie der Text der Kommentare (Ole, 16.11.2026). Am Handy bleiben 16 px, sonst zoomt Safari beim Antippen */
+  @media (hover: hover) and (pointer: fine) { .feld textarea, .antwort-form input, .bearbeiten-form textarea { font-size: 14.5px; } }
+  .senden { width: 38px; height: 38px; border-radius: 50%; background: var(--knopf); color: #fff; display: inline-flex; align-items: center; justify-content: center;
+    --s: 20px; flex: none; opacity: .45; transition: opacity .15s; }
+  .feld.voll .senden { opacity: 1; }
+  .senden:disabled { opacity: .3; }
+  .als { font-size: 12.5px; color: var(--leise); padding: 0 14px; }
+  .als b { color: var(--muted); font-weight: 500; }
+  .als button { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; font-size: 12.5px; }
+
+  .kommentare { background: var(--bg); padding: 18px 16px 32px; }
+  .k-kopf { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .k-kopf h2 { margin: 0; font-size: 17px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
+  .k-kopf h2 span { font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .filter { display: inline-flex; background: var(--panel-2); border-radius: 999px; padding: 3px; }
+  .filter button { padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+  .filter button.an { background: var(--panel); color: var(--text); }
+  .liste { display: flex; flex-direction: column; gap: 8px; }
+  .leer { color: var(--muted); font-size: 14px; line-height: 1.5; padding: 18px 16px; border-radius: 18px; border: 1px dashed var(--linie); text-align: center; }
+  .km { background: var(--panel); border-radius: 18px; padding: 12px 14px; border: 1px solid transparent; transition: border-color .2s, background .2s; }
+  .km.aktiv { border-color: var(--akzent); }
+  /* Ganzen Kommentar antippen spult an seine Stelle (Ole, 13.11.2026). Knöpfe darin bleiben eigene, größere Tippflächen */
+  .liste { -webkit-tap-highlight-color: transparent; }
+  .km.springbar { cursor: pointer; }
+  @media (hover: hover) { .km.springbar:not(.aktiv):hover { border-color: rgba(255,255,255,.14); } }
+  .km-fuss button { padding: 8px 2px; margin: -8px -2px; }
+  .km.erledigt > .km-kopf, .km.erledigt > .km-text, .km.erledigt > .km-fuss, .km.erledigt > .antwort { opacity: .55; }  /* Verlauf als Ganzes erledigt */
+  .km.neu { animation: neu .9s ease; }
+  @keyframes neu { from { background: color-mix(in srgb, var(--akzent) 22%, var(--panel)); } }
+  .km-kopf { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .ava { width: 28px; height: 28px; border-radius: 50%; background: var(--c); color: var(--ct, #fff); display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11.5px; font-weight: 700; flex: none; letter-spacing: -.2px; }
+  .km-kopf b { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .km-kopf .wann { color: var(--leise); font-size: 12.5px; white-space: nowrap; }
+  .km-kopf .rolle { font-size: 11px; color: var(--muted); background: var(--panel-2); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
+  .haken { margin-left: auto; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    color: var(--leise); --s: 20px; box-shadow: inset 0 0 0 1.5px var(--linie); flex: none; }
+  .haken:hover { color: var(--text); }
+  .km.erledigt .haken { background: var(--akzent); color: var(--panel); box-shadow: none; }
+  .km-text { margin: 8px 0 0 37px; font-size: 14.5px; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; }
+  /* Links im Kommentar klickbar (Ole, 16.11.2026), nur http und https */
+  .km-link { color: var(--akzent); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+  .km-link:hover { text-decoration-thickness: 2px; }
+  /* Eigene Kommentare ändern (Ole, 16.11.2026): Klick auf den Text öffnet das Feld, Knopf Bearbeiten unten geht auch */
+  .km-text.eigen { cursor: text; }
+  .bearbeiten-form { margin: 8px 0 0 37px; display: flex; flex-direction: column; gap: 8px; cursor: auto; }
+  .antwort .bearbeiten-form { margin-left: 35px; }
+  .bearbeiten-form textarea { width: 100%; border: 0; outline: 0; resize: none; overflow-y: hidden; display: block; background: var(--panel-3);
+    color: var(--text); font: inherit; font-size: 16px; line-height: 1.45; padding: 9px 12px; border-radius: 14px; }
+  .bf-knoepfe { display: flex; justify-content: flex-end; gap: 6px; }
+  .bf-knoepfe button { height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .bf-knoepfe button:hover { color: var(--text); }
+  .bf-knoepfe .sichern { background: var(--knopf); color: #fff; }
+  .bf-knoepfe .sichern:hover { color: #fff; }
+  .km-kopf .bearb { font-size: 12px; color: var(--leise); white-space: nowrap; }
+  .zeit-knopf { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; font-size: 12.5px; font-weight: 500; color: var(--akzent);
+    background: color-mix(in srgb, var(--akzent) 16%, transparent); border-radius: 7px; padding: 1px 7px 1px 4px; margin-right: 6px; --s: 14px;
+    vertical-align: 1px; }
+  .km-fuss { margin: 8px 0 0 37px; display: flex; gap: 14px; font-size: 13px; color: var(--muted); }
+  .km-fuss button:hover { color: var(--text); }
+  .km-fuss .weg.sicher { color: #C4855A; }
+  .km-fuss .erl { color: var(--leise); }
+  .antwort { margin: 12px 0 0 37px; padding-top: 12px; border-top: 1px solid var(--linie); }
+  .antwort .km-text, .antwort .km-fuss { margin-left: 35px; }
+  .antwort .ava { width: 26px; height: 26px; font-size: 10.5px; }
+  .antwort-form { margin: 10px 0 0 37px; display: flex; gap: 8px; align-items: center; background: var(--panel-2); border-radius: 999px; padding: 4px 4px 4px 14px; }
+  .seite .antwort-form { background: var(--panel-3); }
+  .antwort-form input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 16px; padding: 6px 0; }
+  .antwort-form .senden { width: 32px; height: 32px; --s: 17px; opacity: 1; }
+  .stoerung { font-size: 13px; color: #C4855A; margin-bottom: 10px; }
+
+  .weitere { padding: 26px 0 8px; border-top: 1px solid var(--linie); }
+  .weitere-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 16px 14px; max-width: 1360px; margin: 0 auto; }
+  .weitere-kopf h2 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.2px; }
+  .weitere-kopf a { font-size: 13.5px; color: var(--muted); text-decoration: none; white-space: nowrap; }
+  .weitere-kopf a:hover { color: var(--text); }
+
+  /* Desktop: Kommentare rechts, darunter die weiteren Videos */
+  @container app (min-width: 900px) {
+    .leiste { padding: 14px 24px; }
+    .logo .logo-bild { height: 15px; width: 122px; }
+    .held { padding: 64px 24px 44px; }
+    .kopf { padding: 14px 24px; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; }
+    .kopf .rund { width: 44px; height: 44px; }
+    .dl-pill { display: inline-flex; }
+    .kopf .nur-handy { display: none; }
+    .titel { align-items: flex-start; }
+    .titel .projekt-name { display: block; }
+    .titel h1 { display: block; white-space: nowrap; text-overflow: ellipsis; font-size: 17px; text-align: left; }
+    .status-wahl.oben { display: block; }
+    .status-zeile { display: none; }
+    /* Breite der Kommentare zum Ziehen (Ole, 16.11.2026): 320 bis 640 px, das Video behält immer mindestens rund 500 px.
+       --seite-wunsch setzt der Griff, Standard 400 px, Doppelklick auf den Griff stellt ihn zurück. Gemerkt pro Browser */
+    .inhalt { --seite-b: clamp(320px, var(--seite-wunsch, 400px), min(640px, calc(100cqw - 560px)));
+      grid-template-columns: minmax(0, 1fr) 16px var(--seite-b); gap: 0; padding: 0 24px 24px; align-items: start; }
+    .trenner { display: flex; align-items: center; justify-content: center; position: sticky; top: 76px; height: calc(var(--app-h) - 76px - 24px);
+      cursor: col-resize; touch-action: none; outline: 0; -webkit-tap-highlight-color: transparent; }
+    .trenner::before { content: ''; width: 4px; height: 44px; border-radius: 2px; background: var(--linie); transition: background .15s, height .2s; }
+    .trenner:hover::before, .trenner:focus-visible::before, .trenner.zieht::before { background: var(--muted); height: 72px; }
+    .viewer { border-radius: 24px; overflow: hidden; position: sticky; top: 76px; }
+    .video-box { height: calc(var(--app-h) - 76px - 24px - 118px); max-height: calc((100cqw - var(--seite-b) - 64px) / var(--ar)); }
+    .steuerung { border-radius: 0; margin-top: 0; }
+    .griff-zone, .wischen { display: none; }
+    .reihe media-volume-range { display: block; }
+    .seite { position: sticky; top: 76px; height: calc(var(--app-h) - 76px - 24px); display: flex; flex-direction: column;
+      background: var(--panel); border-radius: 24px; overflow: hidden; }
+    .seite .kommentare { flex: 1; overflow-y: auto; background: var(--panel); padding: 18px 16px; overscroll-behavior: contain; }
+    .seite .km { background: var(--panel-2); }
+    .seite .leer { border-color: var(--panel-3); }
+    .seite .eingabe { order: 2; border-top: 1px solid var(--linie); }
+    .weitere { border-top: 0; padding-top: 18px; }
+    .weitere-kopf { padding: 0 24px 16px; }
+  }
+  /* Handy quer: nur Video, Steuerung darüber (wie Frame.io quer).
+     Seit 13.11.2026 mit #app: ein großes iPhone ist quer über 900 px breit und bekam sonst Regeln vom Rechner (Video winzig).
+     Das Video liegt fest über dem ganzen Bildschirm und passt sich ein, egal ob Hoch oder Querformat */
+  #app.quer .kopf { position: fixed; left: 0; right: 0; top: 0; background: transparent; z-index: 30; grid-template-columns: 1fr auto 1fr;
+    padding: 12px max(28px, env(safe-area-inset-right)) 12px max(28px, env(safe-area-inset-left)); }
+  #app.quer .titel { flex-direction: row; }
+  #app.quer .titel h1 { background: var(--glas); backdrop-filter: blur(18px) saturate(1.6); -webkit-backdrop-filter: blur(18px) saturate(1.6); display: block;
+    padding: 10px 18px; border-radius: 999px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), inset 0 0 0 1px rgba(255,255,255,.12); color: #fff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+  #app.quer .status-wahl, #app.quer .dl-pill, #app.quer .projekt-name { display: none; }
+  #app.quer .rund { background: rgba(38,38,36,.75); color: #fff; }
+  #app.quer .inhalt { display: block; padding: 0; }
+  #app.quer .viewer { position: fixed; inset: 0; height: auto; border-radius: 0; overflow: hidden; }
+  #app.quer .video-flaeche { position: absolute; inset: 0; padding: 0; container-type: size; overflow: hidden; }
+  #app.quer .video-box { aspect-ratio: auto; max-width: none; max-height: none; border-radius: 0;
+    width: min(100cqw, 100cqh * var(--ar)); height: min(100cqh, 100cqw / var(--ar)); }
+  #app.quer .reihe media-volume-range { display: none; }
+  #app.quer .steuerung { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; margin: 0; background: linear-gradient(to top, rgba(0,0,0,.6), rgba(0,0,0,0));
+    padding: 30px max(28px, env(safe-area-inset-right)) 10px max(28px, env(safe-area-inset-left)); border-radius: 0;
+    --media-primary-color: #fff; --media-text-color: #fff; color: #fff; --spur: rgba(255,255,255,.22); }
+  #app.quer .reihe > * { color: #fff; }
+  #app.quer .griff-zone, #app.quer .seite, #app.quer .weitere, #app.quer .mitte { display: none; }
+  #app.quer .weiter { bottom: 110px; }
+  #app.quer .steuerung .einstell-menue { right: 24px; }
+
+  /* ================= Handy hochkant (seit 13.11.2026, Ole): Video oben, darunter ein Blatt mit Griff zum Ziehen.
+     Drei Stufen: zu (nur Leiste und Steuerung, Video am größten), mitte (plus Freigabe, Standard), offen (Kommentare schreiben).
+     Die Seite selbst scrollt nicht mehr, nur der Inhalt im offenen Blatt. Steuerung und "Mehr aus" schiebt das Skript ins Blatt (modusPruefen). */
+  .blatt-kopf, .blatt-scroll { display: contents; }
+  html.fest, html.fest body { overflow: hidden; overscroll-behavior: none; }
+  /* Solange ein Fenster offen ist (Teilen, Name), scrollt die Seite dahinter nicht, am Handy und am Rechner (Ole, 13.11.2026) */
+  html.gesperrt, html.gesperrt body { overflow: hidden; overscroll-behavior: none; }
+  html.gesperrt body { padding-right: var(--leiste-breit, 0px); }
+  dialog { overscroll-behavior: contain; }
+  .app.blatt-modus #videoseite { height: var(--app-h); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+  .app.blatt-modus .kopf { position: relative; flex: none; }
+  .app.blatt-modus .inhalt { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--viewer); }
+  .app.blatt-modus .viewer { flex: 1; min-height: 0; }
+  .app.blatt-modus .video-flaeche { flex: 1; min-height: 0; container-type: size; touch-action: none; }
+  .app.blatt-modus .video-box { aspect-ratio: auto; max-width: none; width: min(100cqw, 100cqh * var(--ar)); height: min(100cqh, 100cqw / var(--ar)); }
+  .app.blatt-modus .seite { flex: none; position: relative; z-index: 10; height: var(--blatt-h, 190px); display: flex; flex-direction: column;
+    background: var(--panel); border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -12px 32px rgba(0,0,0,.22);
+    transition: height .52s cubic-bezier(.32,.72,0,1); }
+  .app.blatt-modus .seite.zieht { transition: none; }
+  .app.blatt-modus .blatt-kopf { display: block; flex: none; touch-action: none; }
+  .app.blatt-modus .griff-zone { display: block; padding: 9px 0 13px; cursor: grab; -webkit-tap-highlight-color: transparent; outline: 0; }
+  .app.blatt-modus .seite.zieht .griff { width: 48px; background: var(--leise); }
+  .app.blatt-modus .steuerung { background: none; padding: 2px 16px 4px; border-radius: 0; margin: 0; }
+  .app.blatt-modus .reihe { margin-top: 6px; }
+  .app.blatt-modus .status-zeile { background: none; padding: 4px 16px 10px; transition: opacity .3s; }
+  /* Status und Kommentar Knopf am Handy flacher (Ole, 14.11.2026: 54 → 44 px), das Blatt misst sich selbst, das Video wird größer */
+  .app.blatt-modus .status-wahl.unten .status-knopf { height: 44px; border-radius: 14px; font-size: 15px; }
+  .app.blatt-modus .status-wahl.unten .status-knopf .aendern { font-size: 13.5px; }
+  .app.blatt-modus .k-knopf { width: 44px; height: 44px; border-radius: 14px; }
+  .app.blatt-modus .k-knopf .zahl { top: 3px; right: 2px; }
+  .app.blatt-modus .seite[data-stand="zu"] .status-zeile { opacity: 0; pointer-events: none; }
+  .app.blatt-modus .status-wahl.unten .status-menue { top: auto; bottom: calc(100% + 8px); }
+  .app.blatt-modus .blatt-scroll { display: block; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .app.blatt-modus .seite .eingabe { background: none; padding-top: 4px; }
+  .app.blatt-modus .kommentare { background: none; padding-top: 10px; }
+  .app.blatt-modus .seite .km { background: var(--panel-2); }
+  .app.blatt-modus .seite .leer { border-color: var(--panel-3); }
+  .app.blatt-modus .weitere { padding-top: 22px; }
+  .app.blatt-modus #videoseite[data-blatt="offen"] .wischen { display: none; }
+
+  /* ================= Vollbild (seit 14.11.2026, Ole: "unbedingt"): Video füllt den Bildschirm, Steuerung liegt unten darüber
+     und blendet sich beim Abspielen nach kurzer Zeit aus. Rechner, Android und iPad. Das iPhone nimmt Apples eigenen Vollbild Player */
+  #viewer.vollbild { background: #000; border-radius: 0; position: relative; top: 0; overflow: hidden; display: block; width: 100%; height: 100%; }
+  #viewer.vollbild .video-flaeche { position: absolute; inset: 0; padding: 0; container-type: size; overflow: hidden; }
+  #viewer.vollbild .video-box { aspect-ratio: auto; max-width: none; max-height: none; border-radius: 0;
+    width: min(100cqw, 100cqh * var(--ar)); height: min(100cqh, 100cqw / var(--ar)); }
+  #viewer.vollbild .steuerung { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; margin: 0; border-radius: 0;
+    background: linear-gradient(to top, rgba(0,0,0,.7), rgba(0,0,0,0)); transition: opacity .3s;
+    padding: 44px max(28px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(28px, env(safe-area-inset-left));
+    --media-primary-color: #fff; --media-text-color: #fff; color: #fff; --spur: rgba(255,255,255,.25); }
+  #viewer.vollbild .reihe > * { color: #fff; }
+  #viewer.vollbild.ruhig .steuerung { opacity: 0; pointer-events: none; }
+  #viewer.vollbild.ruhig { cursor: none; }
+  #viewer.vollbild :is(.wischen, .licht) { display: none; }
+
+  /* ================= Layout (13.11.2026, Ole: keine schwarzen Balken). Standard ist licht, grau und scrollen nur noch per ?layout=.
+     grau: Blatt wie bisher, das Video schwebt mit runden Ecken auf der grauen Fläche. licht: dazu weiches Ambient Licht aus dem Video.
+     scrollen: am Handy kein Blatt, die Seite scrollt ganz normal nach unten. Am Rechner sind scrollen und grau gleich */
+  /* Qualität wechseln (Ole, 16.11.2026): Video und Ton halten ganz an, ein Ladezeichen, weiter erst, wenn die neue Stufe da ist */
+  .wechsel { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    background: rgba(0,0,0,.38); color: #fff; font-size: 14px; font-weight: 600; pointer-events: none; text-shadow: 0 1px 8px rgba(0,0,0,.4); }
+  .wechsel-kreis { width: 36px; height: 36px; border-radius: 50%; border: 3px solid rgba(255,255,255,.25); border-top-color: #fff; animation: wechsel-dreh .9s linear infinite; }
+  @keyframes wechsel-dreh { to { transform: rotate(360deg); } }
+  .viewer.wechselt .mitte, .viewer.wechselt media-loading-indicator { opacity: 0 !important; pointer-events: none; }
+  /* Ladezeichen liegt über dem Play Knopf statt darüber (16.11.2026, Ole: Knopf am Handy nicht mittig). Es nahm im Slot der Mitte
+     100 px Platz weg, der Knopf saß dadurch 50 px unter der Mitte, am Handy wie am Rechner */
+  .video-box media-loading-indicator { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+
+  /* Kein blauer Rahmen im Player, wenn man ins Video klickt oder Leertaste drückt (Ole, 16.11.2026). media-chrome zeichnet ihn
+     als --media-focus-box-shadow an Player und Knöpfen */
+  #viewer, #viewer media-controller { --media-focus-box-shadow: none; }
+  #viewer:focus, #viewer :focus, #viewer :focus-visible { outline: none; }
+
+  .licht { display: none; }
+  /* Etwas helleres Grau, damit nichts mehr schwarz wirkt */
+  .app[data-layout] { --bg: #191918; --panel: #232321; --panel-2: #2D2D2A; --panel-3: #373733; }
+  html:has(.app[data-layout]), html:has(.app[data-layout]) body { background: #191918; }
+  .app[data-layout] .inhalt, .app[data-layout] .viewer { background: var(--bg); }
+  .app[data-layout] .video-box { border-radius: 18px; overflow: hidden; z-index: 1; }
+  .app[data-layout] .video-box media-controller { --media-background-color: var(--panel); }
+  .app[data-layout] .nachbar img { border-radius: 18px; }
+  .app.blatt-modus[data-layout] .video-flaeche { padding: 6px 14px 16px; }
+  /* Licht wie bei YouTube: eine weiche, größere Kopie der aktuellen Stelle liegt direkt hinter dem Video */
+  .app[data-layout="licht"] .licht { display: block; position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+  .licht canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transform: scale(var(--licht-gross, 1.2));
+    filter: blur(var(--licht-weich, 40px)) saturate(1.25); opacity: 0; transition: opacity 1.2s ease; }
+  .licht canvas.an { opacity: .5; }
+  /* Handy hochkant (Ole, 13.11.2026): das Licht wurde an der Oberkante des Blatts hart abgeschnitten, in den runden Ecken war nur Grau.
+     Jetzt läuft das Licht unten unter das Blatt und scheint in den Ecken durch. Oben genauso: die Kopfzeile ist durchsichtig,
+     das Licht läuft weich bis an den oberen Rand aus statt an einer Linie zu enden. Seitlich schneidet die Fläche weiter ab */
+  .app.blatt-modus[data-layout="licht"] .video-flaeche { overflow: visible; clip-path: inset(-240px 0 -160px 0); }
+  .app.blatt-modus[data-layout="licht"] .kopf { background: transparent; }
+  @container app (max-width: 899px) {
+    .app[data-layout="scrollen"]:not(.quer) .video-flaeche { padding: 4px 14px 14px; }
+    .app[data-layout="scrollen"]:not(.quer) .video-box { height: min(calc((100cqw - 28px) / var(--ar)), calc(var(--app-h) * .62)); }
+    .app[data-layout="scrollen"]:not(.quer) .steuerung { margin-top: 0; }
+  }
+  /* Rechner: „Bühne“ (seit 16.11.2026 Standard auf allen Links, Ole: „übernimm das aktuelle Design bei allen Links“).
+     Vorher passten die runden Video Ecken unten nicht zur geraden Steuerleiste und das Licht lief oben aus der Karte. Jetzt schwebt
+     das Video mit vier gleichen Ecken frei auf der Karte, mit Luft auch nach unten. Das Licht bleibt in der Karte (deren runde Ecken
+     schneiden es) und läuft nach unten weich zur Steuerleiste aus. Nicht ungefragt zurückbauen */
+  @container app (min-width: 900px) {
+    .app[data-layout] .viewer { background: var(--panel); }
+    .app[data-layout] .video-flaeche { padding: 22px 22px 18px; }
+    .app[data-layout] .video-box { border-radius: 14px; box-shadow: 0 14px 44px rgba(0,0,0,.38);
+      height: calc(var(--app-h) - 76px - 24px - 118px - 40px); max-height: calc((100cqw - var(--seite-b) - 108px) / var(--ar)); }
+    .app[data-layout="licht"] .viewer { overflow: hidden; isolation: isolate; }
+    .app[data-layout="licht"] .video-flaeche { overflow: visible; }
+    .app[data-layout="licht"] .steuerung { border-radius: 0; background: transparent; }
+    .app[data-layout="licht"] .licht { inset: 0; z-index: -1; --licht-gross: 1.3; --licht-weich: 64px;
+      -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent); mask-image: linear-gradient(to bottom, #000 62%, transparent); }
+  }
+  #viewer.vollbild .video-box, #app.quer .video-box { box-shadow: none; }
+
+  dialog { border: 0; border-radius: 22px; padding: 22px; background: var(--panel); color: var(--text); width: min(360px, calc(100vw - 32px));
+    box-shadow: 0 30px 80px rgba(0,0,0,.4); }
+  dialog::backdrop { background: rgba(0,0,0,.45); backdrop-filter: blur(4px); }
+  dialog h3 { margin: 0 0 4px; font-size: 18px; }
+  dialog p { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+  dialog input { width: 100%; border: 0; outline: 0; background: var(--panel-2); color: var(--text); font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 12px; }
+  dialog input:focus { box-shadow: 0 0 0 2px var(--akzent); }
+  dialog .knoepfe { justify-content: flex-end; margin-top: 16px; }
+  dialog .knoepfe button { padding: 10px 16px; border-radius: 999px; font-weight: 500; font-size: 14px; color: var(--muted); }
+  dialog .knoepfe button.primaer { background: var(--knopf); color: #fff; }
+  /* Teilen Fenster (Ole, 13.11.2026): Link in voller Breite, unten ein großer Kopieren Knopf über die ganze Breite. Kein Teilen über Apps (Ole) */
+  .teilen-dialog { width: min(460px, calc(100vw - 32px)); padding: 22px 22px 20px; animation: auf .24s cubic-bezier(.32,.72,0,1); }
+  @keyframes auf { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+  .teilen-dialog .zu { position: absolute; top: 14px; right: 14px; width: 36px; height: 36px; --s: 20px; }
+  .teilen-dialog h3 { padding-right: 44px; }
+  .teilen-dialog .wer { margin: 0 0 18px; padding-right: 44px; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .teilen-dialog:focus { outline: none; }
+  /* Der Link steht immer ganz da (ohne https://), am Handy notfalls in zwei Zeilen. Kopiert wird der volle Link */
+  .link-text { min-height: 52px; display: flex; align-items: center; padding: 9px 14px; border-radius: 12px; background: var(--panel-2);
+    color: var(--muted); font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; -webkit-user-select: all; user-select: all; }
+  .kopieren { width: 100%; height: 54px; margin-top: 18px; justify-content: center; padding: 0 20px; border-radius: 14px; background: #fff; color: #1c1c1e; font-weight: 600; font-size: 15px;
+    display: flex; align-items: center; gap: 8px; --s: 20px; transition: background .15s, color .15s, transform .1s; }
+  .kopieren:hover { background: #E9E8E3; }
+  .kopieren:active { transform: scale(.98); }
+  .kopieren .ic { display: flex; }
+  .kopieren .ic-ok, .kopieren.fertig .ic-link { display: none; }
+  .kopieren.fertig .ic-ok { display: flex; }
+  .kopieren.fertig { background: var(--akzent); color: #10130F; }
+  .teilen-dialog .ab-stelle { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 14px; cursor: pointer; width: fit-content; }
+  .teilen-dialog .ab-stelle input { width: 20px; height: 20px; padding: 0; margin: 0; background: none; box-shadow: none; accent-color: var(--akzent); flex: none; }
+  .teilen-dialog .klein { margin: 14px 0 0; font-size: 13px; color: var(--leise); }
+
+  .toast { position: fixed; left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translate(-50%, 12px); opacity: 0; pointer-events: none; z-index: 200;
+    background: var(--text); color: var(--bg); border-radius: 999px; padding: 10px 16px; font-size: 13.5px; font-weight: 500; transition: opacity .2s, transform .2s;
+    white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
+  .toast.zeigen { opacity: 1; transform: translate(-50%, 0); }
+  .fehlt { padding: 120px 24px; text-align: center; color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { .reihe media-play-button svg { animation: none; } .mitte, .marker, .toast, .kachel .bild img, .video-box, .reihe .zahnrad svg { transition: none; } .km.neu { animation: none; }
+    .app.blatt-modus .seite { transition-duration: .15s; } }
+</style>
+</head>
+<body>
+<!--LOGO-->
+<div class="app" id="app">
+
+  <!-- ================= Übersicht -->
+  <div id="uebersicht" hidden>
+    <header class="leiste" id="leiste">
+      <a class="logo" href="./" aria-label="StageView"><svg class="logo-bild" viewBox="0 0 341 42" role="img" aria-label="StageView"><use href="#stageview-logo"/></svg></a>
+      <div class="mitte-titel" id="leiste-titel"></div>
+      <div class="knoepfe">
+        <button class="pille" data-teilen title="Link teilen" data-i="link">Teilen</button>
+      </div>
+    </header>
+    <section class="held">
+      <div class="ambient" id="ambient"></div>
+      <div class="label" id="h-kunde"></div>
+      <h1 id="h-titel"></h1>
+      <div class="fortschritt" id="fortschritt"></div>
+      <div class="fortschritt-text" id="fortschritt-text"></div>
+      <p class="hinweis">Tippe auf ein Video, um es anzusehen. Was geändert werden soll, schreibst du direkt an die Stelle im Video.</p>
+    </section>
+    <div class="sortier-leiste">
+      <div class="status-wahl sortier-wahl"><button class="pille sortier-knopf" id="sortier-knopf" aria-haspopup="menu"><span class="leise">Sortiert nach</span> <span id="sortier-text">Posting Datum</span><span data-i="chevron-down"></span></button><div class="status-menue sortier-menue" id="sortier-menue" role="menu" hidden></div></div>
+    </div>
+    <section class="raster" id="raster"></section>
+    <footer class="fuss"><svg class="made-bild" viewBox="0 0 393 90" role="img" aria-label="Made by Stagecraft"><use href="#madeby-logo" width="393" height="90"/></svg></footer>
+  </div>
+
+  <!-- ================= Videoseite -->
+  <div id="videoseite" hidden>
+    <header class="kopf">
+      <div class="links">
+        <a class="rund" href="./" data-zur-uebersicht title="Alle Videos" aria-label="Alle Videos" data-i="chevron-left"></a>
+      </div>
+      <div class="titel">
+        <a class="projekt-name" href="./" data-zur-uebersicht id="projekt-name"></a>
+        <h1 id="v-titel"></h1>
+      </div>
+      <div class="rechts">
+        <button class="rund" data-teilen title="Link teilen" aria-label="Link teilen" data-i="link"></button>
+        <div class="status-wahl oben"><button class="status-knopf" data-status-knopf aria-haspopup="menu"><span class="punkt"></span><span data-status-text>Zur Freigabe</span><span data-i="chevron-down"></span></button><div class="status-menue" role="menu" hidden></div></div>
+        <a class="dl-pill" id="dl" href="#" rel="noopener"><span data-i="download"></span>Download <span id="dl-groesse"></span></a>
+        <a class="rund nur-handy" id="dl-rund" href="#" rel="noopener" title="Download" aria-label="Download" data-i="download"></a>
+      </div>
+    </header>
+
+    <div class="inhalt" id="inhalt">
+      <section class="viewer pausiert" id="viewer">
+        <div class="video-flaeche" id="flaeche">
+          <div class="licht" id="licht" aria-hidden="true"><canvas></canvas><canvas></canvas></div>
+          <div class="video-box" id="video-box">
+            <media-controller id="mc" autohide="-1" fullscreenelement="viewer">
+              <media-poster-image slot="poster" id="poster"></media-poster-image>
+              <media-loading-indicator slot="centered-chrome" noautohide></media-loading-indicator>
+              <media-play-button slot="centered-chrome" class="mitte" notooltip><span slot="play" data-i="play"></span><span slot="pause" data-i="pause"></span></media-play-button>
+            </media-controller>
+            <div class="wechsel" id="wechsel" hidden><span class="wechsel-kreis"></span><span id="wechsel-text"></span></div>
+          </div>
+          <div class="nachbar" id="nachbar" hidden><img alt=""></div>
+          <div class="wischen" id="wischen" hidden><span class="pfeile">↕</span> <span>Wischen für das nächste Video</span> <button title="Ausblenden" aria-label="Ausblenden" data-i="x-mark"></button></div>
+          <div class="video-fehler" id="video-fehler" hidden><b>Das Video lädt gerade nicht</b><span>Prüf kurz die Verbindung und versuch es nochmal. Herunterladen geht immer.</span>
+            <div class="knoepfe"><button id="nochmal">Nochmal laden</button><a id="fehler-dl" href="#" rel="noopener">Download</a></div></div>
+          <button class="weiter" id="weiter" hidden><span>Als Nächstes</span><b id="weiter-titel"></b><span data-i="chevron-right"></span></button>
+        </div>
+        <div class="steuerung" id="steuerung">
+          <div class="zeitleiste" id="zeitleiste"><media-time-range mediacontroller="mc"></media-time-range><div class="zeit-fang" id="zeit-fang"></div><div class="spul-zeit" id="spul-zeit" hidden></div></div>
+          <div class="reihe">
+            <media-play-button mediacontroller="mc" notooltip><span slot="play" data-i="play"></span><span slot="pause" data-i="pause"></span></media-play-button>
+            <media-mute-button mediacontroller="mc" notooltip><span slot="high" data-i="ton-an"></span><span slot="medium" data-i="ton-an"></span><span slot="low" data-i="ton-leise"></span><span slot="off" data-i="ton-aus"></span></media-mute-button>
+            <media-volume-range mediacontroller="mc"></media-volume-range>
+            <media-time-display mediacontroller="mc" showduration></media-time-display>
+            <span class="platz"></span>
+            <button type="button" class="zahnrad" id="zahnrad" title="Einstellungen" aria-label="Einstellungen" aria-haspopup="menu" aria-expanded="false" data-i="settings"></button>
+            <button class="vollbild-knopf" id="vollbild-knopf" title="Vollbild" aria-label="Vollbild" data-i="fullscreen"></button>
+          </div>
+          <div class="status-menue einstell-menue" id="einstell-menue" role="menu" aria-label="Einstellungen" hidden></div>
+        </div>
+      </section>
+
+      <div class="trenner" id="trenner" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Breite der Kommentare ändern"
+        title="Ziehen, um die Breite zu ändern. Doppelklick stellt sie zurück"></div>
+
+      <aside class="seite" id="blatt" data-stand="mitte">
+        <div class="blatt-kopf" id="blatt-kopf">
+          <div class="griff-zone" id="griff-zone" role="button" tabindex="0" aria-label="Kommentare auf oder zu klappen"><div class="griff"></div></div>
+          <div class="status-zeile" id="status-zeile">
+            <div class="status-wahl unten"><button class="status-knopf" data-status-knopf aria-haspopup="menu"><span class="punkt"></span><span data-status-text>Zur Freigabe</span><span class="aendern">Status ändern</span><span data-i="chevron-down"></span></button><div class="status-menue" role="menu" hidden></div></div>
+            <button class="k-knopf" id="k-knopf" title="Kommentare" aria-label="Kommentare"><span data-i="comment"></span><span class="zahl" id="k-zahl" hidden></span></button>
+          </div>
+        </div>
+        <div class="blatt-scroll" id="blatt-scroll">
+        <form class="eingabe" id="eingabe">
+          <div class="feld" id="feld">
+            <button type="button" class="zeit-chip an" id="zeit-chip" title="Zeit anhängen oder weglassen"><span data-i="timer"></span><span id="zeit-chip-text">0:00</span></button>
+            <textarea id="eingabe-text" rows="1" placeholder="Kommentar schreiben …" autocomplete="off" maxlength="2000" enterkeyhint="send"></textarea>
+            <button type="submit" class="senden" id="senden" title="Senden" aria-label="Senden" data-i="send"></button>
+          </div>
+          <div class="als" id="als"></div>
+        </form>
+        <section class="kommentare">
+          <div class="stoerung" id="stoerung" hidden>Kommentare sind gerade nicht erreichbar. Das Video läuft trotzdem.</div>
+          <div class="k-kopf"><h2>Kommentare <span id="anzahl"></span></h2>
+            <div class="filter" id="filter"><button class="an" data-f="alle">Alle</button><button data-f="offen">Offen</button><button data-f="erledigt">Erledigt</button></div></div>
+          <div class="liste" id="liste"></div>
+        </section>
+        </div>
+      </aside>
+    </div>
+
+    <section class="weitere" id="weitere">
+      <div class="weitere-kopf"><h2 id="weitere-titel">Mehr aus dem Content Day</h2><a href="./" data-zur-uebersicht>Alle Videos</a></div>
+      <div class="raster" id="weitere-raster"></div>
+    </section>
+  </div>
+
+  <div class="fehlt" id="fehlt" hidden>Diese Seite gibt es nicht (mehr). Frag kurz bei Stagecraft nach dem aktuellen Link.</div>
+</div>
+
+<dialog id="namen-dialog">
+  <form method="dialog" id="namen-form">
+    <h3>Wie heißt du?</h3>
+    <p>Damit wir wissen, von wem der Kommentar kommt. Fragen wir nur einmal.</p>
+    <input id="namen-feld" maxlength="60" autocomplete="name" placeholder="Vor und Nachname" required>
+    <div class="knoepfe"><button type="button" id="namen-abbrechen">Abbrechen</button><button value="ok" class="primaer">Weiter</button></div>
+  </form>
+</dialog>
+<dialog id="teilen-dialog" class="teilen-dialog" aria-labelledby="teilen-titel" tabindex="-1">
+  <button type="button" class="rund zu" id="teilen-zu" title="Schließen" aria-label="Schließen" data-i="x-mark"></button>
+  <h3 id="teilen-titel">Video teilen</h3>
+  <p class="wer" id="teilen-wer"></p>
+  <div class="link-text" id="teilen-link"></div>
+  <label class="ab-stelle" id="teilen-ab" hidden><input type="checkbox" id="teilen-ab-feld"><span>Ab <span id="teilen-ab-zeit">0:00</span> starten</span></label>
+  <p class="klein">Jeder mit dem Link kann die Videos ansehen und kommentieren.</p>
+  <button type="button" class="kopieren" id="teilen-kopieren"><span class="ic ic-link" data-i="link"></span><span class="ic ic-ok" data-i="check"></span><span class="text">Link kopieren</span></button>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+  const ICONS = /*ICONS*/{};
+  // Lautsprecher neu (12.11.2026, Ole fand den alten mit Balken schlecht): ein Stück wie bei Apple, Schallwellen als Bögen
+  (() => {
+    const koerper = '<path d="M7.7 11.5H11.2L16.3 7.2C17.1 6.5 18.3 7.1 18.3 8.2V23.8C18.3 24.9 17.1 25.5 16.3 24.8L11.2 20.5H7.7C6.87 20.5 6.2 19.83 6.2 19V13C6.2 12.17 6.87 11.5 7.7 11.5Z"/>';
+    const linie = 'fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round"';
+    const w1 = `<path d="M21.6 12.6A4.8 4.8 0 0 1 21.6 19.4" ${linie}/>`, w2 = `<path d="M24.6 9.6A9 9 0 0 1 24.6 22.4" ${linie}/>`;
+    const x = `<path d="M21.5 13.1L27.3 18.9M27.3 13.1L21.5 18.9" ${linie}/>`;
+    const g = s => `<g transform="translate(16 16) scale(1.1) translate(-17.3 -16)">${koerper}${s}</g>`;
+    ICONS['ton-an'] = g(w1 + w2); ICONS['ton-leise'] = g(w1); ICONS['ton-aus'] = g(x);
+  })();
+  const icon = (n, s) => `<svg class="i" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"${s ? ` style="--s:${s}px"` : ''}>${ICONS[n] || ''}</svg>`;
+  function symbole(wurzel = document) {
+    wurzel.querySelectorAll('[data-i]').forEach(el => {
+      const s = icon(el.dataset.i);
+      if (el.tagName === 'SPAN' && el.getAttribute('slot')) { const t = document.createElement('template'); t.innerHTML = s; const svg = t.content.firstChild; svg.setAttribute('slot', el.getAttribute('slot')); el.replaceWith(svg); }
+      else { el.insertAdjacentHTML('afterbegin', s); el.removeAttribute('data-i'); }
+    });
+  }
+  symbole();
+
+  // ---------- kleine Helfer
+  const $ = id => document.getElementById(id);
+  // Layout: Ambient Licht ist seit 13.11.2026 Standard (Ole: kein schwarzer Rand mehr). Die anderen Entwürfe nur noch per
+  // ?layout=grau | scrollen | schwarz (alte Version), der Zusatz bleibt beim Wechseln zwischen den Videos erhalten
+  const LAYOUT_URL = (l => ['grau', 'licht', 'scrollen', 'schwarz'].includes(l) ? l : '')(new URLSearchParams(location.search).get('layout'));
+  const LAYOUT = LAYOUT_URL === 'schwarz' ? '' : (LAYOUT_URL || 'licht');
+  if (LAYOUT) $('app').dataset.layout = LAYOUT;
+  // Wischen zwischen den Videos (hoch/runter wie Reels): seit 13.11.2026 aus (Ole: kein Scrollen zwischen Videos, weder seitlich noch hoch/runter).
+  // Zum nächsten Video geht es über "Mehr aus" im Blatt und "Als Nächstes" am Ende. true schaltet das Wischen samt Hinweis wieder ein
+  const WISCHEN_ZWISCHEN_VIDEOS = false;
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const zeit = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const lies = k => { try { return localStorage.getItem(k); } catch { return null; } };
+  const merke = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
+  function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('zeigen'); clearTimeout(toast.u); toast.u = setTimeout(() => el.classList.remove('zeigen'), 2400); }
+  const TAGE = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  function tag(iso) { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; return `${TAGE[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`; }
+  function wann(iso) {
+    const d = (Date.now() - new Date(iso)) / 1000;
+    if (d < 60) return 'gerade eben'; if (d < 3600) return `vor ${Math.floor(d / 60)} Min`; if (d < 86400) return `vor ${Math.floor(d / 3600)} Std`;
+    if (d < 172800) return 'gestern'; const t = new Date(iso); return `${String(t.getDate()).padStart(2, '0')}.${String(t.getMonth() + 1).padStart(2, '0')}.`;
+  }
+  const mb = b => b ? (b >= 1e9 ? (b / 1e9).toFixed(1).replace('.', ',') + ' GB' : Math.round(b / 1e6) + ' MB') : '';
+  const bild = (v, w) => `https://image.mux.com/${v.playback_id}/thumbnail.webp?width=${w}&time=${Math.min(2, (v.dauer || 4) / 2)}`;
+  const bewegt = v => `https://image.mux.com/${v.playback_id}/animated.webp?width=320&start=1&end=5&fps=12`;
+
+  // Nur noch dunkel (13.11.2026, Ole: Hell/Dunkel Knopf weg). Eine alte Wahl auf dem Gerät zählt nicht mehr
+  merke('sc-farbe', null);
+
+  // ---------- Adresse: /<projekt>/ ist die Übersicht, /<projekt>/<video>/ die Videoseite
+  // Kurze Links (seit 13.11.2026): /<code> ist die Übersicht, /<code>/<nr> ein Video. Die Nummer ist fest (nummern.json)
+  const ORDNER = location.pathname.split('/').filter(Boolean)[0] || '';
+  const GALERIE = '/' + ORDNER, BASIS = GALERIE + '/';
+  const videoLink = v => `${GALERIE}/${v.nr}`;
+  document.querySelectorAll('a[href="./"]').forEach(a => a.setAttribute('href', GALERIE));
+  const API = '/api/' + ORDNER + '/';
+  history.scrollRestoration = 'manual';
+  // Team Link: #team=<schlüssel> einmal öffnen, danach kommentiert dieses Gerät als Stagecraft
+  if (location.hash.startsWith('#team=')) { merke('sc-team', decodeURIComponent(location.hash.slice(6))); history.replaceState(null, '', location.pathname + location.search); }
+  function geraet() {
+    let k = lies('sc-geraet');
+    if (!k) { const z = new Uint8Array(24); crypto.getRandomValues(z); k = [...z].map(b => b.toString(16).padStart(2, '0')).join(''); merke('sc-geraet', k); }
+    return k;
+  }
+  async function api(pfad, opt = {}) {
+    const kopf = { 'X-Autor': geraet() }; const t = lies('sc-team'); if (t) kopf['X-Team'] = t;
+    if (opt.body) kopf['Content-Type'] = 'application/json';
+    const r = await fetch(API + pfad, { method: opt.method || 'GET', headers: kopf, body: opt.body ? JSON.stringify(opt.body) : undefined, cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.fehler || 'Das hat nicht geklappt');
+    return d;
+  }
+
+  const STATUS = {
+    'zur-freigabe': { t: 'Zur Freigabe', c: '#D9C3A5', h: 'Noch nicht entschieden' },
+    'aenderung': { t: 'Änderung gewünscht', c: '#C4855A', h: 'Wir passen das Video nach euren Kommentaren an' },
+    'freigegeben': { t: 'Freigegeben', c: '#93AA98', h: 'Passt so, kann gepostet werden' },
+  };
+  let P = null, AKT = null, mv = null, filter = 'alle', K = { kommentare: [], status: {}, team: false }, KOK = true;
+  const statusVon = id => (K.status[id] && K.status[id].wert) || 'zur-freigabe';
+  const istTeam = () => !!K.team;
+
+  // ---------- Übersicht
+  const querVideo = v => (v.seitenverhaeltnis || .5625) > 1;
+  function kachel(v, extra = '') {
+    const st = STATUS[statusVon(v.id)];
+    const offen = K.kommentare.filter(k => k.video === v.id && !k.antwort_auf && !k.erledigt).length;
+    return `<a class="kachel" href="${videoLink(v)}">
+      <div class="bild${querVideo(v) ? ' quer' : ''}">${querVideo(v) ? `<img class="hinten" src="${bild(v, 160)}" alt="" loading="lazy" decoding="async">` : ''}<img class="still" src="${bild(v, 480)}" alt="" loading="lazy" decoding="async"><img class="bewegt" alt="" data-src="${bewegt(v)}">
+        ${extra}<span class="dauer">${zeit(v.dauer)}</span>${offen ? `<span class="kz">${icon('comment')}${offen}</span>` : ''}</div>
+      <h3>${esc(v.titel)}</h3>
+      <div class="meta"><span class="punkt" style="--c:${st.c}"></span>${st.t}${v.posting ? ` · ${tag(v.posting)}` : ''}</div></a>`;
+  }
+  const SORTIERUNG = {
+    posting: { t: 'Posting Datum', h: 'So, wie die Videos rausgehen' },
+    neu: { t: 'Zuletzt hinzugefügt', h: 'Neue Videos zuerst' },
+    name: { t: 'Name', h: 'Von A bis Z' },
+    freigabe: { t: 'Freigabe', h: 'Offene zuerst, Freigegebene am Ende' },
+  };
+  let sortierung = SORTIERUNG[lies('sc-sortierung')] ? lies('sc-sortierung') : 'posting';
+  const FREIGABE_REIHE = { 'zur-freigabe': 0, 'aenderung': 1, 'freigegeben': 2 };
+  function sortiert() {
+    const liste = [...P.videos];  // P.videos ist nach Posting Datum sortiert, das bleibt bei Gleichstand die zweite Regel
+    if (sortierung === 'neu') liste.sort((a, b) => (b.nr || 0) - (a.nr || 0));  // Nummern werden beim Hinzufügen fortlaufend vergeben
+    if (sortierung === 'name') liste.sort((a, b) => a.titel.localeCompare(b.titel, 'de', { sensitivity: 'base' }));
+    if (sortierung === 'freigabe') liste.sort((a, b) => FREIGABE_REIHE[statusVon(a.id)] - FREIGABE_REIHE[statusVon(b.id)]);
+    return liste;
+  }
+  $('sortier-knopf').addEventListener('click', e => {
+    e.stopPropagation(); const m = $('sortier-menue');
+    if (!m.hidden) return menueZu();
+    menueZu();
+    m.innerHTML = Object.entries(SORTIERUNG).map(([k, s]) => `<button role="menuitemradio" aria-checked="${k === sortierung}" data-sortierung="${k}" class="${k === sortierung ? 'an' : ''}" style="--c:var(--akzent)">
+        <span><b>${s.t}</b><small>${s.h}</small></span>${k === sortierung ? icon('check') : ''}</button>`).join('');
+    m.hidden = false;
+  });
+  $('sortier-menue').addEventListener('click', e => {
+    const b = e.target.closest('[data-sortierung]'); if (!b) return; e.stopPropagation(); menueZu();
+    sortierung = b.dataset.sortierung; merke('sc-sortierung', sortierung === 'posting' ? null : sortierung); uebersichtZeichnen();
+  });
+  function uebersichtZeichnen() {
+    $('sortier-text').textContent = SORTIERUNG[sortierung].t;
+    $('raster').innerHTML = sortiert().map(v => kachel(v)).join('');
+    const frei = P.videos.filter(v => statusVon(v.id) === 'freigegeben').length;
+    const aend = P.videos.filter(v => statusVon(v.id) === 'aenderung').length;
+    $('fortschritt').innerHTML = P.videos.map(v => { const s = statusVon(v.id); return `<span style="${s !== 'zur-freigabe' ? `--c:${STATUS[s].c}` : ''}" title="${esc(v.titel)}"></span>`; }).join('');
+    $('fortschritt-text').textContent = `${frei} von ${P.videos.length} freigegeben` + (aend ? ` · ${aend} mit Änderung` : '');
+  }
+  function kopfFuellen() {
+    $('app').classList.toggle('alles-quer', P.videos.length > 0 && P.videos.every(querVideo));
+    $('h-kunde').textContent = P.kunde + (P.firma ? ' · ' + P.firma : '');
+    $('h-titel').textContent = P.titel; $('leiste-titel').textContent = P.titel;
+    // Zeile "Gedreht am … · 12 Videos · 10 Min" unter dem Titel seit 13.11.2026 weg (Ole)
+    if (P.hinweis) document.querySelector('.held .hinweis').textContent = P.hinweis;  // z.B. auf Vorschau Seiten
+    $('projekt-name').textContent = P.titel;
+    $('weitere-titel').textContent = 'Mehr aus ' + P.titel;
+  }
+  new IntersectionObserver(([e]) => $('leiste').classList.toggle('mit-titel', !e.isIntersecting), { rootMargin: '-64px 0px 0px 0px' }).observe($('h-titel'));
+
+  // Bewegte Vorschau beim Drüberfahren (nur mit Maus)
+  const mitMaus = matchMedia('(hover: hover)');
+  document.addEventListener('mouseover', e => {
+    const k = e.target.closest('.kachel'); if (!k || !mitMaus.matches || k.classList.contains('vorschau')) return;
+    const img = k.querySelector('.bewegt'); if (!img.src) img.src = img.dataset.src;
+    k.classList.add('vorschau');
+    k.addEventListener('mouseleave', () => k.classList.remove('vorschau'), { once: true });
+  });
+
+  // ---------- Navigation
+  let uebersichtScroll = 0, autoStart = false;
+  // Verlauf: jeder Wechsel legt einen Eintrag an. So blättert seitliches Wischen (iPhone vom Bildschirmrand, Mac mit zwei Fingern
+  // auf dem Trackpad) zwischen den Videos zurück und vor. Ole will das ausdrücklich (13.11.2026), nicht wieder auf replaceState umbauen
+  function gehe(url) { history.pushState(null, '', url + (LAYOUT_URL ? '?layout=' + LAYOUT_URL : '')); route(); }
+  function route() {
+    const rest = location.pathname.split('/').filter(Boolean)[1] || '';
+    const v = P.videos.find(x => String(x.nr) === rest || x.slug === rest);
+    const kurz = v ? videoLink(v) : GALERIE;  // Adresse immer in der kurzen Form, auch nach alten Links
+    if (location.pathname !== kurz) history.replaceState(history.state, '', kurz + location.search);
+    v ? zeigeVideo(v) : zeigeUebersicht();
+  }
+  addEventListener('popstate', route);
+  document.addEventListener('click', e => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+    const k = e.target.closest('a.kachel');
+    if (k) { e.preventDefault(); autoStart = true; gehe(k.getAttribute('href')); return; }
+    if (e.target.closest('[data-zur-uebersicht]')) { e.preventDefault(); gehe(GALERIE); }
+  });
+  function zeigeUebersicht() {
+    if (mv) mv.pause();
+    const war = !$('videoseite').hidden;
+    $('videoseite').hidden = true; $('uebersicht').hidden = false; modusPruefen();
+    uebersichtZeichnen();
+    document.title = `${P.titel} · ${P.kunde}`;
+    scrollTo(0, war ? uebersichtScroll : 0);
+  }
+  function zeigeVideo(v) {
+    if (!$('uebersicht').hidden) uebersichtScroll = scrollY;
+    $('uebersicht').hidden = true; $('videoseite').hidden = false;
+    if (AKT !== v) {
+      AKT = v; playerLaden(v); videoKopf(v); weitereZeichnen(); antwortAuf = null;
+      // Neues Video: Kommentarliste nach oben, offenes Blatt wieder auf die Mitte (zu bleibt zu, wie bei Reels)
+      $('blatt-scroll').scrollTop = 0; if (BLATT.stand === 'offen') BLATT.stand = 'mitte';
+    }
+    statusZeichnen(); zeichnen(); modusPruefen(); wischHinweis();
+    document.title = `${v.titel} · ${P.titel}`;
+    scrollTo(0, 0);
+  }
+
+  // ---------- Videoseite
+  const app = $('app'), viewer = $('viewer');
+  // Abspielweg (13.11.2026, auf einem Handy lud nichts): Das iPhone hat kein normales MediaSource, nur Apples neues
+  // ManagedMediaSource (ab iOS 17.1), und das läuft nicht überall stabil. Darum spielt das iPhone über Apples eigenen
+  // HLS Player (Qualität dann nur Auto), alle anderen über hls.js mit Qualitätsliste. Lädt hls.js nicht (Fehler oder
+  // nach 9 s noch nichts da), schaltet die Seite selbst auf den nativen Weg um. Jeder Fehler geht kurz an den Server (melden).
+  const STANDARD_WEG = window.MediaSource ? 'mse' : 'native';
+  // Qualität von Hand auch am iPhone (Ole, 13.11.2026): auf dem nativen Weg gibt es keine Stufenliste im Player. Mux liefert aber mit
+  // min_resolution = max_resolution genau eine Stufe (Attribute min-resolution/max-resolution an mux-video), dann lädt das Video
+  // an derselben Stelle neu. Die Stufen pro Video kommen aus der Mux Videoliste (.m3u8). Die Wahl gilt für die ganze Sitzung
+  let QUALI = 'auto', WECHSEL = 0; const STUFEN = {};
+  const MUX_STUFEN = [2160, 1440, 1080, 720, 540, 480, 360, 270];
+  const stufeName = p => (MUX_STUFEN.find(s => s <= p) || 270) + 'p';
+  // Seit 14.11.2026 bis 4K (Ole: höhere Stufen anbieten). 2160p heißt in der Auswahl 4K. Gezeigt werden Auto und die vier höchsten Stufen
+  // (bei 4K: 4K, 1440p, 1080p, 720p), damit alles in eine Reihe passt wie beim Tempo. Bei schwacher Verbindung geht Auto ohnehin tiefer
+  const stufeText = q => { const p = parseInt(q); return p >= 2160 ? '4K' : p + 'p'; };
+  function stufenLaden(v) {
+    if (STUFEN[v.playback_id] !== undefined) return; STUFEN[v.playback_id] = 'laedt';
+    fetch(`https://stream.mux.com/${v.playback_id}.m3u8`).then(r => r.text()).then(text => {
+      const p = [...new Set([...text.matchAll(/RESOLUTION=(\d+)x(\d+)/g)].map(m => stufeName(Math.min(+m[1], +m[2]))))];
+      STUFEN[v.playback_id] = p.length ? p.filter(q => parseInt(q) >= 360).sort((a, b) => parseInt(b) - parseInt(a)).slice(0, 4) : null;
+      if (!$('einstell-menue').hidden) einstellZeichnen();
+    }).catch(() => { STUFEN[v.playback_id] = null; });
+  }
+  function melden(art, v, weg) {
+    try { fetch(API + 'fehler', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ art, video: v ? v.id : '', weg: weg || '', geraet: navigator.userAgent }) }).catch(() => {}); } catch {}
+  }
+  function stoerungZeigen(an) { $('video-fehler').hidden = !an; viewer.classList.toggle('gestoert', an); if (an) viewer.classList.add('pausiert'); }
+  function playerLaden(v, opt = {}) {
+    const weg = opt.weg || STANDARD_WEG, auto = opt.auto ?? autoStart; autoStart = false;
+    stoerungZeigen(false); menueZu();  // offenes Einstellungen Menü gehört zum alten Video
+    if (!customElements.get('mux-video')) { stoerungZeigen(true); melden('player-skript-fehlt', v); return; }
+    const neu = document.createElement('mux-video');
+    neu.id = 'mv'; neu.setAttribute('slot', 'media'); neu.setAttribute('playback-id', v.playback_id);
+    ['playsinline', 'crossorigin', 'disable-tracking'].forEach(a => neu.setAttribute(a, ''));
+    if (!opt.wechsel) { WECHSEL++; wechselZeigen(false); }
+    neu.setAttribute('preload', 'metadata'); neu.setAttribute('prefer-playback', weg);
+    // Auto so gut wie möglich (Ole, 16.11.2026): am Rechner keine Grenze durch die Playergröße (Mux hört sonst meist bei 1080p auf)
+    // und Start mit einer realistischen Schätzung der Leitung statt 500 kbit/s (sonst sind die ersten Sekunden unscharf).
+    // Hält die Leitung nicht mit, geht Auto von selbst runter. Am Handy bleibt die Grenze wegen des Datenvolumens
+    if (weg === 'mse') {
+      const dl = navigator.connection && navigator.connection.downlink, gross = innerWidth >= 900;
+      // 12000 kbit/s: Start mit 1440p, von dort geht hls.js bei guter Leitung schnell auf 4K. Chrome meldet die Leitung (höchstens 10 Mbit/s)
+      neu.setAttribute('initial-bandwidth-estimate-kbps', String(Math.round(gross ? (dl && dl < 10 ? Math.max(3000, dl * 800) : 12000) : (dl ? Math.min(8000, Math.max(2000, dl * 800)) : 4000))));
+      if (gross) neu.capRenditionToPlayerSize = false;
+    }
+    if (weg === 'native') { stufenLaden(v); if (QUALI !== 'auto') { neu.setAttribute('min-resolution', QUALI); neu.setAttribute('max-resolution', QUALI); } }
+    if (opt.tempo && opt.tempo !== 1) { const r = opt.tempo; neu.addEventListener('loadedmetadata', () => { neu.defaultPlaybackRate = r; neu.playbackRate = r; }, { once: true }); }
+    const tr = document.createElement('track'); tr.label = 'thumbnails'; tr.kind = 'metadata'; tr.default = true;
+    tr.src = `https://image.mux.com/${v.playback_id}/storyboard.vtt`; neu.appendChild(tr);
+    if (mv) { mv.pause(); mv.replaceWith(neu); } else $('mc').prepend(neu);
+    mv = neu;
+    // Tippen auf eine Kachel startet das Video. Der erste Versuch kommt oft vor der Quelle und bricht ab, darum noch einmal, sobald sie da ist
+    if (auto) { const los = () => neu.play().catch(() => {}); los(); neu.addEventListener('loadedmetadata', () => { if (neu.paused) los(); }, { once: true }); }
+    // Absicherung: Fehler oder Hänger erkennen
+    let geladen = false, behandelt = false;
+    neu.addEventListener('loadedmetadata', () => { geladen = true; }, { once: true });
+    const umschalten = grund => {
+      if (mv !== neu || behandelt) return; behandelt = true;
+      if (weg === 'mse') { melden('wechsel-auf-nativ: ' + grund, v, weg); playerLaden(v, { weg: 'native', t: neu.currentTime, auto: auto || !neu.paused }); }
+      else { melden('laedt-nicht: ' + grund, v, weg); neu.pause(); stoerungZeigen(true); }
+    };
+    neu.addEventListener('error', () => umschalten('fehler ' + (neu.error ? neu.error.code + ' ' + (neu.error.message || '') : '')));
+    if (weg === 'mse') setTimeout(() => { if (!geladen && !document.hidden) umschalten('nach 9 s nichts geladen'); }, 9000);
+    // Nativ lädt das iPhone erst nach dem Tippen auf Play, darum zählt die Zeit ab dort
+    else neu.addEventListener('play', () => setTimeout(() => { if (!geladen && !document.hidden) umschalten('nach Play 15 s nichts geladen'); }, 15000), { once: true });
+    $('poster').setAttribute('src', bild(v, 720));
+    $('video-box').style.setProperty('--ar', v.seitenverhaeltnis || .5625);
+    const zustand = () => { viewer.classList.toggle('pausiert', mv.paused); if (!mv.paused) $('weiter').hidden = true; wach(); };
+    ['play', 'pause', 'seeking'].forEach(ev => mv.addEventListener(ev, zustand));
+    mv.addEventListener('ended', () => { zustand(); const n = naechstes(1); if (n !== AKT) { $('weiter-titel').textContent = n.titel; $('weiter').hidden = false; } });
+    mv.addEventListener('timeupdate', zeitLaeuft);
+    if (LAYOUT === 'licht') { mv.addEventListener('seeked', () => lichtMalen(mv.currentTime, true)); lichtLaden(v); }
+    const t = opt.t ?? +new URLSearchParams(location.search).get('t');
+    if (t > 0) { mv.addEventListener('loadedmetadata', () => { mv.currentTime = t; }, { once: true }); if (location.search) history.replaceState(history.state, '', location.pathname); }
+    viewer.classList.add('pausiert'); $('weiter').hidden = true;
+    $('zeit-chip').classList.add('an'); $('zeit-chip-text').textContent = zeit(t || 0);
+  }
+  function videoKopf(v) {
+    $('v-titel').textContent = v.titel; $('v-titel').title = v.titel;
+    ['dl', 'dl-rund', 'fehler-dl'].forEach(id => { $(id).href = v.download || '#'; $(id).hidden = !v.download; }); $('dl-groesse').textContent = mb(v.groesse);
+  }
+  $('nochmal').addEventListener('click', () => playerLaden(AKT, { weg: 'native', t: mv ? mv.currentTime : 0, auto: true }));
+  const naechstes = r => { const i = P.videos.indexOf(AKT); return P.videos[(i + r + P.videos.length) % P.videos.length]; };
+  function weitereZeichnen() {
+    const i = P.videos.indexOf(AKT);
+    const reihe = [...P.videos.slice(i + 1), ...P.videos.slice(0, i)];
+    $('weitere-raster').innerHTML = reihe.map((v, n) => kachel(v, n === 0 ? '<span class="naechstes">Als Nächstes</span>' : '')).join('');
+    $('weitere').hidden = !reihe.length;  // Projekt mit nur einem Video (z.B. ein YouTube Video): kein leeres "Mehr aus"
+  }
+  $('weiter').addEventListener('click', () => { autoStart = true; gehe(videoLink(naechstes(1))); });
+
+  // Status oben (Zur Freigabe, Änderung gewünscht, Freigegeben)
+  const menueZu = () => { document.querySelectorAll('.status-menue').forEach(m => (m.hidden = true)); $('zahnrad').setAttribute('aria-expanded', 'false'); };
+  function statusZeichnen() {
+    if (!AKT) return; const s = STATUS[statusVon(AKT.id)];
+    document.querySelectorAll('[data-status-knopf]').forEach(b => { b.style.setProperty('--c', s.c); b.querySelector('[data-status-text]').textContent = s.t; });
+  }
+  document.querySelectorAll('[data-status-knopf]').forEach(knopf => knopf.addEventListener('click', e => {
+    e.stopPropagation(); const m = knopf.nextElementSibling;
+    if (!m.hidden) return menueZu();
+    menueZu();
+    const jetzt = statusVon(AKT.id), info = K.status[AKT.id];
+    m.innerHTML = Object.entries(STATUS).map(([k, s]) => `<button role="menuitemradio" aria-checked="${k === jetzt}" data-status="${k}" class="${k === jetzt ? 'an' : ''}" style="--c:${s.c}">
+        <span class="punkt" style="--c:${s.c}"></span><span><b>${s.t}</b><small>${s.h}</small></span>${k === jetzt ? icon('check') : ''}</button>`).join('')
+      + (info && info.von ? `<div class="von">${esc(STATUS[info.wert].t)} von ${esc(info.von)}, ${wann(info.am)}</div>` : '');
+    m.hidden = false;
+  }));
+  document.querySelectorAll('.status-menue').forEach(menue => menue.addEventListener('click', async e => {
+    const b = e.target.closest('[data-status]'); if (!b) return; e.stopPropagation(); menueZu();
+    const wert = b.dataset.status; if (wert === statusVon(AKT.id)) return;
+    const name = await nameSicher(); if (!name) return;
+    const vorher = K.status[AKT.id]; K.status[AKT.id] = { wert, von: name, am: new Date().toISOString() }; statusZeichnen();
+    try { K.status[AKT.id] = await api('status', { method: 'POST', body: { video: AKT.id, status: wert, name } }); toast(wert === 'freigegeben' ? 'Freigegeben, danke!' : 'Status: ' + STATUS[wert].t); }
+    catch (err) { K.status[AKT.id] = vorher; statusZeichnen(); toast(err.message); }
+    weitereZeichnen();
+  }));
+  document.addEventListener('click', e => { if (!e.target.closest('.status-wahl')) menueZu(); });
+
+  // Teilen (seit 13.11.2026 ein eigenes Fenster, Ole): der Link steht sichtbar da, darunter ein großer Kopieren Knopf.
+  // Auf der Videoseite wahlweise ab der aktuellen Stelle. Das Teilen Menü des Geräts gibt es bewusst nicht mehr (Ole)
+  // Scroll Sperre für offene Fenster: html bekommt overflow hidden, die wegfallende Scrollleiste (Windows) wird mit Rand ausgeglichen
+  function fensterAuf(d) {
+    const h = document.documentElement, breit = innerWidth - h.clientWidth;
+    h.style.setProperty('--leiste-breit', breit > 0 ? breit + 'px' : '0px'); h.classList.add('gesperrt');
+    d.showModal();
+  }
+  document.querySelectorAll('dialog').forEach(d => d.addEventListener('close', () => {
+    if (!document.querySelector('dialog[open]')) document.documentElement.classList.remove('gesperrt');
+  }));
+  const teilenD = $('teilen-dialog'), kopierKnopf = $('teilen-kopieren'); let teilenDaten = null;
+  const teilenLink = () => teilenDaten.url + ($('teilen-ab-feld').checked && teilenDaten.t > 1 ? '?t=' + teilenDaten.t : '');
+  const linkZeigen = () => { $('teilen-link').textContent = teilenLink().replace(/^https?:\/\//, ''); };
+  function kopiertZurueck() { clearTimeout(kopiertZurueck.u); kopierKnopf.classList.remove('fertig'); kopierKnopf.querySelector('.text').textContent = 'Link kopieren'; }
+  document.querySelectorAll('[data-teilen]').forEach(b => b.addEventListener('click', () => {
+    const aufVideo = !$('videoseite').hidden;
+    if (aufVideo && mv && !mv.paused) mv.pause();  // Beim Teilen hält das Video an (Ole, 13.11.2026), bleibt danach pausiert
+    const t = aufVideo && mv ? Math.floor(mv.currentTime || 0) : 0;
+    teilenDaten = { url: location.origin + location.pathname, t, titel: aufVideo ? AKT.titel : P.titel };
+    $('teilen-titel').textContent = aufVideo ? 'Video teilen' : 'Alle Videos teilen';
+    $('teilen-wer').textContent = aufVideo ? AKT.titel : [P.titel, P.kunde].filter(Boolean).join(' · ');
+    $('teilen-ab').hidden = !(t > 1); $('teilen-ab-feld').checked = false; $('teilen-ab-zeit').textContent = zeit(t);
+    kopiertZurueck(); linkZeigen();
+    fensterAuf(teilenD); teilenD.focus();  // Fokus aufs Fenster, nicht auf einen Knopf (sonst Rahmen um Kopieren)
+  }));
+  $('teilen-ab-feld').addEventListener('change', () => { kopiertZurueck(); linkZeigen(); });
+  kopierKnopf.addEventListener('click', async () => {
+    const url = teilenLink(); let ok = false;
+    try { await navigator.clipboard.writeText(url); ok = true; } catch {}
+    if (!ok) {  // ältere Browser und manche App Browser: über ein unsichtbares Feld im Fenster kopieren
+      const f = document.createElement('textarea'); f.value = url; f.readOnly = true; f.style.cssText = 'position:fixed;opacity:0;font-size:16px';
+      teilenD.appendChild(f); f.select(); f.setSelectionRange(0, url.length); try { ok = document.execCommand('copy'); } catch {} f.remove();
+    }
+    kopierKnopf.querySelector('.text').textContent = ok ? 'Kopiert' : 'Bitte von Hand kopieren';
+    kopierKnopf.classList.toggle('fertig', ok);
+    clearTimeout(kopiertZurueck.u); kopiertZurueck.u = setTimeout(kopiertZurueck, 2400);
+  });
+  $('teilen-zu').addEventListener('click', () => teilenD.close());
+  teilenD.addEventListener('click', e => {   // Klick neben das Fenster schließt es
+    if (e.target !== teilenD) return; const r = teilenD.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) teilenD.close();
+  });
+
+  // Name (einmal pro Gerät)
+  function nameSicher() {
+    const n = lies('sc-name'); if (n) return Promise.resolve(n);
+    return nameFragen();
+  }
+  // Enter im Namensfeld heißt Weiter (16.11.2026: vorher war Abbrechen der erste Knopf, Enter brach ab und der Kommentar ging nicht raus)
+  $('namen-abbrechen').addEventListener('click', () => $('namen-dialog').close('abbrechen'));
+  function nameFragen() {
+    const d = $('namen-dialog'); $('namen-feld').value = lies('sc-name') || '';
+    return new Promise(fertig => {
+      d.addEventListener('close', () => {
+        const n = $('namen-feld').value.trim();
+        if (d.returnValue === 'ok' && n) { merke('sc-name', n); alsZeichnen(); fertig(n); } else fertig(null);
+      }, { once: true });
+      d.returnValue = ''; fensterAuf(d); $('namen-feld').focus();
+    });
+  }
+  function alsZeichnen() {
+    const n = lies('sc-name');
+    $('als').innerHTML = n ? `Du kommentierst als <b>${esc(n)}</b>${istTeam() ? ' · Stagecraft' : ''} · <button type="button" id="name-aendern">ändern</button>`
+      : 'Pausier an der Stelle, die du ändern willst. Die Zeit wird mitgeschickt.';
+    const b = $('name-aendern'); if (b) b.addEventListener('click', nameFragen);
+  }
+
+  // ---------- Kommentare
+  const FARBEN = [['#48514A', '#fff'], ['#C4855A', '#fff'], ['#6F8574', '#fff'], ['#8F6E4E', '#fff'], ['#5E6B73', '#fff']];
+  function farbe(k) { if (k.rolle === 'team') return ['#E8DDD0', '#1E1E1C']; let h = 0; for (const c of k.name) h = (h * 31 + c.charCodeAt(0)) >>> 0; return FARBEN[h % FARBEN.length]; }
+  function kuerzel(name) { const t = name.trim().split(/\s+/); return ((t[0] || '?')[0] + (t.length > 1 ? t[t.length - 1][0] : '')).toUpperCase(); }
+  function ava(k) { const [c, ct] = farbe(k); return `<span class="ava" style="--c:${c};--ct:${ct}">${esc(kuerzel(k.name))}</span>`; }
+  let antwortAuf = null, neuId = null, bearbeitet = null, bearbeitEntwurf = '';
+  // Links im Text klickbar machen (Ole, 16.11.2026): erst Adressen finden, dann jedes Stück einzeln maskieren. Nur http(s) und www.
+  const LINK = /(?:https?:\/\/|www\.)[^\s<>"']+/gi;
+  function textHtml(t) {
+    let aus = '', i = 0;
+    for (const m of String(t).matchAll(LINK)) {
+      const url = m[0].replace(/[.,;:!?)\]»“”’]+$/, ''); if (!url) continue;
+      const href = /^www\./i.test(url) ? 'https://' + url : url;
+      aus += esc(t.slice(i, m.index)) + `<a class="km-link" href="${esc(href)}" target="_blank" rel="noopener noreferrer nofollow">${esc(url)}</a>`;
+      i = m.index + url.length;
+    }
+    return aus + esc(String(t).slice(i));
+  }
+  function textBlock(k, vorne = '') {
+    if (bearbeitet === k.id) return `<form class="bearbeiten-form" data-bearbeiten-form="${k.id}"><textarea rows="1" maxlength="2000" enterkeyhint="done"
+      aria-label="Kommentar ändern">${esc(bearbeitEntwurf)}</textarea><div class="bf-knoepfe"><button type="button" data-bearbeiten-ab>Abbrechen</button><button class="sichern">Sichern</button></div></form>`;
+    return `<div class="km-text${k.darf_bearbeiten ? ' eigen' : ''}"${k.darf_bearbeiten ? ` data-bearbeiten="${k.id}" title="Zum Ändern klicken"` : ''}>${vorne}${textHtml(k.text)}</div>`;
+  }
+  function kopfzeile(k, mitHaken) {
+    return `<div class="km-kopf">${ava(k)}<b>${esc(k.name)}</b>${k.rolle === 'team' ? '<span class="rolle">Stagecraft</span>' : ''}<span class="wann">${wann(k.erstellt)}</span>${k.bearbeitet ? '<span class="bearb">bearbeitet</span>' : ''}
+      ${mitHaken ? `<button class="haken" data-haken title="${k.erledigt ? 'Wieder öffnen' : 'Als erledigt markieren'}" aria-label="${k.erledigt ? 'Wieder öffnen' : 'Als erledigt markieren'}">${icon('check')}</button>` : ''}</div>`;
+  }
+  function karte(k, antworten) {
+    const antw = antworten.map(a => `<div class="antwort" data-id="${a.id}">${kopfzeile(a, false)}${textBlock(a)}
+      ${(a.darf_bearbeiten || a.darf_loeschen) && bearbeitet !== a.id ? `<div class="km-fuss">${a.darf_bearbeiten ? `<button data-bearbeiten="${a.id}">Bearbeiten</button>` : ''}${a.darf_loeschen ? `<button class="weg" data-weg="${a.id}">Löschen</button>` : ''}</div>` : ''}</div>`).join('');
+    return `<article class="km${k.zeit != null ? ' springbar' : ''}${k.erledigt ? ' erledigt' : ''}${k.id === neuId ? ' neu' : ''}" data-id="${k.id}">${kopfzeile(k, true)}
+      ${textBlock(k, k.zeit != null ? `<button class="zeit-knopf" data-t="${k.zeit}">${icon('play')}${zeit(k.zeit)}</button>` : '')}
+      <div class="km-fuss"><button data-antworten>Antworten</button>${k.darf_bearbeiten && bearbeitet !== k.id ? `<button data-bearbeiten="${k.id}">Bearbeiten</button>` : ''}${k.darf_loeschen ? `<button class="weg" data-weg="${k.id}">Löschen</button>` : ''}
+        ${k.erledigt && k.erledigt_von ? `<span class="erl">Erledigt von ${esc(k.erledigt_von.split(' ')[0])}</span>` : ''}</div>
+      ${antw}${antwortAuf === k.id ? `<form class="antwort-form" data-antwort-form><input placeholder="Antworten …" maxlength="2000" enterkeyhint="send"><button class="senden" aria-label="Antwort senden">${icon('send')}</button></form>` : ''}</article>`;
+  }
+  function zeichnen(vorsicht) {
+    if (!AKT) return;
+    const alle = K.kommentare.filter(k => k.video === AKT.id);
+    const oben = alle.filter(k => !k.antwort_auf);
+    // Wer gerade eine Antwort tippt, bekommt die Liste nicht unter den Fingern neu gezeichnet
+    const offeneAntwort = document.querySelector('[data-antwort-form] input, [data-bearbeiten-form] textarea');
+    if (!(vorsicht && offeneAntwort && (offeneAntwort.value || document.activeElement === offeneAntwort))) {
+      const sichtbar = oben.filter(k => filter === 'alle' || (filter === 'offen' ? !k.erledigt : k.erledigt))
+        .sort((a, b) => (a.zeit ?? 1e9) - (b.zeit ?? 1e9) || a.id - b.id);
+      $('liste').innerHTML = sichtbar.map(k => karte(k, alle.filter(a => a.antwort_auf === k.id).sort((a, b) => a.id - b.id))).join('')
+        || `<div class="leer">${oben.length ? 'Hier ist gerade nichts.' : 'Noch keine Kommentare.<br>Pausier an der Stelle, die du ändern willst, und schreib es oben rein. Die Zeit wird mitgeschickt.'}</div>`;
+      const f = document.querySelector('[data-antwort-form] input'); if (f && !vorsicht) f.focus();
+      const b = document.querySelector('[data-bearbeiten-form] textarea');
+      if (b && !vorsicht) { wachsen(b); b.focus(); b.setSelectionRange(b.value.length, b.value.length); }
+    }
+    const offen = oben.filter(k => !k.erledigt).length;
+    $('anzahl').textContent = oben.length ? `${offen} offen` : '';
+    $('k-zahl').hidden = !offen; $('k-zahl').textContent = offen;
+    $('k-knopf').setAttribute('aria-label', offen ? `Kommentare, ${offen} offen` : 'Kommentare');
+    // Marker auf der Leiste
+    const leiste = $('zeitleiste'); leiste.querySelectorAll('.marker').forEach(m => m.remove());
+    const dauer = (mv && isFinite(mv.duration) && mv.duration) || AKT.dauer || 60;
+    oben.filter(k => k.zeit != null).forEach(k => {
+      const [c, ct] = farbe(k), m = document.createElement('button'), p = Math.min(100, k.zeit / dauer * 100);
+      m.className = 'marker' + (k.erledigt ? ' erledigt' : '') + (p < 15 ? ' links' : p > 85 ? ' rechts' : '');
+      m.dataset.id = k.id; m.style.left = p + '%'; m.style.setProperty('--c', c); m.style.setProperty('--ct', ct);
+      m.setAttribute('aria-label', `Kommentar bei ${zeit(k.zeit)} von ${k.name}`);
+      m.innerHTML = esc(kuerzel(k.name)[0]) + `<span class="blase"><b>${esc(k.name)}</b> · ${zeit(k.zeit)}<br>${esc(k.text.length > 120 ? k.text.slice(0, 118) + ' …' : k.text)}</span>`;
+      m.addEventListener('click', () => springen(k.zeit, k.id));
+      leiste.appendChild(m);
+    });
+    neuId = null;
+  }
+  function springen(t, id) {
+    if (!mv) return; mv.currentTime = t; mv.play().catch(() => {});
+    karteZeigen(document.querySelector(`.km[data-id="${id}"]`));
+  }
+  // Kommentar in den sichtbaren Bereich holen. Am Handy nur im offenen Blatt scrollen, nie die ganze Seite
+  function karteZeigen(el) {
+    if (!el) return;
+    if (!imBlatt()) return el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (BLATT.stand !== 'offen') return;
+    const bs = $('blatt-scroll'), r = el.getBoundingClientRect(), rs = bs.getBoundingClientRect();
+    if (r.top < rs.top + 8 || r.bottom > rs.bottom - 8) bs.scrollBy({ top: r.top - rs.top - 12, behavior: 'smooth' });
+  }
+  function zeitLaeuft() {
+    if (LAYOUT === 'licht') lichtMalen(mv.currentTime);
+    if ($('zeit-chip').classList.contains('an')) $('zeit-chip-text').textContent = zeit(mv.currentTime);
+    const t = mv.currentTime, j = K.kommentare.find(k => k.video === AKT.id && !k.antwort_auf && k.zeit != null && t >= k.zeit && t < k.zeit + 3);
+    document.querySelectorAll('.km').forEach(el => el.classList.toggle('aktiv', !!j && +el.dataset.id === j.id));
+    document.querySelectorAll('.marker').forEach(el => el.classList.toggle('an', !!j && +el.dataset.id === j.id));
+  }
+
+  async function laden(still) {
+    try {
+      const d = await api('');
+      const vorher = JSON.stringify([K.kommentare, K.status, K.team]);
+      K = d; KOK = true; $('stoerung').hidden = true;
+      if (JSON.stringify([K.kommentare, K.status, K.team]) === vorher && still) return;
+    } catch { KOK = false; $('stoerung').hidden = false; if (still) return; }
+    alsZeichnen();
+    if ($('videoseite').hidden) uebersichtZeichnen(); else { statusZeichnen(); zeichnen(still); weitereZeichnen(); }
+  }
+  setInterval(() => { if (!document.hidden) laden(true); }, 15000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { laden(true); neueFassung(); } });
+  // Neue Fassung der Seite (seit 13.11.2026): Safari zeigt beim Zurückwechseln oft den alten Tab aus dem Speicher. Darum vergleicht die
+  // Seite ihren Stempel mit dem Feld "seite" in projekt.json und lädt sich neu, aber nur wenn kein Video läuft, kein Fenster offen ist und niemand tippt
+  const VERSION = /*VERSION*/'';
+  async function neueFassung() {
+    if (!VERSION || document.hidden) return;
+    try {
+      const r = await fetch(BASIS + 'projekt.json?' + Date.now(), { cache: 'no-store' });  // Feld "seite" = Stempel der neuesten Fassung if (!r.ok) return;
+      const v = (await r.json()).seite; if (!v || v === VERSION) return;
+      const tippt = document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName) || [...document.querySelectorAll('input, textarea')].some(f => f.value && f.type !== 'checkbox');
+      if ((mv && !mv.paused) || document.querySelector('dialog[open]') || tippt) return;
+      const stelle = mv && !$('videoseite').hidden ? Math.floor(mv.currentTime || 0) : 0;  // Video bleibt an seiner Stelle
+      stelle > 1 ? location.replace(location.pathname + '?t=' + stelle) : location.reload();
+    } catch {}
+  }
+  addEventListener('pageshow', e => { if (e.persisted) neueFassung(); });
+  setInterval(neueFassung, 60000);
+
+  $('liste').addEventListener('click', async e => {
+    const tk = e.target.closest('[data-t]'); if (tk) return springen(+tk.dataset.t, +tk.closest('.km').dataset.id);
+    if (e.target.closest('a')) return;  // Link im Kommentar öffnet nur den Link
+    if (e.target.closest('[data-bearbeiten-ab]')) { bearbeitet = null; zeichnen(); return; }
+    const bt = e.target.closest('[data-bearbeiten]');
+    if (bt && !(bt.classList.contains('km-text') && String(getSelection ? getSelection() : '').length)) {
+      const id = +bt.dataset.bearbeiten; bearbeitet = id; bearbeitEntwurf = K.kommentare.find(x => x.id === id)?.text || ''; zeichnen(); return;
+    }
+    const h = e.target.closest('[data-haken]');
+    if (h) {
+      // Haken gilt für den ganzen Verlauf: Kommentar samt Antworten (Ole, 13.11.2026), der Server macht es genauso
+      const k = K.kommentare.find(x => x.id === +h.closest('.km').dataset.id); const wert = !k.erledigt;
+      const verlauf = K.kommentare.filter(x => x.id === k.id || x.antwort_auf === k.id);
+      const setzen = (w, von) => verlauf.forEach(x => { x.erledigt = w; x.erledigt_von = von; });
+      setzen(wert, wert ? lies('sc-name') : null); zeichnen(); uebersichtSpaeter();
+      try { const neu = await api(`kommentare/${k.id}/erledigt`, { method: 'POST', body: { erledigt: wert, name: lies('sc-name') || '' } }); setzen(neu.erledigt, neu.erledigt_von); Object.assign(k, neu); }
+      catch (err) { setzen(!wert, null); zeichnen(); toast(err.message); }
+      return;
+    }
+    if (e.target.closest('[data-antworten]')) { const id = +e.target.closest('.km').dataset.id; antwortAuf = antwortAuf === id ? null : id; zeichnen(); return; }
+    const w = e.target.closest('[data-weg]');
+    if (w) {
+      if (!w.classList.contains('sicher')) { w.classList.add('sicher'); w.textContent = 'Wirklich löschen?'; setTimeout(() => { if (w.isConnected) { w.classList.remove('sicher'); w.textContent = 'Löschen'; } }, 3500); return; }
+      const id = +w.dataset.weg;
+      try { await api(`kommentare/${id}`, { method: 'DELETE' }); K.kommentare = K.kommentare.filter(k => k.id !== id && k.antwort_auf !== id); zeichnen(); toast('Gelöscht'); }
+      catch (err) { toast(err.message); }
+      return;
+    }
+    // Tipp irgendwo auf den Kommentar spult an seine Stelle (Ole, 13.11.2026). Knöpfe, Felder und markierter Text sind ausgenommen
+    if (e.target.closest('button, a, input, textarea, form')) return;
+    if (String(window.getSelection ? getSelection() : '').length) return;
+    const karte = e.target.closest('.km'), k = karte && K.kommentare.find(x => x.id === +karte.dataset.id);
+    if (k && k.zeit != null) springen(k.zeit, k.id);
+  });
+  $('liste').addEventListener('submit', async e => {
+    const bf = e.target.closest('[data-bearbeiten-form]');
+    if (bf) {
+      e.preventDefault();
+      const id = +bf.dataset.bearbeitenForm, k = K.kommentare.find(x => x.id === id), text = bf.querySelector('textarea').value.trim();
+      if (!k || !text) return;
+      if (text === k.text) { bearbeitet = null; zeichnen(); return; }
+      bf.querySelector('.sichern').disabled = true;
+      try { Object.assign(k, await api(`kommentare/${id}/text`, { method: 'POST', body: { text } })); bearbeitet = null; zeichnen(); toast('Kommentar geändert'); }
+      catch (err) { bf.querySelector('.sichern').disabled = false; toast(err.message); }
+      return;
+    }
+    const f = e.target.closest('[data-antwort-form]'); if (!f) return; e.preventDefault();
+    const input = f.querySelector('input'), text = input.value.trim(); if (!text) return;
+    const name = await nameSicher(); if (!name) return;
+    f.querySelector('button').disabled = true;
+    try { const k = await api('kommentare', { method: 'POST', body: { video: AKT.id, text, name, antwort_auf: antwortAuf } }); K.kommentare.push(k); antwortAuf = null; zeichnen(); toast('Antwort gespeichert'); }
+    catch (err) { f.querySelector('button').disabled = false; toast(err.message); }
+  });
+  $('liste').addEventListener('keydown', e => {
+    if (e.key === 'Escape' && e.target.closest('[data-antwort-form]')) { antwortAuf = null; zeichnen(); }
+    const bf = e.target.closest('[data-bearbeiten-form]'); if (!bf) return;
+    if (e.key === 'Escape') { bearbeitet = null; zeichnen(); }
+    else if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); bf.requestSubmit(); }
+  });
+  $('liste').addEventListener('input', e => { if (e.target.closest('[data-bearbeiten-form]')) { bearbeitEntwurf = e.target.value; wachsen(e.target); } });
+  $('filter').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; filter = b.dataset.f;
+    $('filter').querySelectorAll('button').forEach(x => x.classList.toggle('an', x === b)); zeichnen(); });
+  let uebersichtTimer; function uebersichtSpaeter() { clearTimeout(uebersichtTimer); uebersichtTimer = setTimeout(weitereZeichnen, 400); }
+
+  // Kommentar schreiben
+  const eingabe = $('eingabe-text');
+  // Wächst mit dem Text (Ole, 16.11.2026), höchstens ein gutes Drittel der Fensterhöhe, danach scrollt das Feld.
+  // Enter schickt ab wie bisher, Umschalt und Enter macht eine neue Zeile
+  function wachsen(el) {
+    el.style.height = 'auto';
+    const max = Math.max(120, Math.round(innerHeight * 0.36)), h = Math.min(el.scrollHeight, max);
+    el.style.height = h + 'px';
+    el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden';
+  }
+  const feldHoehe = () => wachsen(eingabe);
+  eingabe.addEventListener('input', () => { $('feld').classList.toggle('voll', !!eingabe.value.trim()); feldHoehe(); });
+  eingabe.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('eingabe').requestSubmit(); }
+  });
+  eingabe.addEventListener('focus', () => { if (mv && !mv.paused) mv.pause(); });
+  $('zeit-chip').addEventListener('click', () => { const c = $('zeit-chip'); c.classList.toggle('an');
+    $('zeit-chip-text').textContent = c.classList.contains('an') ? zeit(mv ? mv.currentTime : 0) : 'Ohne Zeit'; });
+  $('eingabe').addEventListener('submit', async e => {
+    e.preventDefault(); const text = eingabe.value.trim(); if (!text) return;
+    if (!KOK) return toast('Kommentare sind gerade nicht erreichbar');
+    const name = await nameSicher(); if (!name) return;
+    const mitZeit = $('zeit-chip').classList.contains('an');
+    $('senden').disabled = true;
+    try {
+      const k = await api('kommentare', { method: 'POST', body: { video: AKT.id, zeit: mitZeit && mv ? Math.round(mv.currentTime * 10) / 10 : null, text, name } });
+      K.kommentare.push(k); neuId = k.id; eingabe.value = ''; feldHoehe(); $('feld').classList.remove('voll');
+      if (filter === 'erledigt') { filter = 'alle'; $('filter').querySelectorAll('button').forEach(x => x.classList.toggle('an', x.dataset.f === 'alle')); }
+      zeichnen(); uebersichtSpaeter(); toast('Kommentar gespeichert');
+      karteZeigen(document.querySelector(`.km[data-id="${k.id}"]`));
+    } catch (err) { toast(err.message); }
+    $('senden').disabled = false;
+  });
+
+  // ---------- Breite der Kommentare am Rechner ziehen (Ole, 16.11.2026). Grenzen wie im CSS (--seite-b): 320 bis 640 px,
+  // das Video behält mindestens rund 500 px. Hier auch begrenzt, sonst gäbe es beim Zurückziehen einen toten Weg. Gemerkt pro Browser
+  const trenner = $('trenner');
+  const breiteGrenzen = () => [320, Math.max(320, Math.min(640, app.clientWidth - 560))];
+  const seiteBreite = () => $('blatt').getBoundingClientRect().width;
+  function breiteSetzen(b) {
+    if (!b) return app.style.removeProperty('--seite-wunsch');
+    const [min, max] = breiteGrenzen();
+    app.style.setProperty('--seite-wunsch', Math.round(Math.min(max, Math.max(min, b))) + 'px');
+  }
+  breiteSetzen(+lies('sv-seite-b') || 0);
+  trenner.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    e.preventDefault(); trenner.setPointerCapture(e.pointerId);
+    const start = e.clientX, b0 = seiteBreite();
+    trenner.classList.add('zieht'); document.documentElement.classList.add('zieht-breite');
+    const zug = ev => breiteSetzen(b0 + (start - ev.clientX));
+    const ende = () => {
+      trenner.classList.remove('zieht'); document.documentElement.classList.remove('zieht-breite');
+      trenner.removeEventListener('pointermove', zug); trenner.removeEventListener('pointerup', ende); trenner.removeEventListener('pointercancel', ende);
+      merke('sv-seite-b', String(Math.round(seiteBreite())));
+    };
+    trenner.addEventListener('pointermove', zug); trenner.addEventListener('pointerup', ende); trenner.addEventListener('pointercancel', ende);
+  });
+  trenner.addEventListener('dblclick', () => { breiteSetzen(0); merke('sv-seite-b', null); });
+  trenner.addEventListener('keydown', e => {
+    const d = e.key === 'ArrowLeft' ? 24 : e.key === 'ArrowRight' ? -24 : 0;
+    if (!d) return;
+    e.preventDefault(); breiteSetzen(seiteBreite() + d); merke('sv-seite-b', String(Math.round(seiteBreite())));
+  });
+
+  // ---------- Aufteilung: Rechner (Kommentare rechts), Handy quer (nur Video), Handy hochkant (Blatt zum Ziehen)
+  const quer = matchMedia('(orientation: landscape) and (max-height: 520px)');
+  const ohneMaus = matchMedia('(hover: none)');
+  const blatt = $('blatt'), steuerung = $('steuerung');
+  const BLATT = { stand: 'mitte', h: 0, stufen: { zu: 120, mitte: 190, offen: 420 } };
+  const imBlatt = () => app.classList.contains('blatt-modus');
+  function modusPruefen() {
+    const aufVideo = !$('videoseite').hidden, voll = imVollbild(), istQuer = quer.matches && aufVideo && !voll;
+    app.classList.toggle('quer', istQuer);
+    const b = !istQuer && !voll && app.clientWidth < 900 && LAYOUT !== 'scrollen';
+    if (b !== imBlatt()) {
+      app.classList.toggle('blatt-modus', b);
+      // Steuerung und "Mehr aus" wandern am Handy ins Blatt, sonst zurück unter das Video bzw. ans Seitenende
+      if (b) { $('griff-zone').after(steuerung); $('blatt-scroll').append($('weitere')); }
+      else { viewer.append(steuerung); $('videoseite').append($('weitere')); }
+      if (P) wischHinweis();
+    }
+    document.documentElement.classList.toggle('fest', (b || istQuer) && aufVideo);
+    if (b && aufVideo) blattSetzen(BLATT.stand, false);
+  }
+  quer.addEventListener('change', modusPruefen);
+  new ResizeObserver(() => modusPruefen()).observe(app);
+
+  // Blatt: Höhe der drei Stufen aus dem, was gerade drin steht
+  function blattMessen() {
+    const platz = $('inhalt').clientHeight, sicher = parseFloat(getComputedStyle(blatt).paddingBottom) || 0;
+    const zu = Math.round($('griff-zone').offsetHeight + steuerung.offsetHeight + sicher);
+    const mitte = zu + $('status-zeile').offsetHeight;
+    const offen = Math.max(mitte + 140, Math.round(platz - Math.max(150, platz * .3)));
+    BLATT.stufen = { zu, mitte, offen };
+  }
+  function blattSetzen(stand, sanft = true) {
+    blattMessen(); BLATT.stand = stand; BLATT.h = BLATT.stufen[stand];
+    if (!sanft) blatt.classList.add('zieht');
+    blatt.style.setProperty('--blatt-h', BLATT.h + 'px');
+    blatt.dataset.stand = stand; $('videoseite').dataset.blatt = stand;
+    if (!sanft) { blatt.offsetHeight; blatt.classList.remove('zieht'); }
+    if (stand !== 'mitte') menueZu();
+  }
+  // Über die Grenzen hinaus gibt das Blatt nur noch zäh nach (wie bei iOS)
+  const gummi = d => 90 * (1 - 1 / (d / 90 * .55 + 1));
+  function blattZiehen(h) {
+    const { zu, offen } = BLATT.stufen;
+    BLATT.h = h > offen ? offen + gummi(h - offen) : h < zu ? zu - gummi(zu - h) : h;
+    blatt.style.setProperty('--blatt-h', BLATT.h + 'px');
+  }
+  // Loslassen: mit Schwung gerechnet zur nächsten Stufe (v in px pro ms, positiv = Finger nach unten)
+  function blattLoslassen(v) {
+    const ziel = BLATT.h - v * 220; let best = BLATT.stand, d = Infinity;
+    for (const [k, h] of Object.entries(BLATT.stufen)) if (Math.abs(h - ziel) < d) { d = Math.abs(h - ziel); best = k; }
+    blatt.classList.remove('zieht'); blattSetzen(best);
+  }
+  const griffTippen = () => blattSetzen(BLATT.stand === 'mitte' ? 'offen' : 'mitte');
+  $('griff-zone').addEventListener('click', griffTippen);
+  $('griff-zone').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); griffTippen(); } });
+  $('k-knopf').addEventListener('click', () => {
+    if (!imBlatt()) return $('eingabe').scrollIntoView({ behavior: 'smooth', block: 'start' });  // Entwurf scrollen
+    blattSetzen(BLATT.stand === 'offen' ? 'mitte' : 'offen');
+  });
+
+  // ---------- Gesten am Handy (seit 13.11.2026): Blatt ziehen, auf der Leiste spulen, auf dem Video wischen
+  let geste = null, klickSperre = 0;
+  // Nach einer Geste kommt kein versehentlicher Klick hinterher (z.B. Play, wenn man auf dem Knopf losgezogen hat)
+  document.addEventListener('click', e => { if (performance.now() < klickSperre) { e.preventDefault(); e.stopPropagation(); } }, true);
+  function gesteStart(e, quelle) {
+    if (geste && geste.id === e.pointerId) { if (quelle === 'kopf') geste.blatt = true; return; }
+    if (geste || e.button > 0) return;
+    geste = { id: e.pointerId, quelle, x0: e.clientX, y0: e.clientY, art: null, blatt: quelle === 'kopf', h0: BLATT.h, spur: [[e.timeStamp, e.clientX, e.clientY]] };
+  }
+  function tempo(spur, achse) {   // px pro ms aus den letzten 100 ms
+    const b = spur[spur.length - 1], a = spur.find(s => b[0] - s[0] <= 100) || b, dt = b[0] - a[0];
+    return dt > 0 ? (b[achse] - a[achse]) / dt : 0;
+  }
+  $('zeit-fang').addEventListener('pointerdown', e => gesteStart(e, 'leiste'));
+  $('blatt-kopf').addEventListener('pointerdown', e => {
+    if (!imBlatt() || e.target.closest('.status-menue')) return;
+    if (e.pointerType === 'mouse' && !e.target.closest('.griff-zone')) return;
+    gesteStart(e, 'kopf');
+  });
+  $('flaeche').addEventListener('pointerdown', e => {
+    if (!WISCHEN_ZWISCHEN_VIDEOS || !imBlatt() || e.pointerType === 'mouse' || !P || P.videos.length < 2 || e.target.closest('.video-fehler')) return;
+    gesteStart(e, 'flaeche');
+  });
+  addEventListener('pointermove', e => {
+    const g = geste; if (!g || e.pointerId !== g.id) return;
+    const dx = e.clientX - g.x0, dy = e.clientY - g.y0; g.dy = dy;
+    g.spur.push([e.timeStamp, e.clientX, e.clientY]); if (g.spur.length > 8) g.spur.shift();
+    if (!g.art) {
+      const ax = Math.abs(dx), ay = Math.abs(dy);
+      if (ay > 8 && ay > ax) g.art = g.blatt ? 'blatt' : g.quelle === 'flaeche' ? 'wisch' : 'nix';
+      else if (ax > 7 && ax >= ay) g.art = g.quelle === 'leiste' && spulenStart(e.clientX) ? 'spulen' : 'nix';
+      else return;
+      if (g.art === 'blatt') { blatt.classList.add('zieht'); menueZu(); g.h0 = BLATT.h; }
+    }
+    if (g.art === 'blatt') blattZiehen(g.h0 - dy);
+    else if (g.art === 'spulen') spulenZiehen(e.clientX);
+    else if (g.art === 'wisch') wischZiehen(dy);
+  });
+  function gesteEnde(e) {
+    const g = geste; if (!g || e.pointerId !== g.id) return; geste = null;
+    const abbruch = e.type === 'pointercancel';
+    if (g.art) klickSperre = performance.now() + 350;
+    if (g.art === 'blatt') blattLoslassen(abbruch ? 0 : tempo(g.spur, 2));
+    else if (g.art === 'spulen') spulenEnde(abbruch);
+    else if (g.art === 'wisch') wischEnde(g.dy || 0, abbruch ? 0 : tempo(g.spur, 2), abbruch);
+    else if (!g.art && g.quelle === 'leiste' && !abbruch) spulHinweis(g.x0);
+  }
+  addEventListener('pointerup', gesteEnde); addEventListener('pointercancel', gesteEnde);
+
+  // Im offenen Blatt: ganz oben in der Liste nach unten ziehen klappt das Blatt wieder ein (wie bei iOS)
+  const bs = $('blatt-scroll'); let zug = null;
+  bs.addEventListener('touchstart', e => {
+    zug = null; if (!imBlatt() || e.touches.length !== 1 || BLATT.stand !== 'offen') return;
+    const t = e.touches[0]; zug = { x0: t.clientX, y0: t.clientY, art: null, h0: BLATT.h, spur: [[e.timeStamp, t.clientX, t.clientY]] };
+  }, { passive: true });
+  bs.addEventListener('touchmove', e => {
+    if (!zug) return; const t = e.touches[0], dx = t.clientX - zug.x0, dy = t.clientY - zug.y0;
+    if (!zug.art) {
+      if (Math.abs(dy) < 6 && Math.abs(dx) < 6) return;
+      zug.art = dy > 0 && Math.abs(dy) > Math.abs(dx) && bs.scrollTop <= 0 ? 'blatt' : 'scroll';
+      if (zug.art === 'blatt') { blatt.classList.add('zieht'); zug.y0 = t.clientY; zug.h0 = BLATT.h; if (bs.contains(document.activeElement)) document.activeElement.blur(); }
+    }
+    if (zug.art !== 'blatt') return;
+    e.preventDefault();
+    zug.spur.push([e.timeStamp, t.clientX, t.clientY]); if (zug.spur.length > 8) zug.spur.shift();
+    blattZiehen(zug.h0 - (t.clientY - zug.y0));
+  }, { passive: false });
+  const zugEnde = () => { const z = zug; zug = null; if (z && z.art === 'blatt') { klickSperre = performance.now() + 350; blattLoslassen(tempo(z.spur, 2)); } };
+  bs.addEventListener('touchend', zugEnde); bs.addEventListener('touchcancel', zugEnde);
+
+  // Spulen: Tippen springt nicht, erst Wischen bewegt die Zeit, und zwar von der aktuellen Stelle aus (wie bei Apple)
+  const zeitleiste = $('zeitleiste'), spulZeit = $('spul-zeit'), zeitRange = zeitleiste.querySelector('media-time-range');
+  let spul = null;
+  function spulBlase(text, x) {
+    spulZeit.textContent = text; spulZeit.hidden = false;
+    const w = zeitleiste.clientWidth, b = spulZeit.offsetWidth / 2;
+    spulZeit.style.left = Math.max(b - 6, Math.min(w - b + 6, x)) + 'px';
+  }
+  function spulenStart(x) {
+    if (!mv || !(isFinite(mv.duration) && mv.duration > 0)) return false;
+    clearTimeout(spulBlase.weg);
+    spul = { x0: x, t0: mv.currentTime || 0, t: mv.currentTime || 0, dauer: mv.duration, lief: !mv.paused, zuletzt: 0 };
+    zeitleiste.classList.add('spult'); viewer.classList.add('spult');
+    if (spul.lief) mv.pause();
+    return true;
+  }
+  function spulenZiehen(x) {
+    const s = spul; if (!s) return; const w = zeitleiste.clientWidth;
+    s.t = Math.max(0, Math.min(s.dauer - .1, s.t0 + (x - s.x0) / w * s.dauer));
+    zeitRange.setAttribute('mediacurrenttime', s.t);
+    spulBlase(`${zeit(s.t)} / ${zeit(s.dauer)}`, s.t / s.dauer * w);
+    const jetzt = performance.now(); if (jetzt - s.zuletzt > 90) { s.zuletzt = jetzt; mv.currentTime = s.t; }
+  }
+  function spulenEnde(abbruch) {
+    const s = spul; spul = null; if (!s) return;
+    if (!abbruch) mv.currentTime = s.t;
+    zeitleiste.classList.remove('spult'); viewer.classList.remove('spult'); spulZeit.hidden = true;
+    if (s.lief) mv.play().catch(() => {});
+  }
+  function spulHinweis(x) {
+    spulBlase('Zum Spulen wischen', x - zeitleiste.getBoundingClientRect().left);
+    clearTimeout(spulBlase.weg); spulBlase.weg = setTimeout(() => (spulZeit.hidden = true), 1500);
+  }
+
+  // Wischen auf dem Video: hoch = nächstes, runter = voriges Video, das neue kommt mit dem Finger rein (wie Reels)
+  const box = $('video-box'), nachbar = $('nachbar'), flaeche = $('flaeche');
+  let nachbarV = null;
+  function wischZiehen(dy) {
+    const H = flaeche.clientHeight, r = dy < 0 ? 1 : -1, n = naechstes(r);
+    if (nachbarV !== n) { nachbarV = n; nachbar.firstElementChild.src = bild(n, 720); nachbar.style.setProperty('--ar', n.seitenverhaeltnis || .5625); }
+    nachbar.hidden = false; box.style.transition = nachbar.style.transition = 'none';
+    box.style.transform = `translateY(${dy}px)`; nachbar.style.transform = `translateY(${dy + r * H}px)`;
+  }
+  function wischEnde(dy, v, abbruch) {
+    const H = flaeche.clientHeight, r = dy < 0 ? 1 : -1;
+    const weiter = !abbruch && (Math.abs(dy) > H * .2 || (Math.abs(v) > .4 && Math.sign(v) === Math.sign(dy) && Math.abs(dy) > 24));
+    box.style.transition = nachbar.style.transition = 'transform .34s cubic-bezier(.25,.9,.3,1)';
+    if (!weiter) {
+      box.style.transform = ''; nachbar.style.transform = `translateY(${r * H}px)`;
+      setTimeout(() => { if (!geste) { nachbar.hidden = true; box.style.transition = ''; } }, 360);
+      return;
+    }
+    const n = naechstes(r);
+    box.style.transform = `translateY(${-r * H}px)`; nachbar.style.transform = 'translateY(0)';
+    $('wischen').hidden = true; merke(WISCH_WEG, '1');
+    setTimeout(() => {
+      box.style.transition = 'none'; box.style.transform = '';
+      autoStart = true; gehe(videoLink(n));
+      // Das Vorschaubild bleibt kurz über dem neuen Video liegen, bis es da ist, damit nichts flackert
+      const neu = mv; let fertig = false;
+      const weg = () => {
+        if (fertig) return; fertig = true;
+        nachbar.style.transition = 'opacity .2s'; nachbar.style.opacity = '0';
+        setTimeout(() => { nachbar.hidden = true; nachbar.style.opacity = nachbar.style.transform = nachbar.style.transition = ''; nachbarV = null; box.style.transition = ''; }, 220);
+      };
+      neu.addEventListener('playing', weg, { once: true }); neu.addEventListener('loadeddata', weg, { once: true }); setTimeout(weg, 1200);
+    }, 340);
+  }
+
+  // Hinweis zum Wischen (einmal, bis man es benutzt oder wegklickt)
+  const WISCH_WEG = 'sc-wischen-hoch-weg';
+  // Zahnrad: bei jedem Drücken 120 Grad weiter (sieht danach wieder gleich aus, darum nie zurückdrehen)
+  const zahnrad = $('zahnrad'), einstellMenue = $('einstell-menue'); let drehung = 0;
+  // Einstellungen (seit 13.11.2026 eigenes Fenster statt media-chrome Menü, Ole: am iPhone ließ es sich nicht richtig öffnen).
+  // Tempo und Qualität als große Knöpfe ohne Untermenüs. Spielt das iPhone über Apples eigenen Weg, wählt iOS die Qualität selbst
+  const TEMPI = [0.75, 1, 1.25, 1.5, 2];
+  function einstellZeichnen() {
+    const vr = mv && mv.videoRenditions, rate = mv ? mv.playbackRate : 1, gewaehlt = vr ? vr.selectedIndex : -1;
+    const stufen = vr ? [...Array(vr.length).keys()].map(i => ({ i, p: Math.min(vr[i].width || 0, vr[i].height || 0) })).filter(s => s.p >= 360).sort((a, b) => b.p - a.p).slice(0, 4) : [];
+    const knopf = (an, daten, text) => `<button type="button" role="menuitemradio" aria-checked="${an}" class="${an ? 'an' : ''}" ${daten}>${text}</button>`;
+    const nativ = !stufen.length && mv && mv.getAttribute('prefer-playback') === 'native';
+    const nst = nativ ? (Array.isArray(STUFEN[AKT.playback_id]) ? STUFEN[AKT.playback_id] : ['1080p', '720p', '480p', '270p']) : [];
+    einstellMenue.innerHTML = `<div class="e-titel">Tempo</div><div class="chips">${TEMPI.map(r => knopf(r === rate, `data-tempo="${r}"`, String(r).replace('.', ',') + '×')).join('')}</div>
+      <div class="e-titel">Qualität</div>` + (stufen.length
+        ? `<div class="chips">${[{ i: -1 }, ...stufen].map(s => knopf(s.i === gewaehlt, `data-stufe="${s.i}"`, s.i < 0 ? 'Auto' : stufeText(stufeName(s.p)))).join('')}</div>`
+        : nativ ? `<div class="chips">${['auto', ...nst].map(q => knopf(q === QUALI, `data-nativ="${q}"`, q === 'auto' ? 'Auto' : stufeText(q))).join('')}</div>`
+        : '<div class="auto-info">Automatisch, passend zur Verbindung</div>');
+  }
+  zahnrad.addEventListener('click', e => {
+    e.stopPropagation();
+    const svg = zahnrad.querySelector('svg'); drehung += 120; if (svg) svg.style.transform = `rotate(${drehung}deg)`;
+    const war = !einstellMenue.hidden; menueZu();
+    if (!war) { einstellZeichnen(); einstellMenue.hidden = false; zahnrad.setAttribute('aria-expanded', 'true'); }
+  });
+  einstellMenue.addEventListener('click', e => {
+    e.stopPropagation();  // sonst schließt der Klick neben Menüs es sofort wieder
+    const t = e.target.closest('[data-tempo]'), s = e.target.closest('[data-stufe]'), n = e.target.closest('[data-nativ]');
+    if (n && mv && AKT) {  // iPhone: Video mit der gewählten Stufe an derselben Stelle neu laden, Abspielen und Tempo bleiben
+      if (n.dataset.nativ !== QUALI) {
+        QUALI = n.dataset.nativ; const lief = !mv.paused; mv.pause(); wechselZeigen(true, QUALI === 'auto' ? 'Auto' : stufeText(QUALI));
+        playerLaden(AKT, { weg: 'native', t: mv.currentTime, auto: lief, tempo: mv.playbackRate, wechsel: true });
+        const neu = mv, fertig = () => { if (mv === neu) wechselZeigen(false); };
+        neu.addEventListener(lief ? 'playing' : 'canplay', fertig, { once: true }); setTimeout(fertig, 15000);
+        toast('Qualität: ' + (QUALI === 'auto' ? 'Auto' : stufeText(QUALI)));
+      }
+      return;
+    }
+    if (t && mv) mv.playbackRate = +t.dataset.tempo;
+    if (s && mv && mv.videoRenditions && +s.dataset.stufe !== mv.videoRenditions.selectedIndex) stufeWechseln(+s.dataset.stufe);
+    if (t || s) einstellZeichnen();
+  });
+
+  // Qualität wechseln am Rechner und Android (Ole, 16.11.2026): vorher lief der Ton weiter, während das Bild stand oder schwarz war.
+  // Jetzt halten Bild und Ton an, das Ladezeichen kommt, hls.js lädt die neue Stufe an derselben Stelle, und erst wenn das erste
+  // Stück davon im Puffer ist und das Video spielen kann, geht es weiter (nur wenn es vorher lief). Spätestens nach 15 s geht es weiter
+  // Text beim Wechsel: die Stufe, auf die es geht (Ole, 16.11.2026: statt „Qualität lädt …“)
+  function wechselZeigen(an, ziel) { if (ziel) $('wechsel-text').textContent = 'Wechsel auf ' + ziel; $('wechsel').hidden = !an; $('viewer').classList.toggle('wechselt', an); }
+  async function stufeWechseln(idx) {
+    const id = ++WECHSEL, v = mv, h = v._hls, lief = !v.paused;
+    const r = idx >= 0 && v.videoRenditions[idx];
+    v.pause(); wechselZeigen(true, r ? stufeText(stufeName(Math.min(r.width || 0, r.height || 0))) : 'Auto');
+    await new Promise(fertig => {
+      let fertigGemeldet = false;
+      const ende = () => { if (fertigGemeldet) return; fertigGemeldet = true; clearTimeout(uhr); if (h) h.off('hlsFragBuffered', stueck); fertig(); };
+      const uhr = setTimeout(ende, 15000);
+      const stueck = (_, d) => {
+        const f = d && d.frag; if (!f || (f.type && f.type !== 'main')) return;
+        if ((idx < 0 || f.level === idx) && f.start <= v.currentTime + .5 && v.currentTime < f.start + f.duration) ende();
+      };
+      if (h) h.on('hlsFragBuffered', stueck);
+      v.videoRenditions.selectedIndex = idx;
+      try { if (h) h.currentLevel = idx; } catch {}
+      if (!h) setTimeout(ende, 800);
+    });
+    if (v.readyState < 3) await new Promise(r => { const t = setTimeout(r, 6000); v.addEventListener('canplay', () => { clearTimeout(t); r(); }, { once: true }); });
+    if (id !== WECHSEL) return;  // inzwischen neu gewählt oder anderes Video
+    wechselZeigen(false);
+    if (lief && v === mv) v.play().catch(() => {});
+  }
+
+  // Nur am Handy hochkant. Seitlich wischen gibt es nicht mehr, auch nicht quer (Ole, 13.11.2026)
+  function wischHinweis() {
+    $('wischen').hidden = !(WISCHEN_ZWISCHEN_VIDEOS && imBlatt() && ohneMaus.matches && P && P.videos.length > 1 && !lies(WISCH_WEG));
+  }
+  $('wischen').querySelector('button').addEventListener('click', e => { e.stopPropagation(); $('wischen').hidden = true; merke(WISCH_WEG, '1'); });
+
+  // ---------- Vollbild (seit 14.11.2026, Ole: "unbedingt"). Rechner, Android und iPad über die Vollbild Schnittstelle des Browsers,
+  // Querformat Videos drehen am Android Handy dabei quer. Das iPhone kann das für Seiten nicht, dort öffnet Apples eigener Player
+  const vollbildKnopf = $('vollbild-knopf');
+  // Schalter (Ole, 13.11.2026): false = nach dem Vollbild läuft das Video einfach weiter (wie bei YouTube), true = es pausiert, überall
+  const NACH_VOLLBILD_PAUSE = false;
+  function imVollbild() { return (document.fullscreenElement || document.webkitFullscreenElement) === viewer; }
+  async function vollbildUmschalten() {
+    if (imVollbild()) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    const an = viewer.requestFullscreen || viewer.webkitRequestFullscreen;
+    if (an && (document.fullscreenEnabled || document.webkitFullscreenEnabled)) {
+      try { await an.call(viewer); } catch { return; }
+      if (AKT && querVideo(AKT) && ohneMaus.matches && screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+      return;
+    }
+    const nativ = mv && mv.nativeEl;
+    if (nativ && nativ.webkitEnterFullscreen) { iphoneVollbild(nativ); try { nativ.webkitEnterFullscreen(); } catch {} }
+  }
+  // Apples Player pausiert beim Schließen von selbst. Lief das Video bis dahin, geht es danach weiter (außer der Schalter oben sagt Pause).
+  // Hat jemand schon vorher im Vollbild pausiert, bleibt es pausiert
+  function iphoneVollbild(nativ) {
+    if (nativ.vollbildBeobachtet) return; nativ.vollbildBeobachtet = true;
+    let pauseAm = -1e9;
+    nativ.addEventListener('pause', () => { pauseAm = performance.now(); });
+    nativ.addEventListener('webkitendfullscreen', () => {
+      const ende = performance.now();
+      setTimeout(() => {
+        if (!mv || mv.nativeEl !== nativ) return;
+        if (NACH_VOLLBILD_PAUSE) return mv.pause();
+        if (mv.paused && Math.abs(pauseAm - ende) < 1000) mv.play().catch(() => {});
+      }, 250);
+    });
+  }
+  vollbildKnopf.addEventListener('click', vollbildUmschalten);
+  function vollbildGeaendert() {
+    const an = imVollbild();
+    viewer.classList.toggle('vollbild', an);
+    vollbildKnopf.innerHTML = icon(an ? 'fullscreen-exit' : 'fullscreen');
+    vollbildKnopf.title = an ? 'Vollbild beenden' : 'Vollbild'; vollbildKnopf.setAttribute('aria-label', vollbildKnopf.title);
+    if (!an && screen.orientation && screen.orientation.unlock) { try { screen.orientation.unlock(); } catch {} }
+    if (!an && NACH_VOLLBILD_PAUSE && mv) mv.pause();
+    modusPruefen(); wach();
+  }
+  document.addEventListener('fullscreenchange', vollbildGeaendert); document.addEventListener('webkitfullscreenchange', vollbildGeaendert);
+  // Im Vollbild verschwindet die Steuerung beim Abspielen nach 2,6 s, jede Bewegung holt sie zurück
+  let ruhe = 0;
+  function wach() {
+    viewer.classList.remove('ruhig'); clearTimeout(ruhe);
+    if (viewer.classList.contains('vollbild') && mv && !mv.paused) ruhe = setTimeout(() => { if ($('einstell-menue').hidden) viewer.classList.add('ruhig'); else wach(); }, 2600);
+  }
+  ['pointermove', 'pointerdown', 'keydown'].forEach(ev => viewer.addEventListener(ev, wach));
+
+  // ---------- Ambient Licht (seit 13.11.2026 Standard, aus mit ?layout=schwarz): hinter dem Video leuchten weich die Farben der aktuellen Stelle.
+  // Quelle ist das Storyboard von Mux (ein Bild mit Standbildern alle paar Sekunden), das geht auf jedem Gerät, auch am iPhone
+  const licht = $('licht'), LICHT = { cues: [], bild: null, i: -1, seite: 0, zuletzt: 0, v: null };
+  const sek = s => s.split(':').reduce((t, x) => t * 60 + parseFloat(x), 0);
+  async function lichtLaden(v) {
+    LICHT.v = v; LICHT.cues = []; LICHT.bild = null; LICHT.i = -1;
+    [...licht.children].forEach(c => c.classList.remove('an'));
+    try {
+      const text = await (await fetch(`https://image.mux.com/${v.playback_id}/storyboard.vtt`)).text();
+      const cues = [...text.matchAll(/([\d:.]+) --> ([\d:.]+)\s+(\S+?)#xywh=(\d+),(\d+),(\d+),(\d+)/g)]
+        .map(m => ({ a: sek(m[1]), b: sek(m[2]), url: m[3], x: +m[4], y: +m[5], w: +m[6], h: +m[7] }));
+      if (!cues.length) throw 0;
+      const img = new Image(); img.src = cues[0].url; await img.decode();
+      if (LICHT.v !== v) return;
+      LICHT.cues = cues; LICHT.bild = img;
+    } catch {
+      const img = new Image(); img.src = bild(v, 160);
+      try { await img.decode(); } catch { return; }
+      if (LICHT.v !== v) return;
+      LICHT.bild = img; LICHT.cues = [{ a: 0, b: 1e9, x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight }];
+    }
+    lichtMalen(mv ? mv.currentTime || 0 : 0, true);
+  }
+  function lichtMalen(t, sofort) {
+    const c = LICHT.cues; if (!c.length || !LICHT.bild) return;
+    let i = c.findIndex(x => t >= x.a && t < x.b); if (i < 0) i = c.length - 1;
+    if (i === LICHT.i) return;
+    const jetzt = performance.now(); if (!sofort && jetzt - LICHT.zuletzt < 1200) return;
+    LICHT.i = i; LICHT.zuletzt = jetzt;
+    const [c0, c1] = licht.children, neu = LICHT.seite ? c0 : c1, alt = LICHT.seite ? c1 : c0; LICHT.seite ^= 1;
+    const k = c[i]; neu.width = 64; neu.height = Math.max(1, Math.round(64 * k.h / k.w));
+    neu.getContext('2d').drawImage(LICHT.bild, k.x, k.y, k.w, k.h, 0, 0, neu.width, neu.height);
+    neu.classList.add('an'); alt.classList.remove('an');
+  }
+
+  // Tastatur am Rechner: Leertaste und k spielen oder halten an, Pfeile springen 5 s, f für Vollbild.
+  // Seit 16.11.2026 überall auf der Videoseite (Ole: nach einem Klick in die Zeitleiste ging die Leertaste nicht mehr). Vorher kam
+  // die Taste nicht an, sobald Zeitleiste, Player oder ein Knopf den Fokus hatte. Ausnahme bleiben nur Textfelder, Fenster und das
+  // Einstellungsmenü, Pfeile auf dem Lautstärke Regler stellen weiter die Lautstärke. Läuft vor allen anderen (capture) und hält die
+  // Taste auf, sonst führen media-chrome oder ein fokussierter Knopf sie ein zweites Mal aus (auch beim Loslassen)
+  const tippFeld = el => !!el?.closest?.('input:not([type=range]), textarea, select, [contenteditable], dialog, .einstell-menue, .trenner, .griff-zone');
+  const genommen = new Set();
+  addEventListener('keydown', e => {
+    if ($('videoseite').hidden || !mv || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (tippFeld(e.target) || tippFeld(e.composedPath()[0])) return;
+    const taste = e.key === 'K' ? 'k' : e.key === 'F' ? 'f' : e.key;
+    if (taste === 'ArrowRight' || taste === 'ArrowLeft') { if (e.target.closest('media-volume-range')) return; }
+    else if (![' ', 'k', 'f'].includes(taste)) { if (taste === 'Escape') menueZu(); return; }
+    e.preventDefault(); e.stopPropagation(); genommen.add(e.code);
+    if (e.repeat && taste !== 'ArrowRight' && taste !== 'ArrowLeft') return;
+    if (taste === ' ' || taste === 'k') mv.paused ? mv.play().catch(() => {}) : mv.pause();
+    else if (taste === 'ArrowRight') mv.currentTime = Math.min(mv.duration || 1e9, mv.currentTime + 5);
+    else if (taste === 'ArrowLeft') mv.currentTime = Math.max(0, mv.currentTime - 5);
+    else if (taste === 'f') vollbildUmschalten();
+  }, true);
+  addEventListener('keyup', e => { if (genommen.delete(e.code)) { e.preventDefault(); e.stopPropagation(); } }, true);
+
+  // ---------- Start
+  (async () => {
+    try {
+      const r = await fetch(BASIS + 'projekt.json', { cache: 'no-store' }); if (!r.ok) throw 0;
+      P = await r.json();
+    } catch { $('fehlt').hidden = false; return; }
+    kopfFuellen(); alsZeichnen(); route();
+    await laden(false);
+  })();
+</script>
+</body>
+</html>

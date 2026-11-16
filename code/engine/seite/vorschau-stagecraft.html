@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+  /* Vorschaubild der Links (seit 16.11.2026, Ole wählte Entwurf 1 „Licht“): Logo 02.04 über dem Schriftzug, dahinter weiches Salbei Licht.
+     Daraus wird vorschau-stagecraft.png (1200 x 630) gerendert */
+  html, body { margin: 0; width: 1200px; height: 630px; background: #121211; overflow: hidden; }
+  .licht { position: absolute; border-radius: 50%; filter: blur(110px); }
+  .a { left: 330px; top: 90px; width: 420px; height: 420px; background: #93AA98; opacity: .55; }
+  .b { left: 560px; top: 150px; width: 380px; height: 360px; background: #48604E; opacity: .9; }
+  .mitte { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 44px; }
+  .icon { filter: drop-shadow(0 22px 44px rgba(0,0,0,.45)); }
+  .schrift { width: 540px; height: auto; display: block; }
+</style></head><body>
+<div class="licht a"></div><div class="licht b"></div>
+<div class="mitte">
+  <svg class="icon" width="136" height="136" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6A7B6D"/><stop offset="1" stop-color="#2A302C"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#g)"/><rect x=".75" y=".75" width="62.5" height="62.5" rx="13.25" fill="none" stroke="#fff" stroke-opacity=".16" stroke-width="1.2"/><path d="M20 15L49.5 32L20 49L20 27" fill="none" stroke="#F3F2EE" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <img class="schrift" src="stageview.svg">
+</div>
+</body></html>
