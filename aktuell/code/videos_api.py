@@ -36,6 +36,8 @@ Aufträge (neuer Link, Videos dazu) als eigener systemd Dienst.
   GET    /api/admin/uebersicht                alle Projekte mit Videos, Freigabe, offenen Kommentaren, Kunden, Aufträgen
   POST   /api/admin/projekt/<code>            {titel, kunde, firma, hinweis, darstellung}
   POST   /api/admin/projekt/<code>/video/<nr> {titel}
+  POST   /api/admin/projekt/<code>/loeschen   Link löschen (seit 17.11.2026, Ole): stageview offline, Daten ins Archiv, Seite weg.
+                                              Nicht, solange ein Auftrag für den Link läuft. Zurück mit stageview wiederherstellen
   POST   /api/admin/projekt/<code>/video/<nr>/entfernen
   POST   /api/admin/projekt/<code>/dazu       {quellen, titel}      Auftrag
   POST   /api/admin/neu                       {titel, kunde, quellen, unterordner, kategorien, dreh}   Auftrag
@@ -690,6 +692,12 @@ class Api(BaseHTTPRequestHandler):
                         raise Fehler(400, "Titel darf nicht leer sein")
                     args.append(f"--{feld}={wert}")
             stageview(*args)
+            return self.antwort(200, {"ok": True})
+        if rest[2:] == ["loeschen"]:
+            if any(a.get("laeuft") and a.get("code") == code for a in auftraege()):
+                raise Fehler(409, "Für diesen Link läuft gerade noch ein Auftrag. Lösch ihn, wenn der fertig ist.")
+            wer = (self.admin_sitzung() or {}).get("name") or "Team"
+            stageview("offline", code, "--ja", f"--von={wer} (Dashboard)")
             return self.antwort(200, {"ok": True})
         if rest[2:3] == ["dazu"] and len(rest) == 3:
             args = ["dazu", code, *quellen_args(d.get("quellen")), "--warten=45"]

@@ -263,6 +263,14 @@
   .d-inhalt { overflow-y: auto; overscroll-behavior: contain; padding: 4px 22px 24px; flex: 1; min-height: 0; }
   .d-inhalt h4 { margin: 26px 0 10px; font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 8px; }
   .d-inhalt h4 .n { font-variant-numeric: tabular-nums; }
+  /* Link löschen (seit 17.11.2026, Ole): ganz unten im Fenster, mit Rückfrage. Daten gehen ins Archiv, zurückholen kann TESS */
+  .loesch-zeile { display: flex; align-items: center; gap: 14px; margin-top: 30px; padding: 14px 14px 14px 16px; border-radius: 14px;
+    background: color-mix(in srgb, var(--aenderung) 9%, var(--panel-2)); }
+  .loesch-zeile b { display: block; font-size: 14.5px; font-weight: 600; }
+  .loesch-zeile small { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+  .loesch-zeile button { margin-left: auto; flex: none; height: 38px; padding: 0 16px; border-radius: 999px; background: var(--aenderung); color: #fff; font-weight: 600; font-size: 14px; }
+  .loesch-zeile button:hover { background: color-mix(in srgb, var(--aenderung) 85%, #fff); }
+  .loesch-zeile button:disabled { opacity: .5; cursor: default; }
   .felder { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .feld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .feld.breit { grid-column: 1 / -1; }
@@ -880,7 +888,9 @@
           <div class="km-kopf"><b>${esc(k.name)}</b>${k.rolle === 'team' ? ' · Stagecraft' : ''} · ${esc(v ? v.titel : 'Video ' + k.nr)}${k.zeit != null ? ` <span class="zeit">${zeit(k.zeit)}</span>` : ''} · ${wann(k.erstellt)}</div>
           <p class="km-text">${esc(k.text)}</p></a></li>`; }).join('')}</ul>
         <p class="hilfe">Tippen öffnet das Video an der Stelle. Dort antworten und abhaken, du bist als Stagecraft angemeldet.</p>`
-        : '<div class="leer">Keine offenen Kommentare.</div>'}`;
+        : '<div class="leer">Keine offenen Kommentare.</div>'}
+      ${p.code ? `<div class="loesch-zeile"><div><b>Link löschen</b><small>Die Seite ist danach für alle weg, auch für den Kunden. Videos im Drive und bei Mux und alle Kommentare bleiben gespeichert.</small></div>
+        <button type="button" data-link-loeschen${laufend.length ? ' disabled title="Erst, wenn der Auftrag fertig ist"' : ''}>Löschen</button></div>` : ''}`;
     symbole(inhalt);
     inhalt.scrollTop = oben;
   }
@@ -935,6 +945,16 @@
     if (!await frage('Von der Seite nehmen?', `„${v.titel}“ verschwindet von der Seite. Das Video im Drive, bei Mux und alle Kommentare bleiben, die Nummer ${v.nr} wird nie neu vergeben.`, 'Entfernen')) return;
     try { await api(`projekt/${p.code}/video/${v.nr}/entfernen`, { method: 'POST', body: {} }); toast('Von der Seite genommen'); await laden(true); projektZeichnen(); }
     catch (err) { toast(err.message, true); }
+  });
+  // Link löschen (seit 17.11.2026, Ole): Rückfrage, dann stageview offline über den Server. Daten liegen danach im Archiv,
+  // TESS oder Claude holen den Link mit „stageview wiederherstellen“ zurück (gleicher Code, gleiche Kommentare)
+  $('p-inhalt').addEventListener('click', async e => {
+    const b = e.target.closest('[data-link-loeschen]'); if (!b || b.disabled) return;
+    const p = projekt(OFFEN); if (!p) return;
+    if (!await frage('Link löschen?', `„${p.titel}“ ist danach für alle weg, auch für den Kunden: ${kurz(p.link)} zeigt nur noch eine Fehlerseite. Videos im Drive und bei Mux und alle Kommentare bleiben gespeichert, zurückholen kann TESS.`, 'Link löschen')) return;
+    b.disabled = true;
+    try { await api(`projekt/${p.code}/loeschen`, { method: 'POST', body: {} }); $('projekt-dialog').close(); toast('Link gelöscht'); await laden(true); }
+    catch (err) { b.disabled = false; toast(err.message, true); }
   });
   $('projekt-dialog').addEventListener('close', () => { OFFEN = null; });
 

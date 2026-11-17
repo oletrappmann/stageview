@@ -1620,7 +1620,8 @@ def b_projekt_titel(a):
 
 
 def b_offline(a):
-    """Projekt vom Netz nehmen: Link zeigt danach 404. Daten wandern ins Archiv, Kommentare bleiben in der Datenbank."""
+    """Projekt vom Netz nehmen: Link zeigt danach 404. Daten wandern ins Archiv, Kommentare bleiben in der Datenbank.
+    Seit 17.11.2026 auch aus dem Dashboard („Link löschen“, Ole), dann mit --von. Zurück mit `stageview wiederherstellen`."""
     if not a.ja:
         fehler("nimmt den Link für alle vom Netz, nur mit --ja (und nur, wenn Ole es will)")
     s = schluessel_fuer(a.projekt)
@@ -1629,9 +1630,48 @@ def b_offline(a):
         ziel = DATEN / "archiv" / f"{s}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
         ziel.parent.mkdir(parents=True, exist_ok=True)
         os.replace(projekt_datei(s), ziel)
+        p = lesen_json(ziel, {})
+        p["geloescht"] = {"am": datetime.now().isoformat(timespec="seconds"), "von": (getattr(a, "von", None) or "stageview").strip()[:60]}
+        schreiben_json(ziel, p)
         if code and (WEB / code).is_dir():
             shutil.rmtree(WEB / code)
     print(f"{s} ist offline ({BASIS_URL}/{code} zeigt jetzt 404), Daten im Archiv: {ziel.name}")
+
+
+def b_wiederherstellen(a):
+    """Gelöschten Link zurückholen (seit 17.11.2026): neueste Fassung aus dem Archiv, gleicher Code, gleiche Nummern, gleiche
+    Kommentare. Ohne Angabe: Liste der gelöschten Links. Achtung: hat Ole inzwischen `mux --aufraeumen` laufen lassen, können
+    die Videos bei Mux weg sein, dann fehlen sie auf der Seite."""
+    archiv, codes = DATEN / "archiv", lesen_json(DATEN / "codes.json", {})
+    dateien = sorted(archiv.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True) if archiv.is_dir() else []
+    ohne_zeit = lambda f: re.sub(r"-\d{8}-\d{6}$", "", f.stem)
+    if not a.projekt:
+        if not dateien:
+            print("Keine gelöschten Links im Archiv.")
+        for f in dateien[:40]:
+            p, s = lesen_json(f, {}), ohne_zeit(f)
+            g = p.get("geloescht") or {}
+            online = " (wieder online)" if projekt_datei(s).exists() else ""
+            print(f"{codes.get(s, '?'):8} {p.get('titel') or s}  ·  {p.get('kunde') or ''}  ·  gelöscht {g.get('am', '?')} von {g.get('von', '?')}  ·  {f.name}{online}")
+        return
+    t = a.projekt.strip()
+    if "stagecraft.media" in t:
+        t = [x for x in t.split("stagecraft.media", 1)[1].split("?")[0].split("/") if x][0]
+    s = next((k for k, c in codes.items() if c == t), None) or ohne_zeit(Path(t))
+    treffer = [f for f in dateien if f.stem == t.removesuffix(".json") or ohne_zeit(f) == s]
+    if not treffer:
+        fehler(f"Nichts im Archiv für {a.projekt} (stageview wiederherstellen ohne Angabe zeigt die Liste)")
+    f = treffer[0]
+    s = ohne_zeit(f)
+    if projekt_datei(s).exists():
+        fehler(f"{s} ist schon online: {BASIS_URL}/{codes.get(s, '')}")
+    with Sperre():
+        p = lesen_json(f, {})
+        p.pop("geloescht", None)
+        schreiben_json(projekt_datei(s), p)
+        f.unlink()
+        melden(bauen(s))
+    print(f"{s} ist wieder online: {BASIS_URL}/{code_fuer(s, False)}")
 
 
 def b_bauen(a):
@@ -2012,8 +2052,11 @@ def main():
     p = sub.add_parser("kunde-weg", help="Kunden aus StageView löschen (nur ohne Links)"); p.add_argument("id"); p.set_defaults(f=b_kunde_weg)
     p = sub.add_parser("entfernen", help="Video von der Seite nehmen (Drive und Mux bleiben)"); p.add_argument("projekt"); p.add_argument("nr")
     p.set_defaults(f=b_entfernen)
-    p = sub.add_parser("offline", help="Projekt vom Netz nehmen (nur mit --ja)"); p.add_argument("projekt"); p.add_argument("--ja", action="store_true")
+    p = sub.add_parser("offline", help="Projekt vom Netz nehmen, Daten ins Archiv (nur mit --ja), wie „Link löschen“ im Dashboard")
+    p.add_argument("projekt"); p.add_argument("--ja", action="store_true"); p.add_argument("--von", help="wer löscht (steht im Archiv)")
     p.set_defaults(f=b_offline)
+    p = sub.add_parser("wiederherstellen", help="gelöschten Link aus dem Archiv zurückholen, ohne Angabe die Liste der gelöschten")
+    p.add_argument("projekt", nargs="?", help="Code, Link oder Archiv Datei"); p.set_defaults(f=b_wiederherstellen)
     p = sub.add_parser("bauen", help="Seiten neu bauen (alle oder eins)"); p.add_argument("projekt", nargs="?"); p.set_defaults(f=b_bauen)
     p = sub.add_parser("mux", help="alle Videos bei Mux mit Status und Stufe"); p.add_argument("--aufraeumen", action="store_true", help="ältere Fassungen löschen")
     p.add_argument("--ja", action="store_true"); p.set_defaults(f=b_mux)
