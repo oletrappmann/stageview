@@ -404,6 +404,8 @@
       <div class="agenten" role="radiogroup" aria-label="Name">
         <button type="button" class="agent" data-zugang="tess" role="radio" aria-checked="false"><span class="ava" aria-hidden="true"><img data-bild="tess" alt=""></span><span>Ole</span></button>
         <button type="button" class="agent" data-zugang="alfred" role="radio" aria-checked="false"><span class="ava" aria-hidden="true"><img data-bild="alfred" alt=""></span><span>Jonas</span></button>
+        <button type="button" class="agent" data-zugang="caspar" role="radio" aria-checked="false"><span class="ava" aria-hidden="true"><img data-bild="caspar" alt=""></span><span>Caspar</span></button>
+        <button type="button" class="agent" data-zugang="niklas" role="radio" aria-checked="false"><span class="ava" aria-hidden="true"><img data-bild="niklas" alt=""></span><span>Niklas</span></button>
       </div>
       <!-- Für den Passwort Speicher des Browsers: ein Eintrag pro Name -->
       <input id="anmelde-name" class="unsichtbar" type="text" name="username" autocomplete="username" value="" tabindex="-1" aria-hidden="true">
@@ -654,7 +656,8 @@
   }
 
   // ---------- Anmeldung wie beim Aufgaben Dashboard (app.js dort: agentWaehlen, anmelden, geraetName)
-  const PERSON = { tess: 'Ole', alfred: 'Jonas' };
+  // Seit 17.11.2026 auch Caspar und Niklas (Ole), gleiche Namen und Passwörter wie im Aufgaben Dashboard
+  const PERSON = { tess: 'Ole', alfred: 'Jonas', caspar: 'Caspar', niklas: 'Niklas' };
   let WAHL = null;
   function geraetName() {
     const ua = navigator.userAgent;

@@ -717,7 +717,7 @@ def admin_bauen():
     s = s.replace("<!--ICON-->", icon_kopf())
     # Profilbilder für die Anmeldung wie beim Aufgaben Dashboard: von dessen Seite auf demselben Server (keine Kopie im Repo)
     bilder = {}
-    for zugang, datei in (("tess", "ole.jpg"), ("alfred", "jonas.jpg")):
+    for zugang, datei in (("tess", "ole.jpg"), ("alfred", "jonas.jpg"), ("caspar", "caspar.jpg"), ("niklas", "niklas.jpg")):
         try:
             bilder[zugang] = "data:image/jpeg;base64," + base64.b64encode((Path("/var/www/aufgaben/bilder") / datei).read_bytes()).decode()
         except OSError:

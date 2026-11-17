@@ -26,11 +26,12 @@ Admin Dashboard /admin (seit 14.11.2026, Ole: Übersicht aller Links, reingehen,
 Aufgaben Dashboard (Ole, 14.11.2026: „derselbe Login Screen, dieselben Benutzernamen und Passwörter“): Name wählen, Passwort,
 geprüft von der Brücke der TESS App (127.0.0.1:8651, /login und /me). Die Brücke legt dafür ein Gerät „Browser StageView …“
 an (nur Aufgaben Rechte, Telegram Hinweis an Ole), dessen Token als HttpOnly Cookie sv_sitzung (Pfad /api/) im Browser liegt.
-Passwort ändern oder Gerät sperren in der TESS App gilt damit sofort auch hier. Zugang haben die Admins (Ole, Jonas).
+Passwort ändern oder Gerät sperren in der TESS App gilt damit sofort auch hier. Zugang haben die Admins (Ole, Jonas) und seit
+17.11.2026 auch das Team (Caspar, Niklas, Rolle team in der Brücke; Ole: „als Nutzer Caspar und Niklas hinzufügen“).
 Wer angemeldet ist, ist auch auf allen Kundenseiten als Stagecraft unterwegs (gleiches Cookie). X-Team geht weiter (Befehl
 stageview, Team Link). Änderungen laufen über den Befehl `stageview` (derselbe Weg wie bei TESS und Alfred), lange
 Aufträge (neuer Link, Videos dazu) als eigener systemd Dienst.
-  POST   /api/admin/anmelden                  {zugang: tess|alfred, passwort, geraet} → Cookie, {name}
+  POST   /api/admin/anmelden                  {zugang: tess|alfred|caspar|niklas, passwort, geraet} → Cookie, {name}
   POST   /api/admin/abmelden                  meldet das Gerät bei der Brücke ab, löscht das Cookie
   GET    /api/admin/uebersicht                alle Projekte mit Videos, Freigabe, offenen Kommentaren, Kunden, Aufträgen
   POST   /api/admin/projekt/<code>            {titel, kunde, firma, hinweis, darstellung}
@@ -70,7 +71,9 @@ PORT = int(os.environ.get("VIDEOS_PORT", "8652"))
 TEAM_KEY = os.environ.get("VIDEOS_TEAM_KEY", "")
 HERKUNFT = {h.strip() for h in os.environ.get("VIDEOS_ORIGIN", "https://videos.stagecraft.media").split(",") if h.strip()}
 BRUECKE = os.environ.get("TESS_BRUECKE", "http://127.0.0.1:8651")  # Brücke der TESS App, prüft Namen und Passwörter
-ADMIN_ZUGAENGE = {"tess": "Ole", "alfred": "Jonas"}  # Zugänge der Brücke mit Rolle admin, die hier rein dürfen
+# Zugänge der Brücke, die hier rein dürfen, mit Namen und der Rolle, die die Brücke für sie meldet (seit 17.11.2026 auch das Team)
+ADMIN_ZUGAENGE = {"tess": "Ole", "alfred": "Jonas", "caspar": "Caspar", "niklas": "Niklas"}
+ZUGANG_ROLLE = {"tess": "admin", "alfred": "admin", "caspar": "team", "niklas": "team"}
 COOKIE = "sv_sitzung"
 DATEN = Path(os.environ.get("STAGEVIEW_DATEN", str(Path.home() / ".hermes/data/stageview")))
 BEFEHL = os.environ.get("STAGEVIEW_BEFEHL", str(Path.home() / ".local/bin/stageview"))
@@ -215,7 +218,8 @@ def bruecke(pfad, methode="GET", daten=None, token=None, ip=None):
 
 
 def sitzung_pruefen(token):
-    """Wer steckt hinter dem Cookie? Fragt die Brücke (/me) und merkt sich die Antwort 60 s. Nur Admins zählen.
+    """Wer steckt hinter dem Cookie? Fragt die Brücke (/me) und merkt sich die Antwort 60 s. Nur die Zugänge aus ADMIN_ZUGAENGE
+    mit passender Rolle zählen.
     Ist die Brücke kurz nicht erreichbar, gilt eine bekannte Sitzung noch bis zu 15 Minuten."""
     if not token or len(token) > 200:
         return None
@@ -228,7 +232,7 @@ def sitzung_pruefen(token):
     if status == 0 and alt and alt[1] and t - alt[0] < 900:
         return alt[1]
     wer = {"zugang": d["agent"], "name": ADMIN_ZUGAENGE[d["agent"]]} if (
-        status == 200 and d.get("rolle") == "admin" and d.get("agent") in ADMIN_ZUGAENGE) else None
+        status == 200 and d.get("agent") in ADMIN_ZUGAENGE and d.get("rolle") == ZUGANG_ROLLE[d["agent"]]) else None
     with _sperre:
         _sitzungen[k] = (t, wer)
         if len(_sitzungen) > 500:
@@ -591,7 +595,7 @@ class Api(BaseHTTPRequestHandler):
                 raise Fehler(503, "Die Anmeldung ist gerade nicht erreichbar, bitte gleich nochmal.")
             if status != 200 or not a.get("token"):
                 raise Fehler(status if status in (403, 429) else 502, a.get("error") or "Das hat nicht geklappt.")
-            if not sitzung_pruefen(a["token"]):  # nur Admins, sonst das Gerät gleich wieder abmelden
+            if not sitzung_pruefen(a["token"]):  # nur die erlaubten Zugänge, sonst das Gerät gleich wieder abmelden
                 bruecke("/logout", "POST", {}, token=a["token"])
                 raise Fehler(403, "Dieser Zugang darf hier nicht rein.")
             cookie = f"{COOKIE}={a['token']}; Path=/api/; Max-Age=31536000; HttpOnly; Secure; SameSite=Strict"
