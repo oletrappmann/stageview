@@ -286,6 +286,39 @@
   .d-link .k-link { flex: 1; }
   .hilfe { font-size: 13px; color: var(--leise); margin: 10px 0 0; }
 
+  /* Neuer Link (Ole, 16.11.2026): erst nur der Drive Link. Nach dem Bestätigen gehen die Videos sofort zu Mux, das Fenster wird
+     breiter und zeigt einen Fortschritt mit jedem Video und darunter die übrigen Felder */
+  dialog.neu-dialog { width: min(520px, calc(100vw - 32px)); transition: width .45s cubic-bezier(.32,.72,0,1); }
+  dialog.neu-dialog.weit { width: min(720px, calc(100vw - 32px)); }
+  .quelle-zeile { display: flex; gap: 8px; align-items: center; }
+  .quelle-zeile .eingabe-feld { flex: 1; min-width: 0; }
+  .quelle-zeile .primaer { height: 48px; padding: 0 20px; }
+  .quelle-form .hilfe.fehler { color: var(--aenderung); }
+  @keyframes neu-rein { from { opacity: 0; transform: translateY(-8px); } }
+  .lauf { background: var(--panel-2); border-radius: 16px; padding: 14px 16px 14px; margin-bottom: 18px; animation: neu-rein .35s cubic-bezier(.32,.72,0,1); }
+  .lauf-kopf { display: flex; align-items: baseline; gap: 12px; font-size: 14.5px; }
+  .lauf-text { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lauf-zahl { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14px; flex: none; }
+  .lauf-balken { position: relative; height: 6px; border-radius: 3px; background: var(--spur); overflow: hidden; margin-top: 10px; }
+  .lauf-balken span { position: absolute; top: 0; bottom: 0; left: 0; width: 0; border-radius: 3px; background: var(--akzent); transition: width .7s ease; }
+  .lauf-balken.unbestimmt span { width: 30%; transition: none; animation: neu-suchen 1.3s ease-in-out infinite; }
+  @keyframes neu-suchen { from { left: -30%; } to { left: 100%; } }
+  .lauf.fehler .lauf-text { color: var(--aenderung); white-space: normal; }
+  .lauf-videos { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 7px; max-height: 172px; overflow-y: auto; }
+  .lauf-videos:empty { display: none; }
+  .lauf-videos li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; min-width: 0; }
+  .lauf-videos .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .lauf-videos li.bereit .name { color: var(--text); }
+  .lauf-videos .mini { width: 64px; height: 4px; border-radius: 2px; background: var(--spur); overflow: hidden; flex: none; }
+  .lauf-videos .mini span { display: block; height: 100%; background: var(--akzent); transition: width .7s ease; }
+  .lauf-videos .pz { width: 42px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12.5px; flex: none; }
+  .lauf-videos .ok { color: var(--akzent); --s: 16px; flex: none; display: flex; }
+  .lauf-videos .fehlt { color: var(--aenderung); width: auto; }
+  .neu-felder { animation: neu-rein .45s .06s cubic-bezier(.32,.72,0,1) both; }
+  .neu-fertig { display: flex; flex-direction: column; gap: 10px; animation: neu-rein .35s cubic-bezier(.32,.72,0,1); }
+  .neu-fertig .hilfe { margin: 0; }
+  .neu-fertig .form-fuss { margin-top: 6px; }
+
   /* Videos im Projekt */
   .v-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   .v-zeile { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 8px; border-radius: 16px; background: var(--panel-2); min-width: 0; }
@@ -416,22 +449,39 @@
   <div class="d-inhalt" id="p-inhalt"></div>
 </dialog>
 
-<dialog id="neu-dialog" aria-labelledby="n-titel" tabindex="-1">
+<dialog id="neu-dialog" class="neu-dialog" aria-labelledby="n-titel" tabindex="-1">
   <div class="d-kopf"><h3 id="n-titel">Neuer Link</h3><button class="rund" data-zu title="Schließen" aria-label="Schließen" data-i="x-mark"></button></div>
   <div class="d-inhalt">
-    <form class="felder" id="neu-form">
+    <form class="quelle-form" id="quelle-form" novalidate>
+      <div class="quelle-zeile">
+        <input class="eingabe-feld" name="quelle" id="neu-quelle" placeholder="Drive Link einfügen" autocomplete="off" spellcheck="false" autocapitalize="off" aria-label="Drive Link zum Ordner oder Video">
+        <button class="primaer" type="submit" id="quelle-knopf">Weiter</button>
+      </div>
+      <p class="hilfe" id="quelle-hilfe"></p>
+    </form>
+    <div class="lauf" id="neu-lauf" hidden>
+      <div class="lauf-kopf"><span class="lauf-text" id="lauf-text" aria-live="polite"></span><span class="lauf-zahl" id="lauf-zahl"></span></div>
+      <div class="lauf-balken" id="lauf-balken" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-labelledby="lauf-text"><span id="lauf-fuell"></span></div>
+      <ul class="lauf-videos" id="lauf-videos"></ul>
+    </div>
+    <form class="felder neu-felder" id="neu-form" hidden>
       <label class="feld breit"><span>Titel der Seite</span><input class="eingabe-feld" name="titel" required maxlength="120" placeholder="Content Day November" autocomplete="off"></label>
       <label class="feld breit"><span>Kunde</span><select class="eingabe-feld" name="kunde" id="neu-kunde" required></select></label>
       <div class="feld breit" id="neu-kunde-felder" hidden style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
         <label class="feld"><span>Name des neuen Kunden</span><input class="eingabe-feld" name="neu_name" maxlength="80" autocomplete="off" placeholder="Vorname Nachname"></label>
         <label class="feld"><span>Firma (optional)</span><input class="eingabe-feld" name="neu_firma" maxlength="80" autocomplete="off"></label>
       </div>
-      <label class="feld breit"><span>Drive Ordner oder Videos</span><textarea class="eingabe-feld" name="quellen" rows="3" required placeholder="Link zum Export Ordner im Drive, oder Video Links (je einer pro Zeile)"></textarea></label>
-      <label class="haken breit feld" style="flex-direction:row"><input type="checkbox" name="unterordner"> Videos aus Unterordnern mitnehmen</label>
       <label class="feld"><span>Drehtag (optional)</span><input class="eingabe-feld" type="date" name="dreh"></label>
-      <p class="hilfe breit feld">Titel der Videos kommen aus den Dateinamen und lassen sich danach hier ändern. Die Videos gehen in bis zu 4K zu Mux, der Link steht sofort fest, die Videos erscheinen nach ein paar Minuten.</p>
-      <div class="form-fuss"><button class="gross" type="submit" data-i="plus">Link anlegen</button></div>
+      <label class="haken breit feld" id="neu-unterordner" style="flex-direction:row" hidden><input type="checkbox" name="unterordner"> <span id="neu-unterordner-text">Videos aus Unterordnern mitnehmen</span></label>
+      <p class="hilfe breit feld">Titel der Videos kommen aus den Dateinamen und lassen sich danach hier ändern. Der Link steht sofort fest, die Videos erscheinen, sobald Mux fertig ist.</p>
+      <div class="form-fuss"><button class="gross" type="submit" id="neu-knopf-anlegen" data-i="plus">Link anlegen</button></div>
     </form>
+    <div class="neu-fertig" id="neu-fertig" hidden>
+      <div class="d-link"><div class="k-link"><span id="neu-link-text"></span><button type="button" id="neu-link-kopieren" data-i="kopieren">Kopieren</button></div>
+        <a class="rund" id="neu-link-oeffnen" href="#" target="_blank" rel="noopener" data-i="oeffnen" title="Öffnen" aria-label="Öffnen"></a></div>
+      <p class="hilfe">Der Link bleibt so. Die Videos erscheinen, sobald Mux fertig ist. Du kannst das Fenster schließen, es läuft weiter.</p>
+      <div class="form-fuss"><button type="button" class="primaer" data-zu>Fertig</button></div>
+    </div>
   </div>
 </dialog>
 
@@ -879,22 +929,122 @@
   });
   $('projekt-dialog').addEventListener('close', () => { OFFEN = null; });
 
-  // ---------- Neuer Link
+  // ---------- Neuer Link (seit 16.11.2026, Ole): erst nur der Drive Link. Nach dem Bestätigen gehen die Videos sofort zu Mux
+  // (stageview vorbereiten), das Fenster wird breiter und zeigt den Fortschritt mit jedem Video und die übrigen Felder. „Link anlegen“
+  // geht, sobald alle Videos bei Mux angelegt sind, der Fortschritt läuft danach weiter, bis der Link live ist. Wer vorher schließt,
+  // bekommt eine Rückfrage, dann werden die schon hochgeladenen Videos bei Mux wieder gelöscht (macht der Server nach 2 Std auch selbst)
+  const QUELLE_HILFE = 'Export Ordner oder einzelnes Video aus dem Drive. Die Videos gehen sofort zu Mux, Titel und Kunde trägst du währenddessen ein.';
+  let NEU = null;
+  const neuDialog = $('neu-dialog');
   function neuAuf() {
+    clearTimeout(neuPruefen.t); NEU = null;
+    neuDialog.classList.remove('weit');
+    $('quelle-form').hidden = false; $('quelle-form').reset(); $('quelle-knopf').disabled = false;
+    $('quelle-hilfe').textContent = QUELLE_HILFE; $('quelle-hilfe').classList.remove('fehler');
+    $('neu-lauf').hidden = true; $('neu-form').hidden = true; $('neu-fertig').hidden = true; $('neu-form').reset();
     $('neu-kunde').innerHTML = '<option value="" disabled selected>Kunde wählen …</option>'
       + D.kunden.map(k => `<option value="${esc(k.id)}"${k.id === KUNDE ? ' selected' : ''}>${esc(k.name)}${k.firma ? ' · ' + esc(k.firma) : ''}</option>`).join('')
       + '<option value="__neu__">Neuen Kunden anlegen …</option>';
-    $('neu-kunde-felder').hidden = true;
-    fensterAuf($('neu-dialog')); setTimeout(() => $('neu-form').titel.focus(), 60);
+    $('neu-kunde-felder').hidden = true; $('neu-unterordner').hidden = true;
+    fensterAuf(neuDialog); setTimeout(() => $('neu-quelle').focus(), 60);
   }
+  function quelleFehler(text) { $('quelle-hilfe').textContent = text; $('quelle-hilfe').classList.add('fehler'); $('neu-quelle').focus(); }
+  $('neu-quelle').addEventListener('input', () => { $('quelle-hilfe').textContent = QUELLE_HILFE; $('quelle-hilfe').classList.remove('fehler'); });
+  $('quelle-form').addEventListener('submit', async e => {
+    e.preventDefault(); const q = $('neu-quelle').value.trim();
+    if (!q) return quelleFehler('Bitte zuerst einen Drive Link einfügen');
+    if (!/drive\.google\.com|^[A-Za-z0-9_-]{20,}$/.test(q)) return quelleFehler('Das sieht nicht nach einem Drive Link aus');
+    $('quelle-knopf').disabled = true;
+    try {
+      const r = await api('vorbereiten', { method: 'POST', body: { quelle: q } });
+      NEU = { quelle: q, job: r.id, jobs: [r.id], extra: null, daten: null, neuJob: null, neuStand: null, titelVonHand: false, uo: 0 };
+      $('quelle-form').hidden = true; neuDialog.classList.add('weit');
+      $('neu-lauf').hidden = false; $('neu-form').hidden = false;
+      laufZeichnen();
+      if (matchMedia('(hover: hover)').matches) setTimeout(() => $('neu-form').titel.focus(), 420);
+      neuPruefen();
+    } catch (err) { quelleFehler(err.message); $('quelle-knopf').disabled = false; }
+  });
+  async function neuPruefen() {
+    clearTimeout(neuPruefen.t);
+    const n = NEU; if (!n || !neuDialog.open) return;
+    try {
+      const a = await api('auftrag/' + (n.extra || n.job));
+      const b = n.neuJob ? await api('auftrag/' + n.neuJob) : null;
+      if (NEU !== n) return;
+      n.daten = a; n.neuStand = b; laufZeichnen();
+    } catch (err) { if (err instanceof NichtAngemeldet) return; }
+    if (NEU !== n || n.aus) return;
+    neuPruefen.t = setTimeout(neuPruefen, 1500);
+  }
+  function laufZeichnen() {
+    const n = NEU; if (!n) return;
+    const a = n.daten || {}, s = a.stand || {}, videos = s.videos || [], st = s.stand || {}, b = n.neuStand;
+    const lauf = $('neu-lauf'), balken = $('lauf-balken'), knopf = $('neu-knopf-anlegen');
+    // Vorbereiten ging schief (falscher Link, kein Zugriff, keine Videos): zurück zum Link Feld, mit dem Grund
+    if (a.laeuft === false && !a.ok && !n.neuJob && !['fertig', 'verwendet', 'aufgeraeumt'].includes(s.phase)) {
+      n.aus = true; NEU = null;
+      n.jobs.forEach(id => api(`auftrag/${id}/abbrechen`, { method: 'POST', body: {} }).catch(() => {}));  // schon Angelegtes wieder weg
+      neuDialog.classList.remove('weit'); lauf.hidden = true; $('neu-form').hidden = true;
+      $('quelle-form').hidden = false; $('quelle-knopf').disabled = false;
+      return quelleFehler(/abgebrochen/.test(a.zuletzt || '') ? 'Abgebrochen' : (a.fehler || 'Das hat nicht geklappt, bitte nochmal'));
+    }
+    if (s.unterordner) n.uo = s.unterordner;
+    const zahl = videos.length, bereit = videos.filter(v => (st[v.drive] || {}).status === 'ready').length;
+    const mux = zahl ? Math.round(videos.reduce((x, v) => x + ((st[v.drive] || {}).prozent || 0), 0) / zahl) : 0;
+    let text, pz = null;
+    if (!s.phase || s.phase === 'drive') text = 'Drive wird gelesen …';
+    else if (s.phase === 'gefunden') { text = `${mehrzahl(zahl, 'Video', 'Videos')} gefunden, gehen zu Mux …`; pz = 2; }
+    else if (bereit < zahl) { text = `Mux bereitet vor · ${bereit} von ${zahl} fertig`; pz = Math.max(3, mux); }
+    else { text = zahl === 1 ? 'Das Video ist bereit' : `Alle ${zahl} Videos sind bereit`; pz = 100; }
+    if (b) {  // Link ist angelegt: weiter nachsehen, bis die Seite gebaut ist und Mux mit allen Videos durch ist
+      const muxDurch = ['fertig', 'verwendet', 'aufgeraeumt'].includes(s.phase) || a.laeuft === false;
+      if (b.laeuft === false && !b.ok) { text = 'Link anlegen hat nicht geklappt: ' + (b.fehler || 'unbekannter Fehler'); n.aus = true; }
+      else if (b.laeuft === false && bereit === zahl) { text = 'Fertig, der Link ist live'; pz = 100; n.aus = muxDurch; }
+      else if (b.laeuft === false) { text = `Link ist live, Mux bereitet noch vor · ${bereit} von ${zahl} fertig`; n.aus = muxDurch; }
+      else if (pz === 100) { text = 'Seite wird gebaut …'; pz = 99; }
+    }
+    lauf.classList.toggle('fehler', !!(b && b.laeuft === false && !b.ok));
+    balken.classList.toggle('unbestimmt', pz === null);
+    $('lauf-fuell').style.width = (pz ?? 0) + '%'; balken.setAttribute('aria-valuenow', String(pz ?? 0));
+    $('lauf-text').textContent = text; $('lauf-zahl').textContent = pz === null ? '' : pz + ' %';
+    $('lauf-videos').innerHTML = videos.map(v => {
+      const x = st[v.drive] || {}, p = x.prozent || 0;
+      const rechts = x.status === 'ready' ? `<span class="ok">${icon('check', 16)}</span>`
+        : x.status === 'errored' ? '<span class="pz fehlt">Fehler bei Mux</span>'
+        : `<span class="mini"><span style="width:${p}%"></span></span><span class="pz">${p} %</span>`;
+      return `<li class="${x.status === 'ready' ? 'bereit' : ''}"><span class="name">${esc(v.titel)}</span>${rechts}</li>`;
+    }).join('');
+    // Titelvorschlag aus dem Ordner (bei „Export“ der Ordner darüber), solange niemand selbst tippt
+    const t = $('neu-form').titel; if (s.name && !n.titelVonHand && !t.value) t.value = s.name;
+    const uo = $('neu-unterordner'); uo.hidden = !n.uo || !!n.neuJob;
+    if (n.uo) $('neu-unterordner-text').textContent = `Dazu ${mehrzahl(n.uo, 'Video', 'Videos')} aus Unterordnern mitnehmen`;
+    const kannAnlegen = ['mux', 'fertig', 'verwendet'].includes(s.phase);
+    if (!n.neuJob) { knopf.disabled = !kannAnlegen || n.sendet; knopf.lastChild.textContent = kannAnlegen ? 'Link anlegen' : 'Videos werden gesucht …'; }
+    if (b && b.link && $('neu-fertig').hidden) {
+      $('neu-link-text').textContent = kurz(b.link); $('neu-link-kopieren').dataset.kopieren = b.link; $('neu-link-oeffnen').href = b.link;
+      $('neu-form').hidden = true; $('neu-fertig').hidden = false;
+    }
+  }
+  $('neu-form').titel.addEventListener('input', () => { if (NEU) NEU.titelVonHand = true; });
+  $('neu-form').unterordner.addEventListener('change', async e => {
+    const n = NEU; if (!n) return;
+    try {
+      if (e.target.checked) { const r = await api('vorbereiten', { method: 'POST', body: { quelle: n.quelle, unterordner: true } }); n.extra = r.id; n.jobs.push(r.id); }
+      else if (n.extra) { const alt = n.extra; n.extra = null; api(`auftrag/${alt}/abbrechen`, { method: 'POST', body: {} }).catch(() => {}); }
+      n.daten = null; laufZeichnen(); neuPruefen();
+    } catch (err) { e.target.checked = !e.target.checked; toast(err.message, true); }
+  });
   $('neu-kunde').addEventListener('change', e => {
     const neu = e.target.value === '__neu__'; $('neu-kunde-felder').hidden = !neu;
     if (neu) setTimeout(() => $('neu-form').elements.neu_name.focus(), 30);
   });
   $('neu-form').addEventListener('submit', async e => {
-    e.preventDefault(); const f = e.target, knopf = f.querySelector('[type="submit"]'), fd = new FormData(f);
-    if (!fd.get('kunde')) return toast('Bitte einen Kunden wählen', true);
-    knopf.disabled = true;
+    e.preventDefault(); const f = e.target, knopf = $('neu-knopf-anlegen'), fd = new FormData(f), n = NEU;
+    if (!n) return;
+    if (!(fd.get('titel') || '').trim()) { toast('Bitte einen Titel eintragen', true); return f.titel.focus(); }
+    if (!fd.get('kunde')) { toast('Bitte einen Kunden wählen', true); return $('neu-kunde').focus(); }
+    n.sendet = true; knopf.disabled = true;
     try {
       let kunde = fd.get('kunde');
       if (kunde === '__neu__') {  // neuen Kunden zuerst anlegen, dann den Link für ihn
@@ -902,10 +1052,36 @@
         const r = await api('kunden', { method: 'POST', body: { name: fd.get('neu_name'), firma: fd.get('neu_firma') } });
         kunde = r.id;
       }
-      await api('neu', { method: 'POST', body: { titel: fd.get('titel'), kunde, quellen: fd.get('quellen'), unterordner: !!fd.get('unterordner'), dreh: fd.get('dreh') } });
-      f.reset(); $('neu-dialog').close(); toast('Läuft, der Link erscheint gleich oben'); await laden(true); scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (err) { toast(err.message, true); }
-    knopf.disabled = false;
+      const s = (n.daten && n.daten.stand) || {};
+      const r = await api('neu', { method: 'POST', body: { titel: fd.get('titel'), kunde, quellen: n.quelle, unterordner: !!n.extra || !!s.tief, dreh: fd.get('dreh') } });
+      n.neuJob = r.id; knopf.lastChild.textContent = 'Link wird angelegt …';
+      laden(true); neuPruefen();
+    } catch (err) { toast(err.message, true); knopf.disabled = false; }
+    n.sendet = false;
+  });
+  $('neu-link-kopieren').addEventListener('click', e => { e.stopPropagation(); kopieren(e.currentTarget.dataset.kopieren, e.currentTarget); });
+  // Schließen, bevor der Link angelegt ist: nachfragen, dann die schon hochgeladenen Videos bei Mux wieder löschen.
+  // Daneben klicken schließt dann gar nicht (sonst wären Titel und Fortschritt mit einem Fehlklick weg)
+  const neuOffen = () => NEU && !NEU.neuJob;
+  async function neuVerwerfen() {
+    if (!await frage('Neuen Link verwerfen?', 'Die Videos, die schon zu Mux gegangen sind, werden dort wieder gelöscht. Im Drive bleibt alles.', 'Verwerfen')) return;
+    const n = NEU; NEU = null; clearTimeout(neuPruefen.t);
+    if (n) n.jobs.forEach(id => api(`auftrag/${id}/abbrechen`, { method: 'POST', body: {} }).catch(() => {}));
+    neuDialog.close();
+  }
+  neuDialog.addEventListener('click', e => {
+    if (!neuOffen()) return;
+    const zu = e.target.closest('[data-zu]');
+    if (!zu && e.target !== neuDialog) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+    if (zu) neuVerwerfen();
+  }, true);
+  neuDialog.addEventListener('cancel', e => { if (!neuOffen()) return; e.preventDefault(); neuVerwerfen(); });
+  neuDialog.addEventListener('close', () => {
+    clearTimeout(neuPruefen.t);
+    if (NEU && !NEU.neuJob) NEU.jobs.forEach(id => api(`auftrag/${id}/abbrechen`, { method: 'POST', body: {} }).catch(() => {}));
+    if (NEU && NEU.neuJob) scrollTo({ top: 0, behavior: 'smooth' });
+    NEU = null;
   });
 
   // ---------- Kunden: anlegen, bearbeiten (gilt für alle Links des Kunden), löschen (nur ohne Links)

@@ -38,6 +38,10 @@ Aufträge (neuer Link, Videos dazu) als eigener systemd Dienst.
   POST   /api/admin/projekt/<code>/video/<nr>/entfernen
   POST   /api/admin/projekt/<code>/dazu       {quellen, titel}      Auftrag
   POST   /api/admin/neu                       {titel, kunde, quellen, unterordner, dreh}   Auftrag
+  POST   /api/admin/vorbereiten               {quelle, unterordner}  Auftrag (seit 16.11.2026): Drive Link einfügen, Videos gehen
+                                              sofort zu Mux, während Titel und Kunde eingetragen werden (stageview vorbereiten)
+  GET    /api/admin/auftrag/<id>              Stand eines Auftrags (Phase, gefundene Videos, Mux Fortschritt, Link, Fehler)
+  POST   /api/admin/auftrag/<id>/abbrechen    vorbereiten anhalten, dabei neu angelegte Videos bei Mux löschen (nur ungenutzte)
   POST   /api/admin/kunden                    {name, firma} neuer Kunde (nur StageView, nie im Content Brain)
   POST   /api/admin/kunden/<id>               {name, firma} ändern, gilt für alle Links des Kunden
   POST   /api/admin/kunden/<id>/loeschen      nur ohne Links, Kunden aus dem Content Brain werden nur ausgeblendet
@@ -284,21 +288,61 @@ def auftraege():
         if meta.stat().st_mtime < grenze:
             continue
         a = lies_json(meta, {})
-        try:
-            zeilen = [z.strip() for z in (ordner / f"{meta.stem}.log").read_text(encoding="utf-8", errors="replace").splitlines() if z.strip()]
-        except OSError:
-            zeilen = []
-        ende = next((z for z in reversed(zeilen) if z.startswith("__ENDE__")), None)
-        inhalt = [z for z in zeilen if not z.startswith("__ENDE__") and not z.endswith(" start")]
-        link = next((m.group(0) for z in reversed(inhalt) for m in [re.search(r"https://videos\.stagecraft\.media/[a-z0-9]{6}", z)] if m), None)
-        a.update({"laeuft": ende is None, "ok": ende is not None and ende.split()[-1] == "0",
-                  "zuletzt": inhalt[-1][:220] if inhalt else "startet …", "link": link,
-                  "fehler": (next((z for z in reversed(inhalt) if z.upper().startswith("FEHLER")), None) or (inhalt[-1] if inhalt else "")).split(":", 1)[-1].strip()[:300]
-                  if ende is not None and ende.split()[-1] != "0" else None})
+        if a.get("art") == "vorbereiten":  # gehört zum Fenster „Neuer Link“, nicht in die Liste
+            continue
+        a.update(auftrag_lesen(meta.stem)[0])
         raus.append(a)
     raus.sort(key=lambda a: a.get("start", ""), reverse=True)
     raus.sort(key=lambda a: not a["laeuft"])  # laufende zuerst, sonst neueste zuerst
     return raus[:20]
+
+
+AUFTRAG_RE = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{4}$")
+
+
+def auftrag_lesen(aid):
+    """Protokoll eines Auftrags: laeuft, ok, zuletzt, link, fehler. Dazu die Zeilen „@ {json}“ von stageview vorbereiten
+    (Phase, gefundene Videos, Mux Fortschritt) zusammengeführt, und die bei Mux neu angelegten Assets."""
+    try:
+        zeilen = [z.strip() for z in (DATEN / "auftraege" / f"{aid}.log").read_text(encoding="utf-8", errors="replace").splitlines() if z.strip()]
+    except OSError:
+        zeilen = []
+    stand, angelegt = {}, []
+    for z in zeilen:
+        if z.startswith("@ "):
+            try:
+                d = json.loads(z[2:])
+            except ValueError:
+                continue
+            if "angelegt" in d:
+                angelegt.append(str(d["angelegt"]))
+            elif isinstance(d, dict):
+                stand.update(d)
+    ende = next((z for z in reversed(zeilen) if z.startswith("__ENDE__")), None)
+    inhalt = [z for z in zeilen if not z.startswith(("__ENDE__", "@ ")) and not z.endswith(" start")]
+    link = next((m.group(0) for z in reversed(inhalt) for m in [re.search(r"https://videos\.stagecraft\.media/[a-z0-9]{6}", z)] if m), None)
+    fehlertext = None
+    if ende is not None and ende.split()[-1] != "0":
+        fehlertext = (next((z for z in reversed(inhalt) if z.upper().startswith("FEHLER")), None) or (inhalt[-1] if inhalt else "")).split(":", 1)[-1].strip()[:300]
+    return ({"laeuft": ende is None, "ok": ende is not None and ende.split()[-1] == "0",
+             "zuletzt": inhalt[-1][:220] if inhalt else "startet …", "link": link, "fehler": fehlertext, "stand": stand}, angelegt)
+
+
+def auftrag_abbrechen(aid):
+    """vorbereiten anhalten und die dabei neu angelegten Videos bei Mux löschen (stageview mux-weg lässt benutzte stehen)."""
+    meta = lies_json(DATEN / "auftraege" / f"{aid}.json", {})
+    if meta.get("art") != "vorbereiten":
+        raise Fehler(400, "Nur das Vorbereiten lässt sich abbrechen")
+    try:
+        subprocess.run(["systemctl", "--user", "stop", f"stageview-{aid}"], capture_output=True, timeout=20)
+    except Exception:
+        pass
+    _, angelegt = auftrag_lesen(aid)
+    if angelegt:
+        stageview("mux-weg", *angelegt, zeit=120)
+    with open(DATEN / "auftraege" / f"{aid}.log", "a", encoding="utf-8") as f:
+        f.write("abgebrochen\n__ENDE__ 130\n")
+    return {"ok": True, "geloescht": len(angelegt)}
 
 
 def uebersicht():
@@ -566,10 +610,25 @@ class Api(BaseHTTPRequestHandler):
         if methode == "GET" and rest == ["uebersicht"]:
             ich = self.admin_sitzung()
             return self.antwort(200, {**uebersicht(), "ich": ich or {"zugang": "team", "name": "Team"}})
+        if len(rest) >= 2 and rest[0] == "auftrag" and not (AUFTRAG_RE.match(rest[1]) and (DATEN / "auftraege" / f"{rest[1]}.json").exists()):
+            raise Fehler(404, "Auftrag unbekannt")
+        if methode == "GET" and len(rest) == 2 and rest[0] == "auftrag":
+            stand, _ = auftrag_lesen(rest[1])
+            return self.antwort(200, {"id": rest[1], "art": lies_json(DATEN / "auftraege" / f"{rest[1]}.json", {}).get("art"), **stand})
         herkunft = self.headers.get("Origin")
         if methode != "POST" or (herkunft and herkunft not in HERKUNFT):
             raise Fehler(403, "nicht erlaubt")
         d = self.koerper()
+        if rest == ["vorbereiten"]:
+            q = str(d.get("quelle") or "").strip()
+            if not q:
+                raise Fehler(400, "Drive Link fehlt")
+            args = ["vorbereiten", *quellen_args(q), "--warten=30"]
+            if d.get("unterordner"):
+                args.append("--unterordner")
+            return self.antwort(202, auftrag_starten("vorbereiten", "Vorbereiten", args))
+        if len(rest) == 3 and rest[0] == "auftrag" and rest[2] == "abbrechen":
+            return self.antwort(200, auftrag_abbrechen(rest[1]))
         if rest == ["neu"]:
             titel = sauber(d.get("titel"), 120)
             if not titel:

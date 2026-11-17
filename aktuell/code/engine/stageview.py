@@ -27,6 +27,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import unicodedata
 import urllib.error
@@ -203,6 +204,78 @@ def mux_anlegen(did):
     return mux("/video/v1/assets", "POST", body)["data"]
 
 
+# ---------------------------------------------------------------- Lippensynchron (seit 16.11.2026)
+# Ole: „die Tonspur ist komplett versetzt“ (Clemens, Diener statt CEO). Gemessen: Mux ignoriert Edit Lists in MP4/MOV. Exporte aus
+# DaVinci Resolve (H.264) verschieben das Bild per Edit List um 0,2 s (Media Time 2560 bei 1/12800) und den Ton um 2112 Samples.
+# Bei Mux lag das Bild dadurch 0,22 s zu spät, der Ton 0,04 s, also rund 0,18 s auseinander, an jedem Schnitt gleich. Bereinigt
+# (ffmpeg ohne Neukodieren, Edit List in die Zeitstempel übernommen, -use_editlist 0) lagen Bild und Ton bei Mux 0,006 s auseinander.
+# Darum: vor jedem Upload nur den Kopf der Datei lesen, und wenn die Edit Lists Bild und Ton um mehr als 40 ms verschieben,
+# die Datei auf VPS 2 laden, bereinigen und direkt zu Mux hochladen (passthrough bleibt drive:<id>, die Seite merkt keinen Unterschied).
+VERSATZ_GRENZE = 0.04
+
+
+def edit_versatz(did):
+    """Sekunden, um die Edit Lists das Bild gegenüber dem Ton verschieben (0, wenn keine). Liest per ffprobe nur den Dateikopf."""
+    url = f"https://www.googleapis.com/drive/v3/files/{did}?alt=media&supportsAllDrives=true"
+    r = subprocess.run(["ffprobe", "-v", "trace", "-headers", f"Authorization: Bearer {drive_token()}\r\n",
+                        "-show_entries", "stream=index,codec_type,time_base", "-of", "json", url],
+                       capture_output=True, text=True, timeout=180)
+    if r.returncode != 0:
+        raise RuntimeError("ffprobe: " + (r.stderr.strip().splitlines() or ["?"])[-1][:200])
+    arten = {s["index"]: (s["codec_type"], s.get("time_base", "1/1")) for s in json.loads(r.stdout or "{}").get("streams", [])}
+    versatz = {}
+    for m in re.finditer(r"Processing st: (\d+), edit list \d+ - media time: (-?\d+)", r.stderr):
+        art, tb = arten.get(int(m.group(1)), (None, "1/1"))
+        if art in ("video", "audio") and art not in versatz:
+            z, n = tb.split("/")
+            versatz[art] = max(0, int(m.group(2))) * int(z) / int(n)
+    return round(versatz.get("video", 0) - versatz.get("audio", 0), 3) if "video" in versatz else 0.0
+
+
+def mux_bereinigt(did):
+    """Drive Datei laden, mit ffmpeg ohne Neukodieren neu verpacken (Edit Lists in den Zeitstempeln, keine Edit List mehr) und per
+    Direct Upload zu Mux, mit denselben Einstellungen wie mux_anlegen. Die Kopie auf VPS 2 wird danach immer gelöscht."""
+    from googleapiclient.http import MediaIoBaseDownload
+    ordner = Path(tempfile.mkdtemp(prefix="sv-sync-"))
+    try:
+        quelle, sauber = ordner / "quelle", ordner / "sauber.mp4"
+        with open(quelle, "wb") as f:
+            d, fertig = MediaIoBaseDownload(f, drive().files().get_media(fileId=did, supportsAllDrives=True), chunksize=32 * 1024 * 1024), False
+            while not fertig:
+                _, fertig = d.next_chunk()
+        r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(quelle), "-map", "0:v:0", "-map", "0:a?", "-c", "copy", "-use_editlist", "0",
+                            "-movflags", "+faststart+negative_cts_offsets", str(sauber)], capture_output=True, text=True, timeout=1800)
+        if r.returncode != 0:
+            raise RuntimeError("ffmpeg: " + r.stderr.strip()[-200:])
+        quelle.unlink()
+        u = mux("/video/v1/uploads", "POST", {"cors_origin": "*", "new_asset_settings": {
+            "playback_policies": ["public"], "video_quality": "basic", "max_resolution_tier": "2160p", "passthrough": "drive:" + did}})["data"]
+        r = subprocess.run(["curl", "-s", "-f", "-o", "/dev/null", "-X", "PUT", "-T", str(sauber), u["url"]], capture_output=True, text=True, timeout=3600)
+        if r.returncode != 0:
+            raise RuntimeError("Upload zu Mux fehlgeschlagen")
+        for _ in range(60):
+            x = mux(f"/video/v1/uploads/{u['id']}")["data"]
+            if x.get("asset_id"):
+                return mux(f"/video/v1/assets/{x['asset_id']}")["data"]
+            time.sleep(2)
+        raise RuntimeError("Mux hat aus dem Upload kein Video gemacht")
+    finally:
+        shutil.rmtree(ordner, ignore_errors=True)
+
+
+def mux_neu(did, titel=""):
+    """Neues Mux Asset für ein Drive Video: normal per Link, bei verschobenen Edit Lists bereinigt (siehe oben)."""
+    try:
+        v = edit_versatz(did)
+    except Exception as e:
+        print(f"  Hinweis: Versatz von {titel or did} nicht geprüft ({str(e)[:120]}), geht normal zu Mux", flush=True)
+        v = 0.0
+    if abs(v) > VERSATZ_GRENZE:
+        print(f"  {titel or did}: Bild und Ton per Edit List {v:+.2f} s verschoben, Mux ignoriert das, geht bereinigt zu Mux", flush=True)
+        return mux_bereinigt(did)
+    return mux_anlegen(did)
+
+
 def mux_warten(ids, minuten):
     """Wartet, bis die Assets fertig sind. Gibt die noch nicht fertigen zurück."""
     ende = time.time() + minuten * 60
@@ -248,7 +321,17 @@ def drive():
     if not cr.valid:
         cr.refresh(Request())
     _drive = build("drive", "v3", credentials=cr, cache_discovery=False)
+    _drive.anmeldung = cr
     return _drive
+
+
+def drive_token():
+    """Zugriffstoken des Agents, z.B. damit ffprobe nur den Kopf einer Drive Datei liest."""
+    cr = drive().anmeldung
+    if not cr.valid:
+        from google.auth.transport.requests import Request
+        cr.refresh(Request())
+    return cr.token
 
 
 ALLE = {"supportsAllDrives": True}
@@ -573,7 +656,7 @@ def nach_mux(projekt, warten):
                 print(f"  Drive Link freigegeben: {v.get('titel')}")
         except Exception as e:
             print(f"  Hinweis: Freigabe für {v.get('titel')} nicht geprüft ({str(e)[:120]})")
-        neu = mux_anlegen(did)
+        neu = mux_neu(did, v.get('titel'))
         angelegt.append(neu["id"])
         print(f"  zu Mux: {v.get('titel')}", flush=True)
     if angelegt and warten:
@@ -1249,6 +1332,163 @@ def b_dazu(a):
     projekt_anlegen(s, p, eintraege, a.warten)
 
 
+ALLGEMEINE_ORDNER = re.compile(r"^(export|exports|final|finals|fertig|videos?|reels?|schnitt|cuts?|output|render)$", re.I)
+
+
+def b_vorbereiten(a):
+    """Für „Neuer Link“ im Dashboard (Ole, 16.11.2026): Drive Link einfügen, die Videos gehen sofort zu Mux, während Titel und Kunde
+    noch eingetragen werden. Legt kein Projekt an. `neu` mit denselben Quellen nimmt die fertigen Assets danach einfach mit.
+    Meldet sich in Zeilen „@ {json}“, die die API fürs Dashboard liest. Nimmt nach --aufheben Minuten niemand die neu angelegten
+    Videos in einen Link, löscht es sie bei Mux wieder (Fenster zu, Seite zu), damit nichts Speicher kostet."""
+    start = time.time()
+
+    def melde(**d):
+        print("@ " + json.dumps(d, ensure_ascii=False), flush=True)
+
+    melde(phase="drive")
+    vids, name, unter, tief = [], None, 0, False
+    for q in a.quelle or []:
+        f = drive_datei(drive_id(q))
+        if ist_ordner(f):
+            alle = drive_videos(f["id"], True)
+            direkt = [x for x in alle if f["id"] in (x.get("parents") or [])]
+            nimm = alle if (a.unterordner or not direkt) else direkt
+            tief = tief or nimm is alle and len(alle) > len(direkt)
+            unter += 0 if nimm is alle else len(alle) - len(direkt)
+            if not name:  # Titelvorschlag: der Ordner, bei „Export“ und ähnlichen der Ordner darüber
+                name = f["name"]
+                if ALLGEMEINE_ORDNER.match(name.strip()) and f.get("parents"):
+                    try:
+                        name = drive_datei(f["parents"][0]).get("name") or name
+                    except (SystemExit, Exception):
+                        pass
+            namen = [x["name"] for x in nimm]
+            vids += [(x, titel_aus_dateiname(x["name"], namen)) for x in sorted(nimm, key=lambda x: x["name"].lower())]
+        elif ist_video(f):
+            name = name or titel_aus_dateiname(f["name"])
+            vids.append((f, titel_aus_dateiname(f["name"])))
+        else:
+            fehler(f"„{f.get('name')}“ ist weder Ordner noch Video")
+    if not vids:
+        fehler("In dem Ordner sind keine Videos")
+    melde(phase="gefunden", name=name, tief=tief, unterordner=unter,
+          videos=[{"drive": f["id"], "titel": t, "groesse": int(f.get("size") or 0)} for f, t in vids])
+
+    assets, meine, neu = mux_assets(), {}, []
+    for f, t in vids:
+        did, x = f["id"], assets.get(f["id"])
+        if x and x.get("status") in ("ready", "preparing"):
+            meine[did] = x["id"]
+            continue
+        try:
+            link_freigeben(did)
+        except Exception as e:
+            print(f"Hinweis: Freigabe für {t} nicht geprüft ({str(e)[:120]})", flush=True)
+        n = mux_neu(did, t)
+        meine[did], neu = n["id"], neu + [did]
+        melde(angelegt=n["id"], drive=did)
+
+    letzte, ende = None, start + a.warten * 60
+    while time.time() < ende:
+        liste = {x["id"]: x for x in mux("/video/v1/assets?limit=100")["data"]}
+        stand = {}
+        for did, aid in meine.items():
+            x = liste.get(aid) or mux(f"/video/v1/assets/{aid}")["data"]
+            pr = x.get("progress") or {}
+            stand[did] = {"status": x.get("status"), "zustand": pr.get("state"),
+                          "prozent": 100 if x.get("status") == "ready" else max(0, min(99, int(pr.get("progress") or 0)))}
+        if stand != letzte:
+            melde(phase="mux", stand=stand)
+            letzte = stand
+        if all(s["status"] in ("ready", "errored") for s in stand.values()):
+            break
+        time.sleep(4)
+    fehlt = [d for d, s in (letzte or {}).items() if s["status"] == "errored"]
+    melde(phase="fertig", fehler=len(fehlt))
+
+    # Aufräumen: neu angelegte Videos, die keiner in einen Link nimmt, nach einer Weile wieder löschen
+    benutzt = lambda: {v.get("drive") for p in alle_projekte().values() for v in p.get("videos", [])}
+    while neu and time.time() < start + a.aufheben * 60:
+        if all(d in benutzt() for d in neu):
+            melde(phase="verwendet")
+            return
+        time.sleep(30)
+    frei = [d for d in neu if d not in benutzt()]
+    for d in frei:
+        mux(f"/video/v1/assets/{meine[d]}", "DELETE")
+    if frei:
+        melde(phase="aufgeraeumt", geloescht=len(frei))
+
+
+def b_versatz(a):
+    """Lippensynchron prüfen (seit 16.11.2026): pro Video, ob die Drive Datei Bild und Ton per Edit List verschiebt und bei Mux
+    deshalb versetzt läuft. Schon bereinigte (Direct Upload) zählen als in Ordnung. --reparieren bringt die betroffenen bereinigt
+    neu zu Mux: Nummern, Links und Kommentare bleiben, die Seite nimmt die neue Fassung, sobald sie fertig ist (asset_rang),
+    die alten danach mit `stageview mux --aufraeumen --ja` löschen."""
+    nur = schluessel_fuer(a.projekt) if a.projekt else None
+    alle, gesehen, betroffen = mux_assets(alle=True), set(), []
+    for s, p in alle_projekte().items():
+        if nur and s != nur:
+            continue
+        code = code_fuer(s, False)
+        for v in p.get("videos", []):
+            did = v.get("drive")
+            if not did or did in gesehen:
+                continue
+            gesehen.add(did)
+            beste = (alle.get(did) or [{}])[0]
+            if beste.get("upload_id"):
+                print(f"  ok (bereinigt)  {code} {v.get('titel')}")
+                continue
+            try:
+                w = edit_versatz(did)
+            except Exception as e:
+                print(f"  ?               {code} {v.get('titel')} ({str(e)[:80]})")
+                continue
+            if abs(w) > VERSATZ_GRENZE:
+                betroffen.append((s, did, v.get("titel") or did))
+                print(f"  versetzt {w:+.2f} s {code} {v.get('titel')}")
+            else:
+                print(f"  ok              {code} {v.get('titel')}")
+    print(f"{len(betroffen)} von {len(gesehen)} Videos laufen bei Mux versetzt")
+    if not betroffen or not a.reparieren:
+        if betroffen:
+            print("Reparieren mit --reparieren (lädt jedes betroffene Video einmal auf VPS 2, verpackt es neu und lädt es zu Mux)")
+        return
+    angelegt = []
+    for s, did, titel in betroffen:
+        print(f"  bereinigt zu Mux: {titel}", flush=True)
+        angelegt.append(mux_bereinigt(did)["id"])
+    offen = mux_warten(angelegt, a.warten) if a.warten else set(angelegt)
+    # Alle Links neu bauen, in denen eins der Videos steckt (ein Drive Video kann in mehreren Links sein, z.B. Test Links)
+    ids = {did for _, did, _ in betroffen}
+    with Sperre():
+        for s in sorted(s for s, p in alle_projekte().items() if any(v.get("drive") in ids for v in p.get("videos", []))):
+            melden(bauen(s))
+    if offen:
+        print(f"{len(offen)} noch in Arbeit bei Mux, später `stageview bauen`")
+
+
+def b_mux_weg(a):
+    """Assets bei Mux löschen, die in keinem Link stecken (für Abbrechen im Dashboard). Benutzte bleiben immer."""
+    benutzt = {v.get("drive") for p in alle_projekte().values() for v in p.get("videos", [])}
+    weg = 0
+    for aid in a.asset:
+        if not re.fullmatch(r"[A-Za-z0-9]{10,80}", aid):
+            continue
+        try:
+            x = mux(f"/video/v1/assets/{aid}")["data"]
+        except SystemExit:
+            continue  # schon weg
+        did = str(x.get("passthrough") or "").removeprefix("drive:")
+        if did in benutzt:
+            print(f"bleibt (steckt in einem Link): drive:{did}")
+            continue
+        mux(f"/video/v1/assets/{aid}", "DELETE")
+        weg += 1
+    print(f"{weg} gelöscht")
+
+
 def b_titel(a):
     a.titel = a.titel_option or a.titel
     if not a.titel:
@@ -1610,7 +1850,7 @@ def b_hochstufen(a):
             link_freigeben(did)
         except Exception as e:
             print(f"  Hinweis: Freigabe für {titel} nicht geprüft ({str(e)[:120]})")
-        angelegt.append(mux_anlegen(did)["id"])
+        angelegt.append(mux_neu(did, titel)["id"])
         print(f"  zu Mux in 4K: {titel}", flush=True)
     offen = mux_warten(angelegt, a.warten) if a.warten else set(angelegt)
     with Sperre():
@@ -1652,6 +1892,17 @@ def main():
 
     p = sub.add_parser("dazu", help="Videos zu einem Projekt hinzufügen"); p.add_argument("projekt"); p.add_argument("--titel")
     quellen(p); p.set_defaults(f=b_dazu)
+    p = sub.add_parser("vorbereiten", help="für das Dashboard: Videos aus dem Drive schon zu Mux bringen, bevor der Link angelegt wird")
+    p.add_argument("--quelle", action="append", required=True, help="Drive Ordner oder Video (mehrfach möglich)")
+    p.add_argument("--unterordner", action="store_true", help="auch Videos aus Unterordnern (ohne Videos direkt im Ordner sowieso)")
+    p.add_argument("--warten", type=int, default=30, help="Minuten auf Mux warten")
+    p.add_argument("--aufheben", type=int, default=120, help="nach so vielen Minuten ungenutzte neue Videos bei Mux wieder löschen")
+    p.set_defaults(f=b_vorbereiten)
+    p = sub.add_parser("mux-weg", help="Mux Assets löschen, die in keinem Link stecken"); p.add_argument("asset", nargs="+")
+    p.set_defaults(f=b_mux_weg)
+    p = sub.add_parser("versatz", help="prüfen, ob Bild und Ton bei Mux versetzt laufen (Edit Lists aus Resolve), mit --reparieren beheben")
+    p.add_argument("projekt", nargs="?"); p.add_argument("--reparieren", action="store_true"); p.add_argument("--warten", type=int, default=30)
+    p.set_defaults(f=b_versatz)
     p = sub.add_parser("titel", help="Titel eines Videos ändern"); p.add_argument("projekt"); p.add_argument("nr"); p.add_argument("titel", nargs="?")
     p.add_argument("--titel", dest="titel_option", help="statt des dritten Arguments")
     p.set_defaults(f=b_titel)

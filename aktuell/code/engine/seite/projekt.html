@@ -166,6 +166,8 @@
   .video-flaeche { display: flex; justify-content: center; align-items: center; position: relative; overflow: hidden; }
   .video-box { --ar: .5625; height: min(calc(100cqw / var(--ar)), calc(var(--app-h) * .58)); aspect-ratio: var(--ar); max-width: 100%; position: relative;
     transition: transform .18s ease, opacity .18s ease; }
+  /* Fest aufs Video drücken hält an (Ole, 16.11.2026), ohne dass das iPhone dabei sein Menü zum Sichern oder Teilen öffnet */
+  .video-box { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   .video-box media-controller { width: 100%; height: 100%; display: block; --media-control-background: transparent; --media-control-hover-background: transparent;
     --media-primary-color: #fff; --media-background-color: var(--viewer); }
   .video-box mux-video { width: 100%; height: 100%; }
@@ -251,18 +253,44 @@
     --media-range-track-background: var(--spur); --media-range-thumb-width: 12px; --media-range-thumb-height: 12px; --media-range-thumb-background: var(--text); }
   /* Zahnrad dreht sich bei jedem Drücken ein Stück weiter, mit leichtem Nachfedern (Ole, 13.11.). 120 Grad, das Rad hat sechs Zähne */
   .reihe .zahnrad svg { transition: transform .62s cubic-bezier(.34,1.42,.5,1); }
-  /* Einstellungen (seit 13.11.2026 eigenes Fenster statt media-chrome Menü, das am iPhone nicht richtig aufging): Tempo und Qualität
-     als große Knöpfe ohne Untermenüs, Aufbau und Schließen wie beim Status Menü */
-  .steuerung .einstell-menue { top: auto; bottom: 64px; right: 12px; left: auto; width: 300px; padding: 14px 14px 16px; z-index: 6; text-align: left; }
+  /* Einstellungen (seit 13.11.2026 eigenes Fenster statt media-chrome Menü, das am iPhone nicht richtig aufging). Seit 16.11.2026 wieder
+     als Menü (Ole, Entwürfe 1 und 2): am Rechner zwei Spalten Tempo | Qualität, alles auf einen Blick. Am Handy (Blatt) und quer
+     klassisch: Hauptliste mit dem aktuellen Wert, Tippen öffnet die Liste, nach der Wahl zurück. Zeilen am Handy mindestens 46 px */
+  .steuerung .status-menue.einstell-menue { top: auto; bottom: 64px; right: 12px; left: auto; width: 340px; max-width: calc(100vw - 24px); padding: 8px; z-index: 6;
+    text-align: left; background: #2A2A27; border-radius: 18px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 20px 50px rgba(0,0,0,.45);
+    transform-origin: 100% 100%; animation: e-auf .2s cubic-bezier(.2,.8,.2,1); }
+  @keyframes e-auf { from { opacity: 0; transform: translateY(8px) scale(.97); } }
+  @keyframes e-rein { from { opacity: 0; transform: translateX(22px); } }
+  @keyframes e-zurueck { from { opacity: 0; transform: translateX(-22px); } }
+  .einstell-menue.spalten:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr); column-gap: 8px; }
+  .einstell-menue .e-gruppe { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .einstell-menue .e-strich { background: var(--linie); margin: 6px 0; }
+  .einstell-menue .e-titel { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px; font-size: 12.5px; font-weight: 600; color: var(--muted); --s: 15px; }
+  .status-menue.einstell-menue button { display: flex; align-items: center; gap: 8px; width: 100%; height: 38px; padding: 0 10px; border-radius: 10px;
+    font-size: 14.5px; font-variant-numeric: tabular-nums; text-align: left; white-space: nowrap; --s: 16px; }
+  .status-menue.einstell-menue button:hover { background: none; }
+  @media (hover: hover) { .status-menue.einstell-menue button:hover { background: #373733; } }
+  .status-menue.einstell-menue button.an { background: none; box-shadow: inset 0 0 0 100px rgba(147,170,152,.16); font-weight: 600; }
+  .status-menue.einstell-menue button svg { margin-left: 0; color: inherit; }
+  .einstell-menue .zusatz { font-size: 12.5px; font-weight: 400; color: var(--muted); }
+  .einstell-menue .e-haken { margin-left: auto; width: 16px; display: flex; justify-content: center; color: #A9C1AE; }
+  .einstell-menue .auto-info { font-size: 13px; color: var(--muted); padding: 6px 10px 8px; line-height: 1.4; }
+  /* Klassisch (Handy): abgedunkelt drumherum wie bei einem iPhone Menü */
+  .steuerung .status-menue.einstell-menue.klassisch { width: 300px; padding: 6px; overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 20px 50px rgba(0,0,0,.5), 0 0 0 100vmax rgba(0,0,0,.28); }
+  .einstell-menue.klassisch .rein { animation: e-rein .22s cubic-bezier(.2,.8,.2,1); }
+  .einstell-menue.klassisch .zurueck { animation: e-zurueck .22s cubic-bezier(.2,.8,.2,1); }
+  .status-menue.einstell-menue.klassisch .e-zeile { height: 52px; gap: 12px; padding: 0 10px 0 14px; border-radius: 12px; font-size: 16px; --s: 22px; }
+  .einstell-menue.klassisch .e-zeile .wert { margin-left: auto; font-size: 15px; color: var(--muted); }
+  .einstell-menue.klassisch .e-zeile .pfeil { color: var(--muted); --s: 16px; }
+  .status-menue.einstell-menue.klassisch .e-zurueck { height: 46px; padding: 0 10px; border-radius: 12px; font-size: 16px; font-weight: 600; --s: 20px; }
+  .einstell-menue.klassisch .e-trenn { height: 1px; background: var(--linie); margin: 4px 8px; }
+  .status-menue.einstell-menue.klassisch .e-wahl { height: 46px; gap: 12px; padding: 0 14px 0 12px; border-radius: 12px; font-size: 16px; --s: 20px; }
+  .status-menue.einstell-menue.klassisch .e-wahl.an { box-shadow: none; }
+  .einstell-menue.klassisch .e-wahl .e-haken { margin: 0; width: 22px; order: -1; }
+  .einstell-menue.klassisch .e-wahl .zusatz { margin-left: auto; font-size: 14px; }
   /* Sehr schmale Handys (iPhone SE): "Status ändern" passt nicht mehr neben den Status, dann nur Status und Pfeil */
   @container app (max-width: 359px) { .app .status-wahl.unten .status-knopf .aendern { display: none; } }
-  .einstell-menue .e-titel { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 2px 8px; }
-  .einstell-menue .chips { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-  .einstell-menue .chips + .e-titel { margin-top: 16px; }
-  .einstell-menue .chips button { width: auto; height: 42px; padding: 0 2px; border-radius: 10px; justify-content: center; gap: 0; background: var(--panel-2);
-    font-size: 14.5px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .einstell-menue .chips button.an { background: var(--text); color: var(--bg); }
-  .einstell-menue .auto-info { font-size: 14px; color: var(--muted); padding: 0 2px; }
 
   .eingabe { padding: 10px 16px 14px; background: var(--panel); display: flex; flex-direction: column; gap: 8px; }
   /* Kommentarfeld (Ole, 16.11.2026): immer zwei Zeilen, oben der Text in voller Breite, darunter Zeitmarke und Senden. So springt
@@ -1436,6 +1464,24 @@
     else if (g.art === 'wisch') wischEnde(g.dy || 0, abbruch ? 0 : tempo(g.spur, 2), abbruch);
     else if (!g.art && g.quelle === 'leiste' && !abbruch) spulHinweis(g.x0);
   }
+  // Einmal aufs Video tippen hält an, nochmal tippen spielt weiter (Ole, 16.11.2026: „am Handy einmal aufs Video drücken, damit es
+  // pausiert“). media-chrome blendet am Touch nur die Steuerung ein. Nur echte Tipper: kurz, kaum bewegt (Wischen zum nächsten Video
+  // bleibt), nicht auf dem Play Knopf in der Mitte. Mit Maus macht das media-chrome schon selbst.
+  // Fix 16.11.2026 abends (Ole: „geht trotzdem weiter, der Pause Button wird nicht angezeigt“): das iPhone schickt nach dem Tipper noch
+  // einen Klick an dieselbe Stelle. Der traf den Play Knopf, der beim Anhalten genau dort erscheint, und startete das Video sofort
+  // wieder. Darum schluckt klickSperre den Klick danach. Fest gedrückt (bis 1 s) zählt auch, ohne Apples Menü beim langen Drücken
+  let tipp = null;
+  $('video-box').addEventListener('pointerdown', e => {
+    tipp = e.pointerType === 'mouse' || !e.isPrimary || e.target.closest('media-play-button, button, a, .wechsel') ? null
+      : { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp };
+  });
+  $('video-box').addEventListener('pointerup', e => {
+    const t = tipp; tipp = null;
+    if (!t || t.id !== e.pointerId || !mv || (geste && geste.art) || e.timeStamp - t.t > 1000 || Math.hypot(e.clientX - t.x, e.clientY - t.y) > 15) return;
+    klickSperre = performance.now() + 600;
+    if (mv.paused) { const p = mv.play(); if (p && p.catch) p.catch(() => {}); } else mv.pause();
+  });
+  $('video-box').addEventListener('pointercancel', () => { tipp = null; });
   addEventListener('pointerup', gesteEnde); addEventListener('pointercancel', gesteEnde);
 
   // Im offenen Blatt: ganz oben in der Liste nach unten ziehen klappt das Blatt wieder ein (wie bei iOS)
@@ -1533,30 +1579,61 @@
   // Zahnrad: bei jedem Drücken 120 Grad weiter (sieht danach wieder gleich aus, darum nie zurückdrehen)
   const zahnrad = $('zahnrad'), einstellMenue = $('einstell-menue'); let drehung = 0;
   // Einstellungen (seit 13.11.2026 eigenes Fenster statt media-chrome Menü, Ole: am iPhone ließ es sich nicht richtig öffnen).
-  // Tempo und Qualität als große Knöpfe ohne Untermenüs. Spielt das iPhone über Apples eigenen Weg, wählt iOS die Qualität selbst
+  // Seit 16.11.2026 wieder als Menü (Ole, Entwürfe 1 und 2): am Rechner zwei Spalten, die Wahl lässt das Menü offen. Am Handy (Blatt)
+  // und quer klassisch mit Hauptliste und Unterliste, nach der Wahl zurück zur Hauptliste. Spielt das iPhone über Apples eigenen Weg,
+  // kommen die Stufen aus der Mux Liste und das Video lädt an derselben Stelle neu
   const TEMPI = [0.75, 1, 1.25, 1.5, 2];
-  function einstellZeichnen() {
+  let EINST_SEITE = 'haupt';
+  const HD = s => `<svg class="i" viewBox="0 0 32 32" aria-hidden="true" style="--s:${s}px"><rect x="3.5" y="7.5" width="25" height="17" rx="4.5" fill="none" stroke="currentColor" stroke-width="2.6"/><text x="16" y="20.3" text-anchor="middle" font-size="9.6" font-weight="800" font-family="-apple-system, Helvetica, sans-serif" fill="currentColor">HD</text></svg>`;
+  const tempoText = r => String(r).replace('.', ',') + '×';
+  const einstKlassisch = () => imBlatt() || app.classList.contains('quer');
+  function einstellWahl() {
     const vr = mv && mv.videoRenditions, rate = mv ? mv.playbackRate : 1, gewaehlt = vr ? vr.selectedIndex : -1;
     const stufen = vr ? [...Array(vr.length).keys()].map(i => ({ i, p: Math.min(vr[i].width || 0, vr[i].height || 0) })).filter(s => s.p >= 360).sort((a, b) => b.p - a.p).slice(0, 4) : [];
-    const knopf = (an, daten, text) => `<button type="button" role="menuitemradio" aria-checked="${an}" class="${an ? 'an' : ''}" ${daten}>${text}</button>`;
     const nativ = !stufen.length && mv && mv.getAttribute('prefer-playback') === 'native';
     const nst = nativ ? (Array.isArray(STUFEN[AKT.playback_id]) ? STUFEN[AKT.playback_id] : ['1080p', '720p', '480p', '270p']) : [];
-    einstellMenue.innerHTML = `<div class="e-titel">Tempo</div><div class="chips">${TEMPI.map(r => knopf(r === rate, `data-tempo="${r}"`, String(r).replace('.', ',') + '×')).join('')}</div>
-      <div class="e-titel">Qualität</div>` + (stufen.length
-        ? `<div class="chips">${[{ i: -1 }, ...stufen].map(s => knopf(s.i === gewaehlt, `data-stufe="${s.i}"`, s.i < 0 ? 'Auto' : stufeText(stufeName(s.p)))).join('')}</div>`
-        : nativ ? `<div class="chips">${['auto', ...nst].map(q => knopf(q === QUALI, `data-nativ="${q}"`, q === 'auto' ? 'Auto' : stufeText(q))).join('')}</div>`
-        : '<div class="auto-info">Automatisch, passend zur Verbindung</div>');
+    // Bei Auto die Stufe, die gerade läuft (wie bei YouTube „Auto · 1080p“)
+    const b = mv ? Math.min(mv.videoWidth || 0, mv.videoHeight || 0) : 0, jetzt = b >= 200 ? stufeText(stufeName(b)) : '';
+    const tempo = TEMPI.map(r => ({ an: r === rate, daten: `data-tempo="${r}"`, text: tempoText(r), zusatz: r === 1 ? 'Normal' : '' }));
+    const quali = stufen.length
+      ? [{ i: -1 }, ...stufen].map(s => ({ an: s.i === gewaehlt, daten: `data-stufe="${s.i}"`, text: s.i < 0 ? 'Auto' : stufeText(stufeName(s.p)), zusatz: s.i < 0 ? jetzt : '' }))
+      : nativ ? ['auto', ...nst].map(q => ({ an: q === QUALI, daten: `data-nativ="${q}"`, text: q === 'auto' ? 'Auto' : stufeText(q), zusatz: q === 'auto' ? jetzt : '' })) : [];
+    const q = quali.find(x => x.an);
+    return { tempo, quali, tempoWert: rate === 1 ? 'Normal' : tempoText(rate), qualiWert: q ? q.text + (q.zusatz ? ' · ' + q.zusatz : '') : 'Auto' };
+  }
+  function einstellZeichnen(richtung = '') {
+    const w = einstellWahl(), klassisch = einstKlassisch();
+    einstellMenue.classList.toggle('klassisch', klassisch); einstellMenue.classList.toggle('spalten', !klassisch);
+    const zusatz = o => o.zusatz ? `<span class="zusatz">${o.zusatz}</span>` : '';
+    const wahl = o => `<button type="button" class="e-wahl${o.an ? ' an' : ''}" role="menuitemradio" aria-checked="${o.an}" ${o.daten}><span>${o.text}</span>${zusatz(o)}<span class="e-haken">${o.an ? icon('check', klassisch ? 20 : 16) : ''}</span></button>`;
+    const liste = l => l.length ? l.map(wahl).join('') : '<div class="auto-info">Automatisch, passend zur Verbindung</div>';
+    if (!klassisch) {
+      einstellMenue.innerHTML = `<div class="e-gruppe" role="group" aria-label="Tempo"><div class="e-titel">${icon('timer', 15)}Tempo</div>${liste(w.tempo)}</div>
+        <div class="e-strich" aria-hidden="true"></div>
+        <div class="e-gruppe" role="group" aria-label="Qualität"><div class="e-titel">${HD(16)}Qualität</div>${liste(w.quali)}</div>`;
+    } else if (EINST_SEITE === 'haupt') {
+      einstellMenue.innerHTML = `<div class="${richtung}">
+        <button type="button" class="e-zeile" role="menuitem" data-seite="tempo">${icon('timer', 22)}<span>Tempo</span><span class="wert">${w.tempoWert}</span><span class="pfeil">${icon('chevron-right')}</span></button>
+        <button type="button" class="e-zeile" role="menuitem" data-seite="quali">${HD(22)}<span>Qualität</span><span class="wert">${w.qualiWert}</span><span class="pfeil">${icon('chevron-right')}</span></button></div>`;
+    } else {
+      einstellMenue.innerHTML = `<div class="${richtung}"><button type="button" class="e-zurueck" data-seite="haupt">${icon('chevron-left')}<span>${EINST_SEITE === 'tempo' ? 'Tempo' : 'Qualität'}</span></button>
+        <div class="e-trenn" aria-hidden="true"></div>${liste(EINST_SEITE === 'tempo' ? w.tempo : w.quali)}</div>`;
+    }
   }
   zahnrad.addEventListener('click', e => {
     e.stopPropagation();
     const svg = zahnrad.querySelector('svg'); drehung += 120; if (svg) svg.style.transform = `rotate(${drehung}deg)`;
     const war = !einstellMenue.hidden; menueZu();
-    if (!war) { einstellZeichnen(); einstellMenue.hidden = false; zahnrad.setAttribute('aria-expanded', 'true'); }
+    if (!war) { EINST_SEITE = 'haupt'; einstellZeichnen(); einstellMenue.hidden = false; zahnrad.setAttribute('aria-expanded', 'true'); }
   });
   einstellMenue.addEventListener('click', e => {
     e.stopPropagation();  // sonst schließt der Klick neben Menüs es sofort wieder
+    const seite = e.target.closest('[data-seite]');
+    if (seite) { EINST_SEITE = seite.dataset.seite; return einstellZeichnen(EINST_SEITE === 'haupt' ? 'zurueck' : 'rein'); }
     const t = e.target.closest('[data-tempo]'), s = e.target.closest('[data-stufe]'), n = e.target.closest('[data-nativ]');
+    const zurueck = einstKlassisch();  // am Handy nach der Wahl zurück zur Hauptliste, dort steht dann der neue Wert
     if (n && mv && AKT) {  // iPhone: Video mit der gewählten Stufe an derselben Stelle neu laden, Abspielen und Tempo bleiben
+      if (zurueck) EINST_SEITE = 'haupt';
       if (n.dataset.nativ !== QUALI) {
         QUALI = n.dataset.nativ; const lief = !mv.paused; mv.pause(); wechselZeigen(true, QUALI === 'auto' ? 'Auto' : stufeText(QUALI));
         playerLaden(AKT, { weg: 'native', t: mv.currentTime, auto: lief, tempo: mv.playbackRate, wechsel: true });
@@ -1568,7 +1645,7 @@
     }
     if (t && mv) mv.playbackRate = +t.dataset.tempo;
     if (s && mv && mv.videoRenditions && +s.dataset.stufe !== mv.videoRenditions.selectedIndex) stufeWechseln(+s.dataset.stufe);
-    if (t || s) einstellZeichnen();
+    if (t || s) { if (zurueck) EINST_SEITE = 'haupt'; einstellZeichnen(zurueck ? 'zurueck' : ''); }
   });
 
   // Qualität wechseln am Rechner und Android (Ole, 16.11.2026): vorher lief der Ton weiter, während das Bild stand oder schwarz war.
