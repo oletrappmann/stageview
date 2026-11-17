@@ -367,15 +367,40 @@ def ist_video(f):
     return f["mimeType"].startswith("video/") or f["name"].lower().endswith(VIDEO_ENDUNGEN)
 
 
+# Darstellung der Kategorien auf der Seite (seit 17.11.2026, Ole: „als normale Einstellung Design 1, Design 2 für Sonder Cases,
+# wenn wir wirklich ein YouTube Video mit Shorts als Output haben“)
+DARSTELLUNGEN = ("abschnitte", "youtube")
+
+# Ordner, die beim Durchsuchen von Unterordnern nie mitkommen (Animations Elemente, Rohmaterial, Projektdateien), seit 17.11.2026
+ORDNER_AUSLASSEN = re.compile(r"^(elemente|assets?|rohmaterial|raw|footage|projektdateien|archiv)$", re.I)
+
+
 def drive_videos(ordner, tief=False):
-    """Videos in einem Ordner, mit tief=True auch in Unterordnern."""
+    """Videos in einem Ordner, mit tief=True auch in Unterordnern (ohne Ordner wie ELEMENTE, siehe ORDNER_AUSLASSEN)."""
+    return [f for f, _ in drive_videos_pfad(ordner, tief)]
+
+
+def drive_videos_pfad(ordner, tief=True, pfad=()):
+    """Videos mit dem Pfad der Unterordner, in denen sie liegen (Tupel der Ordnernamen, leer = direkt im Ordner)."""
     raus = []
     for f in drive_kinder(ordner):
-        if ist_ordner(f) and tief:
-            raus += drive_videos(f["id"], True)
+        if ist_ordner(f):
+            if tief and not ORDNER_AUSLASSEN.match(f["name"].strip()):
+                raus += drive_videos_pfad(f["id"], True, pfad + (f["name"],))
         elif ist_video(f):
-            raus.append(f)
+            raus.append((f, pfad))
     return raus
+
+
+def gruppe_aus_ordner(name):
+    """Kategorie aus einem Unterordner: „Video 1 - Baby Boomer“ wird „Baby Boomer“, „02 ENERGIEAUSWEIS“ wird „ENERGIEAUSWEIS“."""
+    n = re.sub(r"^(video\s*\d+\s*[-–:.]\s*|\d+[\s._-]+)", "", (name or "").strip(), flags=re.I).strip()
+    return n or (name or "").strip()
+
+
+def ist_quer(f):
+    m = f.get("videoMediaMetadata") or {}
+    return int(m.get("width") or 0) > int(m.get("height") or 0)
 
 
 def link_freigeben(did):
@@ -739,7 +764,14 @@ def projekt_bauen(schluessel, projekt, assets, seite, version, stand):
     nummern = lesen_json(DATEN / "nummern.json", {})
     feste = nummern.setdefault(code, {})
     eintraege, vergeben, fehlt = [], set(), []
-    reihe = sorted(enumerate(projekt["videos"]), key=lambda iv: (iv[1].get("posting") or "9999", iv[0]))
+    # Kategorien (seit 17.11.2026): Reihenfolge aus „gruppen“ im Projekt, sonst wie sie zuerst vorkommen. Videos ohne Kategorie
+    # kommen zuerst, dann jede Kategorie für sich, darin wie bisher nach Posting Datum und Reihenfolge im Projekt
+    gruppen = [g for g in projekt.get("gruppen") or [] if g]
+    for v in projekt["videos"]:
+        if v.get("gruppe") and v["gruppe"] not in gruppen:
+            gruppen.append(v["gruppe"])
+    rang = lambda v: gruppen.index(v["gruppe"]) + 1 if v.get("gruppe") in gruppen else 0
+    reihe = sorted(enumerate(projekt["videos"]), key=lambda iv: (rang(iv[1]), iv[1].get("posting") or "9999", iv[0]))
     groessen_neu = False
     for _, v in reihe:
         if v.get("drive"):
@@ -771,7 +803,8 @@ def projekt_bauen(schluessel, projekt, assets, seite, version, stand):
             s, n = f"{slug(v.get('titel'))}-{n}", n + 1
         vergeben.add(s)
         eintraege.append({"id": schl, "nr": feste[schl], "slug": s, "titel": v.get("titel") or "Video",
-                          "format": v.get("format", ""), "posting": v.get("posting"), **daten})
+                          "format": v.get("format", ""), "posting": v.get("posting"), **daten,
+                          **({"gruppe": v["gruppe"]} if v.get("gruppe") else {})})
     schreiben_json(DATEN / "nummern.json", nummern)
     if groessen_neu:
         schreiben_json(projekt_datei(schluessel), projekt)
@@ -779,6 +812,11 @@ def projekt_bauen(schluessel, projekt, assets, seite, version, stand):
           "dreh": projekt.get("dreh"), "videos": eintraege, "seite": version}
     if projekt.get("hinweis"):
         pj["hinweis"] = projekt["hinweis"]
+    benutzt = [g for g in gruppen if any(e.get("gruppe") == g for e in eintraege)]
+    if benutzt:
+        pj["gruppen"] = benutzt
+    if projekt.get("darstellung") == "youtube":
+        pj["darstellung"] = "youtube"
     ordner = WEB / code
     schreiben_json(ordner / "projekt.json", pj)
     wer = " · ".join(x for x in (pj["kunde"], pj["firma"]) if x)
@@ -1238,7 +1276,8 @@ def b_liste(a):
         print(f"{code or '------'}  {BASIS_URL}/{code}  {p.get('titel')} · {p.get('kunde')}  ({len(p.get('videos', []))} {'Video' if len(p.get('videos', [])) == 1 else 'Videos'}{datum})  [{s}]")
         if a.videos and code:
             for v in lesen_json(WEB / code / "projekt.json", {}).get("videos", []):
-                print(f"     {v['nr']:>3}  {BASIS_URL}/{code}/{v['nr']}  {v['titel']}" + (f"  (Drive: {v['drive']})" if v.get("drive") else ""))
+                print(f"     {v['nr']:>3}  {BASIS_URL}/{code}/{v['nr']}  {v['titel']}" + (f"  [{v['gruppe']}]" if v.get("gruppe") else "")
+                      + (f"  (Drive: {v['drive']})" if v.get("drive") else ""))
 
 
 def b_zeigen(a):
@@ -1250,7 +1289,7 @@ def b_zeigen(a):
     print(f"{p.get('titel')} · {p.get('kunde')} {('· ' + p['firma']) if p.get('firma') else ''}\nLink: {BASIS_URL}/{code}\nSchlüssel: {s}")
     for v in p.get("videos", []):
         k = v.get("drive") or v.get("id") or v.get("playback_id")
-        print(f"  {str(nr.get(k, '-')):>3}  {v.get('titel')}  {v.get('posting') or ''}  {'(noch nicht online)' if k not in nr else BASIS_URL + '/' + code + '/' + str(nr[k])}")
+        print(f"  {str(nr.get(k, '-')):>3}  {v.get('titel')}  {('[' + v['gruppe'] + ']  ') if v.get('gruppe') else ''}{v.get('posting') or ''}  {'(noch nicht online)' if k not in nr else BASIS_URL + '/' + code + '/' + str(nr[k])}")
 
 
 def projekt_anlegen(schluessel, kopfdaten, eintraege, warten):
@@ -1281,14 +1320,24 @@ def eintraege_aus(args):
             args.video = (args.video or []) + [f["id"]]
         else:
             fehler(f"„{f.get('name')}“ ist weder Ordner noch Video")
+    # Kategorien aus Unterordnern (seit 17.11.2026, Ole: „den Unterordner übernehmen, wenn da Videos drin sind“): jeder Ordner
+    # direkt unter dem gewählten wird eine Kategorie, alles darunter (EXPORT/Reels …) gehört mit hinein. Videos direkt im Ordner
+    # bleiben ohne Kategorie. In jeder Kategorie Querformat (YouTube Video) zuerst, dann nach Ordner und Name
+    nach_ordnern = getattr(args, "gruppen_aus_ordnern", False)
     for o in args.ordner or []:
-        vids = drive_videos(drive_id(o), args.unterordner)
-        namen = [f["name"] for f in vids]
-        for f in sorted(vids, key=lambda x: x["name"].lower()):
-            eintraege.append({"drive": f["id"], "titel": titel_aus_dateiname(f["name"], namen), "groesse": int(f.get("size") or 0) or None})
+        paare = drive_videos_pfad(drive_id(o), bool(args.unterordner or nach_ordnern))
+        namen = [f["name"] for f, _ in paare]
+        for f, pfad in sorted(paare, key=lambda x: (x[1][:1], not ist_quer(x[0]), [t.lower() for t in x[1]], x[0]["name"].lower())):
+            e = {"drive": f["id"], "titel": titel_aus_dateiname(f["name"], namen), "groesse": int(f.get("size") or 0) or None}
+            if nach_ordnern and pfad:
+                e["gruppe"] = gruppe_aus_ordner(pfad[0])
+            eintraege.append(e)
     for v in args.video or []:
         f = drive_datei(drive_id(v))
         eintraege.append({"drive": f["id"], "titel": titel_aus_dateiname(f["name"]), "groesse": int(f.get("size") or 0) or None})
+    if getattr(args, "gruppe", None):  # feste Kategorie für alles, was dieser Aufruf dazu nimmt
+        for e in eintraege:
+            e["gruppe"] = args.gruppe.strip()
     return eintraege
 
 
@@ -1300,7 +1349,8 @@ def b_neu(a):
     titel = a.titel
     schluessel = a.schluessel or f"{k['ordner']}-{slug(titel)}"
     projekt_anlegen(schluessel, {"titel": titel, "kunde": a.anzeige or k["name"], "firma": a.firma if a.firma is not None else k.get("firma", ""),
-                                 "kunde_ordner": k["ordner"], "dreh": a.dreh, "hinweis": a.hinweis}, eintraege, a.warten)
+                                 "kunde_ordner": k["ordner"], "dreh": a.dreh, "hinweis": a.hinweis,
+                                 "darstellung": "youtube" if a.darstellung == "youtube" else None}, eintraege, a.warten)
 
 
 def b_content_day(a):
@@ -1489,6 +1539,34 @@ def b_mux_weg(a):
     print(f"{weg} gelöscht")
 
 
+def b_gruppe(a):
+    """Videos einer Kategorie zuordnen (Nummern wie auf der Seite), mit --weg wieder herausnehmen, mit --reihenfolge die
+    Kategorien sortieren. Links, Nummern und Kommentare bleiben, die Seite wird neu gebaut."""
+    s = schluessel_fuer(a.projekt)
+    if not a.nr and not a.reihenfolge:
+        fehler("Nummern der Videos fehlen (z.B. 1 2 5 oder 1,2,5)")
+    if a.nr and not (a.name or a.weg):
+        fehler("--name \"Kategorie\" oder --weg angeben")
+    pj = projekt_json(code_fuer(s, False))
+    nach_nr = {str(v["nr"]): v["id"] for v in pj["videos"]}
+    nrs = [n for x in a.nr for n in re.split(r"[,\s]+", x) if n]
+    with Sperre():
+        p = lesen_json(projekt_datei(s), {})
+        for n in nrs:
+            vid = nach_nr.get(n) or fehler(f"Video {n} ist nicht auf der Seite")
+            for v in p["videos"]:
+                if vid in (v.get("drive"), v.get("id"), v.get("playback_id")):
+                    if a.weg:
+                        v.pop("gruppe", None)
+                    else:
+                        v["gruppe"] = a.name.strip()
+        if a.reihenfolge:
+            p["gruppen"] = [g.strip() for g in a.reihenfolge if g.strip()]
+        schreiben_json(projekt_datei(s), p)
+        melden(bauen(s))
+    print(("ohne Kategorie: " if a.weg else f"Kategorie „{a.name}“: ") + ", ".join(nrs) if nrs else "Reihenfolge gesetzt")
+
+
 def b_titel(a):
     a.titel = a.titel_option or a.titel
     if not a.titel:
@@ -1532,6 +1610,11 @@ def b_projekt_titel(a):
             wert = getattr(a, feld)
             if wert is not None:
                 p[feld] = wert
+        if getattr(a, "darstellung", None):  # seit 17.11.2026: abschnitte (Standard) oder youtube (Langvideo groß, Shorts daneben)
+            if a.darstellung == "youtube":
+                p["darstellung"] = "youtube"
+            else:
+                p.pop("darstellung", None)
         schreiben_json(projekt_datei(s), p)
         melden(bauen(s))
 
@@ -1879,11 +1962,15 @@ def main():
         p.add_argument("--video", action="append", help="einzelnes Drive Video (Link oder ID), mehrfach möglich")
         p.add_argument("--quelle", action="append", help="Drive Ordner oder Video, wird selbst erkannt (mehrfach möglich)")
         p.add_argument("--warten", type=int, default=20, help="Minuten auf Mux warten (Standard 20, 0 = nicht warten)")
+        p.add_argument("--gruppe", help="Kategorie für alle Videos dieses Aufrufs (z.B. \"Baby Boomer\")")
+        p.add_argument("--gruppen-aus-ordnern", dest="gruppen_aus_ordnern", action="store_true",
+                       help="jeder Unterordner wird eine Kategorie (nimmt Unterordner mit, ELEMENTE und Ähnliches nie)")
 
     p = sub.add_parser("neu", help="neues Projekt aus Drive Ordner oder Videos")
     p.add_argument("--titel", required=True); p.add_argument("--kunde", help="Kunde (Ordnername, SC-ID oder Name)")
     p.add_argument("--anzeige", help="Name oben auf der Seite, falls anders als im Kundenregister")
     p.add_argument("--firma"); p.add_argument("--dreh", help="Drehtag JJJJ-MM-TT"); p.add_argument("--hinweis")
+    p.add_argument("--darstellung", choices=DARSTELLUNGEN, help="youtube: pro Kategorie Langvideo groß, Shorts daneben (Standard abschnitte)")
     p.add_argument("--schluessel"); quellen(p); p.set_defaults(f=b_neu)
 
     p = sub.add_parser("content-day", help="Projekt für einen Content Day aus dem Content Brain (Standard: der letzte)")
@@ -1903,6 +1990,11 @@ def main():
     p = sub.add_parser("versatz", help="prüfen, ob Bild und Ton bei Mux versetzt laufen (Edit Lists aus Resolve), mit --reparieren beheben")
     p.add_argument("projekt", nargs="?"); p.add_argument("--reparieren", action="store_true"); p.add_argument("--warten", type=int, default=30)
     p.set_defaults(f=b_versatz)
+    p = sub.add_parser("gruppe", help="Videos einer Kategorie zuordnen (Abschnitt auf der Seite), --weg nimmt sie heraus")
+    p.add_argument("projekt"); p.add_argument("nr", nargs="*", help="Nummern der Videos, z.B. 1 2 5")
+    p.add_argument("--name", help="Name der Kategorie"); p.add_argument("--weg", action="store_true")
+    p.add_argument("--reihenfolge", nargs="+", help="Kategorien in dieser Reihenfolge zeigen")
+    p.set_defaults(f=b_gruppe)
     p = sub.add_parser("titel", help="Titel eines Videos ändern"); p.add_argument("projekt"); p.add_argument("nr"); p.add_argument("titel", nargs="?")
     p.add_argument("--titel", dest="titel_option", help="statt des dritten Arguments")
     p.set_defaults(f=b_titel)
@@ -1910,6 +2002,7 @@ def main():
     for feld in ("titel", "kunde", "firma", "hinweis"):
         p.add_argument("--" + feld)
     p.add_argument("--kunde-id", dest="kunde_id", help="Kunde aus `stageview kunden` zuteilen")
+    p.add_argument("--darstellung", choices=DARSTELLUNGEN, help="Kategorien als Abschnitte (Standard) oder youtube: Langvideo groß, Shorts daneben")
     p.set_defaults(f=b_projekt_titel)
     sub.add_parser("kunden", help="alle Kunden in StageView mit Zahl der Links").set_defaults(f=b_kunden)
     p = sub.add_parser("kunde-neu", help="neuen Kunden anlegen (nur in StageView, nicht im Content Brain)"); p.add_argument("name"); p.add_argument("--firma")

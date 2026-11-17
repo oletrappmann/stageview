@@ -473,6 +473,7 @@
       </div>
       <label class="feld"><span>Drehtag (optional)</span><input class="eingabe-feld" type="date" name="dreh"></label>
       <label class="haken breit feld" id="neu-unterordner" style="flex-direction:row" hidden><input type="checkbox" name="unterordner"> <span id="neu-unterordner-text">Videos aus Unterordnern mitnehmen</span></label>
+      <label class="haken breit feld" id="neu-kategorien" style="flex-direction:row" hidden><input type="checkbox" name="kategorien"> Unterordner als Kategorien auf der Seite zeigen</label>
       <p class="hilfe breit feld">Titel der Videos kommen aus den Dateinamen und lassen sich danach hier ändern. Der Link steht sofort fest, die Videos erscheinen, sobald Mux fertig ist.</p>
       <div class="form-fuss"><button class="gross" type="submit" id="neu-knopf-anlegen" data-i="plus">Link anlegen</button></div>
     </form>
@@ -841,6 +842,9 @@
         <label class="feld"><span>Kunde</span><select class="eingabe-feld" name="kunde_id">${D.kunden.map(k => `<option value="${esc(k.id)}"${k.id === kundeIdVon(p) ? ' selected' : ''}>${esc(k.name)}</option>`).join('')}</select></label>
         <label class="feld"><span>Firma oder Zusatz</span><input class="eingabe-feld" name="firma" maxlength="80" value="${esc(p.firma)}"></label>
         <label class="feld breit"><span>Hinweis oben auf der Seite (leer lassen für den Standard Text)</span><textarea class="eingabe-feld" name="hinweis" rows="2" maxlength="400">${esc(p.hinweis)}</textarea></label>
+        <label class="feld breit"><span>Darstellung der Kategorien</span><select class="eingabe-feld" name="darstellung">
+          <option value="abschnitte"${p.darstellung !== 'youtube' ? ' selected' : ''}>Abschnitte (Standard)</option>
+          <option value="youtube"${p.darstellung === 'youtube' ? ' selected' : ''}>YouTube Video und Shorts: Langvideo groß, Shorts daneben</option></select></label>
         <div class="form-fuss"><span class="leise">Der Link bleibt immer gleich, auch wenn sich der Titel ändert.</span><button class="primaer" type="submit" disabled>Speichern</button></div>
       </form>
       ${p.link ? `<h4>Link</h4><div class="d-link"><div class="k-link"><span>${esc(kurz(p.link))}</span><button type="button" data-kopieren="${esc(p.link)}" data-i="kopieren">Kopieren</button></div>
@@ -883,7 +887,8 @@
     const f = e.target.closest('#kopf-form'); if (!f) return;
     const p = projekt(OFFEN); const fd = new FormData(f);
     if (e.target.name === 'kunde_id') { const k = kundeMit(e.target.value); if (k) f.elements.firma.value = k.firma; }  // Firma vom gewählten Kunden vorschlagen
-    const anders = fd.get('kunde_id') !== kundeIdVon(p) || ['titel', 'firma', 'hinweis'].some(k => (new FormData(f).get(k) || '').trim() !== (p[k] || '').trim());
+    const anders = fd.get('kunde_id') !== kundeIdVon(p) || ['titel', 'firma', 'hinweis'].some(k => (new FormData(f).get(k) || '').trim() !== (p[k] || '').trim())
+      || (fd.get('darstellung') || 'abschnitte') !== (p.darstellung || 'abschnitte');
     f.classList.toggle('geaendert', anders); f.querySelector('[type="submit"]').disabled = !anders || !(fd.get('titel') || '').trim();
   });
   $('p-inhalt').addEventListener('submit', async e => {
@@ -892,6 +897,7 @@
     if (f.id === 'kopf-form') {
       const body = {}; ['titel', 'firma', 'hinweis'].forEach(k => { const w = (fd.get(k) || '').trim(); if (w !== (p[k] || '').trim()) body[k] = w; });
       if (fd.get('kunde_id') && fd.get('kunde_id') !== kundeIdVon(p)) body.kunde_id = fd.get('kunde_id');
+      if ((fd.get('darstellung') || 'abschnitte') !== (p.darstellung || 'abschnitte')) body.darstellung = fd.get('darstellung');
       knopf.textContent = 'Speichert …'; f.classList.add('speichert');
       try { await api('projekt/' + p.code, { method: 'POST', body }); f.classList.remove('geaendert', 'speichert'); toast('Gespeichert, die Seite ist aktualisiert'); await laden(true); projektZeichnen(); }
       catch (err) { f.classList.remove('speichert'); knopf.textContent = 'Speichern'; knopf.disabled = false; toast(err.message, true); }
@@ -1018,6 +1024,8 @@
     // Titelvorschlag aus dem Ordner (bei „Export“ der Ordner darüber), solange niemand selbst tippt
     const t = $('neu-form').titel; if (s.name && !n.titelVonHand && !t.value) t.value = s.name;
     const uo = $('neu-unterordner'); uo.hidden = !n.uo || !!n.neuJob;
+    // Kategorien (seit 17.11.2026): sobald Videos aus Unterordnern dabei sind, kann jeder Unterordner ein Abschnitt auf der Seite werden
+    $('neu-kategorien').hidden = !(n.extra || s.tief) || !!n.neuJob;
     if (n.uo) $('neu-unterordner-text').textContent = `Dazu ${mehrzahl(n.uo, 'Video', 'Videos')} aus Unterordnern mitnehmen`;
     const kannAnlegen = ['mux', 'fertig', 'verwendet'].includes(s.phase);
     if (!n.neuJob) { knopf.disabled = !kannAnlegen || n.sendet; knopf.lastChild.textContent = kannAnlegen ? 'Link anlegen' : 'Videos werden gesucht …'; }
@@ -1053,7 +1061,8 @@
         kunde = r.id;
       }
       const s = (n.daten && n.daten.stand) || {};
-      const r = await api('neu', { method: 'POST', body: { titel: fd.get('titel'), kunde, quellen: n.quelle, unterordner: !!n.extra || !!s.tief, dreh: fd.get('dreh') } });
+      const r = await api('neu', { method: 'POST', body: { titel: fd.get('titel'), kunde, quellen: n.quelle, unterordner: !!n.extra || !!s.tief, dreh: fd.get('dreh'),
+        kategorien: !$('neu-kategorien').hidden && !!fd.get('kategorien') } });
       n.neuJob = r.id; knopf.lastChild.textContent = 'Link wird angelegt …';
       laden(true); neuPruefen();
     } catch (err) { toast(err.message, true); knopf.disabled = false; }

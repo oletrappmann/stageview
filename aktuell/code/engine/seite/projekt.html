@@ -23,7 +23,7 @@
     --akzent: #93AA98; --knopf: #48514A; --knopf-text: #fff; --spur: rgba(255,255,255,.14); --glas: rgba(38,38,36,.55); --logo: invert(1); }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
-  /* Nie seitlich scrollen oder wischen (Ole, 13.11.2026) */
+  /* Die Seite verschiebt sich nie seitlich (Ole, 13.11.2026). Seitlich wischen auf dem Video wechselt seit 17.11.2026 das Video (JS) */
   html, body { overflow-x: clip; }
   .app { touch-action: pan-y pinch-zoom; }
   button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
@@ -99,6 +99,66 @@
   .app.alles-quer .raster { grid-template-columns: minmax(0, 1fr); gap: 22px; }
   @container app (min-width: 640px) { .app.alles-quer .raster { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 18px; } }
   @container app (min-width: 1100px) { .app.alles-quer .raster { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  /* Kategorien (seit 17.11.2026, Ole: Videos in Kategorien oder Unterordnern): Entwurf 1 „Abschnitte“, pro Kategorie eine Überschrift
+     mit Zahl und eigenem Freigabe Balken, darunter das gewohnte Raster. Nur, wenn das Projekt Kategorien hat (projekt.json gruppen) */
+  .app .raster.mit-gruppen { display: flex; flex-direction: column; gap: 38px; }
+  .raster.innen { padding: 0; margin: 0; max-width: none; }
+  .gruppe { display: flex; flex-direction: column; gap: 14px; min-width: 0; scroll-margin-top: 80px; }
+  .gruppe-kopf { display: flex; align-items: flex-end; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--linie); }
+  .gruppe-kopf h2 { margin: 0; font-size: 21px; font-weight: 650; letter-spacing: -.02em; line-height: 1.2; min-width: 0; }
+  .gruppe-kopf .zahl, .gruppe-kopf .frei { font-size: 13.5px; color: var(--muted); padding-bottom: 2px; white-space: nowrap; }
+  .gruppe-kopf .platz { flex: 1; }
+  .gruppe-kopf .mini { display: flex; gap: 3px; width: 120px; padding-bottom: 8px; flex: none; }
+  .gruppe-kopf .mini span { flex: 1; height: 4px; border-radius: 2px; background: var(--c, var(--spur)); }
+  @container app (max-width: 639px) { .gruppe-kopf .zahl, .gruppe-kopf .mini { display: none; } .gruppe-kopf h2 { font-size: 19px; } .app .raster.mit-gruppen { gap: 30px; } }
+  /* Einklappen (Ole, 17.11.2026): Tipp auf die Überschrift klappt eine Kategorie zu und wieder auf. Beim Laden ist immer alles offen,
+     gemerkt wird nur, solange die Seite offen ist (z.B. beim Umsortieren) */
+  .gruppe-kopf[data-klapp] { cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  .gruppe-kopf h2 button { all: unset; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  .gruppe-kopf h2 button:focus-visible { outline: 2px solid var(--akzent); outline-offset: 4px; border-radius: 6px; }
+  .gruppe-pfeil { display: inline-flex; color: var(--muted); --s: 20px; transition: transform .28s cubic-bezier(.2,.8,.2,1); }
+  @media (hover: hover) { .gruppe-kopf[data-klapp]:hover .gruppe-pfeil { color: var(--text); } }
+  .gruppe.zu .gruppe-pfeil { transform: rotate(-90deg); }
+  .gruppe-inhalt { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .32s cubic-bezier(.2,.8,.2,1), opacity .25s; }
+  .gruppe-inhalt > div { min-width: 0; min-height: 0; }
+  .gruppe.zu .gruppe-inhalt { grid-template-rows: 0fr; opacity: 0; }
+  .gruppe.zu .gruppe-inhalt > div, .gruppe.klappt .gruppe-inhalt > div { overflow: hidden; }
+  .gruppe.zu { gap: 0; }
+  @media (prefers-reduced-motion: reduce) { .gruppe-inhalt, .gruppe-pfeil { transition: none; } }
+  /* Darstellung „YouTube Video und Shorts“ (Entwurf 2, Ole 17.11.2026: für Sonder Fälle, wenn ein YouTube Video mit Shorts der Output ist).
+     Pro Abschnitt mit Querformat Video: das Langvideo groß mit Marke „YouTube Video“, daneben die Shorts in 9:16. Am Handy das Langvideo
+     über die ganze Breite, die Shorts als Reihe zum Wischen. Abschnitte ohne Querformat Video bleiben wie Entwurf 1 */
+  /* Ole, 17.11.2026: Langvideo am Rechner etwas kleiner, Shorts dafür größer. Ab mehr als vier Shorts stehen sie immer unter dem Langvideo */
+  .yt-reihe { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  @container app (min-width: 980px) {
+    .yt-reihe { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 24px; align-items: start; }
+    .gruppe.viele .yt-reihe { grid-template-columns: minmax(0, 1fr); }
+    .gruppe.viele .yt-raster { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .gruppe.viele .yt-lang-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  /* Mehrere YouTube Videos oder mehr als vier Shorts: Langvideos oben (am Rechner zwei nebeneinander), die Shorts darunter */
+  .yt-lang-raster { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px 18px; }
+  .kachel.haupt .bild { aspect-ratio: 16 / 9; }
+  .kachel.haupt .bild.quer img.still, .kachel.haupt .bild.quer img.bewegt { object-fit: cover; }
+  .kachel.haupt .bild.quer img.hinten { display: none; }
+  .kachel.haupt h3 { font-size: 16.5px; }
+  .yt-play { position: absolute; left: 50%; top: 50%; z-index: 2; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; background: rgba(22,22,20,.46); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14);
+    color: #fff; --s: 28px; transition: opacity .25s; pointer-events: none; }
+  .yt-play svg { transform: translateX(1.5px); }
+  .kachel.vorschau .yt-play { opacity: 0; }
+  .yt-label { font-size: 12.5px; font-weight: 600; color: var(--muted); margin-bottom: 10px; }
+  .yt-raster { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px 12px; }
+  .kachel.short .bild { aspect-ratio: 9 / 16; border-radius: 14px; }
+  .kachel.short h3 { font-size: 13.5px; }
+  @container app (max-width: 639px) {
+    .yt-play { width: 54px; height: 54px; margin: -27px 0 0 -27px; --s: 24px; }
+    /* scroll-padding: sonst rastet das erste Short am Bildschirmrand ein und ist links abgeschnitten (Ole, 17.11.2026) */
+    .yt-raster { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 2px; scroll-padding-inline: 16px;
+      scroll-snap-type: x proximity; overscroll-behavior-x: contain; }
+    .yt-raster::-webkit-scrollbar { display: none; }
+    .yt-raster .kachel { flex: none; width: 128px; scroll-snap-align: start; }
+  }
   .kachel .dauer, .kachel .kz, .kachel .naechstes { position: absolute; z-index: 2; font-size: 12px; font-weight: 600; color: #fff;
     background: rgba(18,18,17,.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 999px; }
   .kachel .dauer { right: 8px; bottom: 8px; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12px; padding: 3px 8px; }
@@ -188,7 +248,7 @@
   /* Play und Pause in der Leiste springen beim Wechsel kurz auf */
   @keyframes knopf-auf { from { transform: scale(.6); opacity: .3; } to { transform: none; opacity: 1; } }
   .reihe media-play-button svg { animation: knopf-auf .26s cubic-bezier(.34,1.42,.5,1); }
-  /* Nächstes Video beim Wischen am Handy (wie Reels): Vorschaubild kommt von unten bzw. oben rein */
+  /* Nächstes Video beim Wischen am Handy: Vorschaubild kommt von der Seite (bzw. von unten oder oben) rein */
   .nachbar { --ar: .5625; position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; pointer-events: none; }
   .nachbar img { display: block; width: min(100cqw, 100cqh * var(--ar)); height: min(100cqh, 100cqw / var(--ar)); object-fit: cover; }
   .wischen { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 10px;
@@ -764,6 +824,10 @@
   // Wischen zwischen den Videos (hoch/runter wie Reels): seit 13.11.2026 aus (Ole: kein Scrollen zwischen Videos, weder seitlich noch hoch/runter).
   // Zum nächsten Video geht es über "Mehr aus" im Blatt und "Als Nächstes" am Ende. true schaltet das Wischen samt Hinweis wieder ein
   const WISCHEN_ZWISCHEN_VIDEOS = false;
+  // Seitlich wischen auf dem Video wechselt das Video (wieder an seit 17.11.2026, Ole: „seitlich zum nächsten Video, ohne dass das Video
+  // pausiert“). Nach links = nächstes, nach rechts = voriges, das neue Vorschaubild kommt mit dem Finger rein und startet von selbst.
+  // Nur mit dem Finger, hoch wie quer. Die Ränder (20 px) bleiben für die Zurück/Vor Geste des Browsers. Die Seite selbst verschiebt sich nie
+  const SEITLICH_WISCHEN = true;
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const zeit = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   const lies = k => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -818,10 +882,10 @@
 
   // ---------- Übersicht
   const querVideo = v => (v.seitenverhaeltnis || .5625) > 1;
-  function kachel(v, extra = '') {
+  function kachel(v, extra = '', art = '') {
     const st = STATUS[statusVon(v.id)];
     const offen = K.kommentare.filter(k => k.video === v.id && !k.antwort_auf && !k.erledigt).length;
-    return `<a class="kachel" href="${videoLink(v)}">
+    return `<a class="kachel${art ? ' ' + art : ''}" href="${videoLink(v)}">
       <div class="bild${querVideo(v) ? ' quer' : ''}">${querVideo(v) ? `<img class="hinten" src="${bild(v, 160)}" alt="" loading="lazy" decoding="async">` : ''}<img class="still" src="${bild(v, 480)}" alt="" loading="lazy" decoding="async"><img class="bewegt" alt="" data-src="${bewegt(v)}">
         ${extra}<span class="dauer">${zeit(v.dauer)}</span>${offen ? `<span class="kz">${icon('comment')}${offen}</span>` : ''}</div>
       <h3>${esc(v.titel)}</h3>
@@ -854,9 +918,44 @@
     const b = e.target.closest('[data-sortierung]'); if (!b) return; e.stopPropagation(); menueZu();
     sortierung = b.dataset.sortierung; merke('sc-sortierung', sortierung === 'posting' ? null : sortierung); uebersichtZeichnen();
   });
+  // Eingeklappte Kategorien, nur solange die Seite offen ist (Ole: „standardmäßig immer ausgeklappt“)
+  const GRUPPE_ZU = new Set();
+  $('raster').addEventListener('click', e => {
+    const kopf = e.target.closest('.gruppe-kopf[data-klapp]'); if (!kopf) return;
+    const g = kopf.closest('.gruppe'), name = g.dataset.gruppe, zu = !g.classList.contains('zu');
+    zu ? GRUPPE_ZU.add(name) : GRUPPE_ZU.delete(name);
+    g.classList.add('klappt'); clearTimeout(g._klapp); g._klapp = setTimeout(() => g.classList.remove('klappt'), 380);
+    g.classList.toggle('zu', zu); kopf.querySelector('button').setAttribute('aria-expanded', String(!zu));
+    g.querySelector('.gruppe-inhalt').inert = zu;
+  });
   function uebersichtZeichnen() {
     $('sortier-text').textContent = SORTIERUNG[sortierung].t;
-    $('raster').innerHTML = sortiert().map(v => kachel(v)).join('');
+    const gruppen = (P.gruppen || []).filter(g => P.videos.some(v => v.gruppe === g));
+    const yt = P.darstellung === 'youtube';  // Entwurf 2 nur auf Wunsch pro Link, Standard sind Abschnitte (Entwurf 1)
+    $('raster').classList.toggle('mit-gruppen', gruppen.length > 0 || yt);
+    if (gruppen.length || yt) {  // Kategorien als Abschnitte, die Sortierung gilt in jedem Abschnitt
+      const liste = sortiert(), abschnitt = (name, vs) => {
+        const frei = vs.filter(v => statusVon(v.id) === 'freigegeben').length;
+        const balken = vs.map(v => { const s = statusVon(v.id); return `<span style="${s !== 'zur-freigabe' ? `--c:${STATUS[s].c}` : ''}"></span>`; }).join('');
+        // YouTube Darstellung: alle Querformat Videos links (Überschrift „YouTube Video“ bzw. „2 YouTube Videos“ klein über dem Video, Ole 17.11.2026),
+        // die Shorts rechts bzw. darunter. Ohne Shorts oder ohne Querformat Video bleibt der Abschnitt wie Entwurf 1
+        const lang = yt ? vs.filter(querVideo) : [], rest = lang.length ? vs.filter(v => !querVideo(v)) : vs, ytAn = lang.length > 0 && rest.length > 0;
+        const shorts = rest.length === 1 ? '1 Short' : rest.length + ' Shorts', langText = lang.length === 1 ? 'YouTube Video' : lang.length + ' YouTube Videos';
+        const zahl = ytAn ? `${langText} und ${shorts}` : (vs.length === 1 ? '1 Video' : vs.length + ' Videos');
+        const zu = name && GRUPPE_ZU.has(name), id = 'g' + (++abschnittNr);
+        const kopf = name ? `<div class="gruppe-kopf" data-klapp><h2><button type="button" aria-expanded="${!zu}" aria-controls="${id}"><span class="gruppe-pfeil">${icon('chevron-down')}</span>${esc(name)}</button></h2><span class="zahl">${zahl}</span>
+          <span class="platz"></span><div class="mini" aria-hidden="true">${balken}</div><span class="frei">${frei} von ${vs.length} freigegeben</span></div>` : '';
+        const inhalt = ytAn ? `<div class="yt-reihe">
+            <div class="yt-lang"><div class="yt-label">${langText}</div><div class="yt-lang-raster">${lang.map(v => kachel(v, `<span class="yt-play">${icon('play')}</span>`, 'haupt')).join('')}</div></div>
+            <div class="yt-shorts"><div class="yt-label">${shorts}</div><div class="yt-raster">${rest.map(v => kachel(v, '', 'short')).join('')}</div></div>
+          </div>` : `<div class="raster innen">${vs.map(v => kachel(v)).join('')}</div>`;
+        return `<section class="gruppe${ytAn ? ' yt' : ''}${ytAn && (rest.length > 4 || lang.length > 1) ? ' viele' : ''}${zu ? ' zu' : ''}" data-gruppe="${esc(name)}">${kopf}
+          <div class="gruppe-inhalt" id="${id}"${zu ? ' inert' : ''}><div>${inhalt}</div></div></section>`;
+      };
+      let abschnittNr = 0;
+      const ohne = liste.filter(v => !gruppen.includes(v.gruppe));
+      $('raster').innerHTML = (ohne.length ? abschnitt('', ohne) : '') + gruppen.map(g => abschnitt(g, liste.filter(v => v.gruppe === g))).join('');
+    } else $('raster').innerHTML = sortiert().map(v => kachel(v)).join('');
     const frei = P.videos.filter(v => statusVon(v.id) === 'freigegeben').length;
     const aend = P.videos.filter(v => statusVon(v.id) === 'aenderung').length;
     $('fortschritt').innerHTML = P.videos.map(v => { const s = statusVon(v.id); return `<span style="${s !== 'zur-freigabe' ? `--c:${STATUS[s].c}` : ''}" title="${esc(v.titel)}"></span>`; }).join('');
@@ -916,6 +1015,9 @@
       AKT = v; playerLaden(v); videoKopf(v); weitereZeichnen(); antwortAuf = null;
       // Neues Video: Kommentarliste nach oben, offenes Blatt wieder auf die Mitte (zu bleibt zu, wie bei Reels)
       $('blatt-scroll').scrollTop = 0; if (BLATT.stand === 'offen') BLATT.stand = 'mitte';
+    } else if (autoStart) {
+      // Dasselbe Video nach dem Zurück wieder angetippt: dort weiterspielen, wo es angehalten wurde
+      autoStart = false; if (mv) mv.play().catch(() => {});
     }
     statusZeichnen(); zeichnen(); modusPruefen(); wischHinweis();
     document.title = `${v.titel} · ${P.titel}`;
@@ -975,14 +1077,18 @@
     tr.src = `https://image.mux.com/${v.playback_id}/storyboard.vtt`; neu.appendChild(tr);
     if (mv) { mv.pause(); mv.replaceWith(neu); } else $('mc').prepend(neu);
     mv = neu;
-    // Tippen auf eine Kachel startet das Video. Der erste Versuch kommt oft vor der Quelle und bricht ab, darum noch einmal, sobald sie da ist
-    if (auto) { const los = () => neu.play().catch(() => {}); los(); neu.addEventListener('loadedmetadata', () => { if (neu.paused) los(); }, { once: true }); }
+    // Tippen auf eine Kachel startet das Video. Der erste Versuch kommt oft vor der Quelle und bricht ab, darum noch einmal, sobald sie da ist.
+    // Fix 17.11.2026 (Ole: „Video öffnen, zurück zur Übersicht, bevor es geladen hat, dann spielt es im Hintergrund und lässt sich nicht
+    // stoppen“): der zweite Versuch kam nach dem Zurück und startete das versteckte Video. Gespielt wird nur noch, solange die Videoseite
+    // offen ist und dieses Video noch das aktuelle ist. Zusätzlich hält jedes Abspielen hinter der Übersicht sofort an (unten bei 'play')
+    const sichtbar = () => mv === neu && !$('videoseite').hidden;
+    if (auto) { const los = () => { if (sichtbar()) neu.play().catch(() => {}); }; los(); neu.addEventListener('loadedmetadata', () => { if (neu.paused) los(); }, { once: true }); }
     // Absicherung: Fehler oder Hänger erkennen
     let geladen = false, behandelt = false;
     neu.addEventListener('loadedmetadata', () => { geladen = true; }, { once: true });
     const umschalten = grund => {
       if (mv !== neu || behandelt) return; behandelt = true;
-      if (weg === 'mse') { melden('wechsel-auf-nativ: ' + grund, v, weg); playerLaden(v, { weg: 'native', t: neu.currentTime, auto: auto || !neu.paused }); }
+      if (weg === 'mse') { melden('wechsel-auf-nativ: ' + grund, v, weg); playerLaden(v, { weg: 'native', t: neu.currentTime, auto: (auto || !neu.paused) && sichtbar() }); }
       else { melden('laedt-nicht: ' + grund, v, weg); neu.pause(); stoerungZeigen(true); }
     };
     neu.addEventListener('error', () => umschalten('fehler ' + (neu.error ? neu.error.code + ' ' + (neu.error.message || '') : '')));
@@ -993,6 +1099,9 @@
     $('video-box').style.setProperty('--ar', v.seitenverhaeltnis || .5625);
     const zustand = () => { viewer.classList.toggle('pausiert', mv.paused); if (!mv.paused) $('weiter').hidden = true; wach(); };
     ['play', 'pause', 'seeking'].forEach(ev => mv.addEventListener(ev, zustand));
+    // Hinter der Übersicht spielt nie ein Video (egal von wo der Start kam: später Ladeversuch, Wechsel auf nativ, Qualität)
+    const nieVersteckt = () => { if ($('videoseite').hidden && !document.pictureInPictureElement) neu.pause(); };
+    neu.addEventListener('play', nieVersteckt); neu.addEventListener('playing', nieVersteckt);
     mv.addEventListener('ended', () => { zustand(); const n = naechstes(1); if (n !== AKT) { $('weiter-titel').textContent = n.titel; $('weiter').hidden = false; } });
     mv.addEventListener('timeupdate', zeitLaeuft);
     if (LAYOUT === 'licht') { mv.addEventListener('seeked', () => lichtMalen(mv.currentTime, true)); lichtLaden(v); }
@@ -1437,23 +1546,30 @@
     gesteStart(e, 'kopf');
   });
   $('flaeche').addEventListener('pointerdown', e => {
-    if (!WISCHEN_ZWISCHEN_VIDEOS || !imBlatt() || e.pointerType === 'mouse' || !P || P.videos.length < 2 || e.target.closest('.video-fehler')) return;
+    if (e.pointerType === 'mouse' || !e.isPrimary || !P || P.videos.length < 2 || imVollbild() || e.target.closest('.video-fehler, .weiter, .wischen')) return;
+    const hoch = WISCHEN_ZWISCHEN_VIDEOS && imBlatt(), seitlich = SEITLICH_WISCHEN && e.clientX > 20 && e.clientX < innerWidth - 20;
+    if (!hoch && !seitlich) return;
     gesteStart(e, 'flaeche');
+    if (geste && geste.id === e.pointerId) Object.assign(geste, { hoch, seitlich });
   });
   addEventListener('pointermove', e => {
     const g = geste; if (!g || e.pointerId !== g.id) return;
-    const dx = e.clientX - g.x0, dy = e.clientY - g.y0; g.dy = dy;
+    const dx = e.clientX - g.x0, dy = e.clientY - g.y0; g.dx = dx; g.dy = dy;
     g.spur.push([e.timeStamp, e.clientX, e.clientY]); if (g.spur.length > 8) g.spur.shift();
     if (!g.art) {
       const ax = Math.abs(dx), ay = Math.abs(dy);
-      if (ay > 8 && ay > ax) g.art = g.blatt ? 'blatt' : g.quelle === 'flaeche' ? 'wisch' : 'nix';
+      // Seitlich erst ab 12 px und klar waagerecht, damit ein Tipper (bis 15 px) weiter nur anhält und nie das Video wechselt
+      if (ay > 8 && ay > ax) g.art = g.blatt ? 'blatt' : g.quelle === 'flaeche' && g.hoch ? 'wisch' : 'nix';
+      else if (g.quelle === 'flaeche' && g.seitlich) { if (ax > 12 && ax > ay * 1.3) g.art = 'seit'; else return; }
       else if (ax > 7 && ax >= ay) g.art = g.quelle === 'leiste' && spulenStart(e.clientX) ? 'spulen' : 'nix';
       else return;
       if (g.art === 'blatt') { blatt.classList.add('zieht'); menueZu(); g.h0 = BLATT.h; }
+      if (g.art === 'seit') menueZu();
     }
     if (g.art === 'blatt') blattZiehen(g.h0 - dy);
     else if (g.art === 'spulen') spulenZiehen(e.clientX);
-    else if (g.art === 'wisch') wischZiehen(dy);
+    else if (g.art === 'wisch') wischZiehen(dy, 'Y');
+    else if (g.art === 'seit') wischZiehen(dx, 'X');
   });
   function gesteEnde(e) {
     const g = geste; if (!g || e.pointerId !== g.id) return; geste = null;
@@ -1461,7 +1577,8 @@
     if (g.art) klickSperre = performance.now() + 350;
     if (g.art === 'blatt') blattLoslassen(abbruch ? 0 : tempo(g.spur, 2));
     else if (g.art === 'spulen') spulenEnde(abbruch);
-    else if (g.art === 'wisch') wischEnde(g.dy || 0, abbruch ? 0 : tempo(g.spur, 2), abbruch);
+    else if (g.art === 'wisch') wischEnde(g.dy || 0, abbruch ? 0 : tempo(g.spur, 2), abbruch, 'Y');
+    else if (g.art === 'seit') wischEnde(g.dx || 0, abbruch ? 0 : tempo(g.spur, 1), abbruch, 'X');
     else if (!g.art && g.quelle === 'leiste' && !abbruch) spulHinweis(g.x0);
   }
   // Einmal aufs Video tippen hält an, nochmal tippen spielt weiter (Ole, 16.11.2026: „am Handy einmal aufs Video drücken, damit es
@@ -1539,26 +1656,28 @@
     clearTimeout(spulBlase.weg); spulBlase.weg = setTimeout(() => (spulZeit.hidden = true), 1500);
   }
 
-  // Wischen auf dem Video: hoch = nächstes, runter = voriges Video, das neue kommt mit dem Finger rein (wie Reels)
+  // Wischen auf dem Video: seitlich (nach links = nächstes, nach rechts = voriges, seit 17.11.2026) und, falls wieder eingeschaltet,
+  // hoch/runter wie Reels. Das neue Vorschaubild kommt mit dem Finger rein. achse 'X' oder 'Y'
   const box = $('video-box'), nachbar = $('nachbar'), flaeche = $('flaeche');
   let nachbarV = null;
-  function wischZiehen(dy) {
-    const H = flaeche.clientHeight, r = dy < 0 ? 1 : -1, n = naechstes(r);
+  const wischWeg = achse => achse === 'X' ? flaeche.clientWidth + 12 : flaeche.clientHeight;
+  function wischZiehen(d, achse) {
+    const L = wischWeg(achse), r = d < 0 ? 1 : -1, n = naechstes(r);
     if (nachbarV !== n) { nachbarV = n; nachbar.firstElementChild.src = bild(n, 720); nachbar.style.setProperty('--ar', n.seitenverhaeltnis || .5625); }
     nachbar.hidden = false; box.style.transition = nachbar.style.transition = 'none';
-    box.style.transform = `translateY(${dy}px)`; nachbar.style.transform = `translateY(${dy + r * H}px)`;
+    box.style.transform = `translate${achse}(${d}px)`; nachbar.style.transform = `translate${achse}(${d + r * L}px)`;
   }
-  function wischEnde(dy, v, abbruch) {
-    const H = flaeche.clientHeight, r = dy < 0 ? 1 : -1;
-    const weiter = !abbruch && (Math.abs(dy) > H * .2 || (Math.abs(v) > .4 && Math.sign(v) === Math.sign(dy) && Math.abs(dy) > 24));
+  function wischEnde(d, v, abbruch, achse) {
+    const L = wischWeg(achse), r = d < 0 ? 1 : -1;
+    const weiter = !abbruch && (Math.abs(d) > L * .2 || (Math.abs(v) > .4 && Math.sign(v) === Math.sign(d) && Math.abs(d) > 24));
     box.style.transition = nachbar.style.transition = 'transform .34s cubic-bezier(.25,.9,.3,1)';
     if (!weiter) {
-      box.style.transform = ''; nachbar.style.transform = `translateY(${r * H}px)`;
+      box.style.transform = ''; nachbar.style.transform = `translate${achse}(${r * L}px)`;
       setTimeout(() => { if (!geste) { nachbar.hidden = true; box.style.transition = ''; } }, 360);
       return;
     }
     const n = naechstes(r);
-    box.style.transform = `translateY(${-r * H}px)`; nachbar.style.transform = 'translateY(0)';
+    box.style.transform = `translate${achse}(${-r * L}px)`; nachbar.style.transform = `translate${achse}(0)`;
     $('wischen').hidden = true; merke(WISCH_WEG, '1');
     setTimeout(() => {
       box.style.transition = 'none'; box.style.transform = '';
@@ -1676,7 +1795,7 @@
     if (lief && v === mv) v.play().catch(() => {});
   }
 
-  // Nur am Handy hochkant. Seitlich wischen gibt es nicht mehr, auch nicht quer (Ole, 13.11.2026)
+  // Hinweis nur für das Wischen hoch/runter (aus). Seitlich wischen ist seit 17.11.2026 wieder an, ohne Hinweis
   function wischHinweis() {
     $('wischen').hidden = !(WISCHEN_ZWISCHEN_VIDEOS && imBlatt() && ohneMaus.matches && P && P.videos.length > 1 && !lies(WISCH_WEG));
   }

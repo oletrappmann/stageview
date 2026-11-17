@@ -33,11 +33,11 @@ Aufträge (neuer Link, Videos dazu) als eigener systemd Dienst.
   POST   /api/admin/anmelden                  {zugang: tess|alfred, passwort, geraet} → Cookie, {name}
   POST   /api/admin/abmelden                  meldet das Gerät bei der Brücke ab, löscht das Cookie
   GET    /api/admin/uebersicht                alle Projekte mit Videos, Freigabe, offenen Kommentaren, Kunden, Aufträgen
-  POST   /api/admin/projekt/<code>            {titel, kunde, firma, hinweis}
+  POST   /api/admin/projekt/<code>            {titel, kunde, firma, hinweis, darstellung}
   POST   /api/admin/projekt/<code>/video/<nr> {titel}
   POST   /api/admin/projekt/<code>/video/<nr>/entfernen
   POST   /api/admin/projekt/<code>/dazu       {quellen, titel}      Auftrag
-  POST   /api/admin/neu                       {titel, kunde, quellen, unterordner, dreh}   Auftrag
+  POST   /api/admin/neu                       {titel, kunde, quellen, unterordner, kategorien, dreh}   Auftrag
   POST   /api/admin/vorbereiten               {quelle, unterordner}  Auftrag (seit 16.11.2026): Drive Link einfügen, Videos gehen
                                               sofort zu Mux, während Titel und Kunde eingetragen werden (stageview vorbereiten)
   GET    /api/admin/auftrag/<id>              Stand eines Auftrags (Phase, gefundene Videos, Mux Fortschritt, Link, Fehler)
@@ -375,7 +375,7 @@ def uebersicht():
         projekte.append({
             "schluessel": datei.stem, "code": code, "link": f"{BASIS_URL}/{code}" if pj else None,
             "titel": d.get("titel") or datei.stem, "kunde": d.get("kunde", ""), "kunde_ordner": d.get("kunde_ordner") or "",
-            "firma": d.get("firma", ""), "hinweis": d.get("hinweis", ""),
+            "firma": d.get("firma", ""), "hinweis": d.get("hinweis", ""), "darstellung": d.get("darstellung") or "abschnitte",
             "dreh": d.get("dreh"), "angelegt": d.get("angelegt"), "stand": (pj or {}).get("stand"), "letzte": letzte.get(code),
             "videos": videos, "wartend": max(0, len(d.get("videos", [])) - len(videos)),
             "kommentare": [{**k, "nr": nr.get(k["video"])} for k in neueste.get(code, []) if k["video"] in nr]})
@@ -639,6 +639,8 @@ class Api(BaseHTTPRequestHandler):
                 args.append(f"--kunde={kunde}")
             if d.get("unterordner"):
                 args.append("--unterordner")
+            if d.get("kategorien"):  # seit 17.11.2026: jeder Unterordner wird eine Kategorie auf der Seite
+                args.append("--gruppen-aus-ordnern")
             dreh = sauber(d.get("dreh"), 10)
             if re.fullmatch(r"\d{4}-\d{2}-\d{2}", dreh):
                 args.append(f"--dreh={dreh}")
@@ -675,6 +677,8 @@ class Api(BaseHTTPRequestHandler):
                 if not re.fullmatch(r"[a-z0-9-]{1,64}", str(d["kunde_id"])):
                     raise Fehler(400, "Kunde unbekannt")
                 args.append(f"--kunde-id={d['kunde_id']}")
+            if d.get("darstellung") in ("abschnitte", "youtube"):  # seit 17.11.2026
+                args.append(f"--darstellung={d['darstellung']}")
             for feld, laenge in (("titel", 120), ("kunde", 80), ("firma", 80), ("hinweis", 400)):
                 if feld in d:
                     wert = sauber(d.get(feld), laenge)
