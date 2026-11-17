@@ -154,6 +154,8 @@
   .z-knoepfe .rund { width: 46px; height: 46px; background: #262624; color: var(--text); --s: 22px; }
   .z-knoepfe .rund:hover { background: var(--panel-3); }
   .z-knoepfe .rund.fertig { color: var(--akzent); }
+  /* Löschen direkt in der Reihe (Ole, 17.11.2026), mit derselben Rückfrage wie im Fenster */
+  .z-knoepfe .rund.loeschen:hover { color: var(--aenderung); }
   .nur-schmal { display: none; }
   /* Schmal (Handy, kleines Fenster): Freigabe unter dem Projekt, Kommentare und Aktivität in der kleinen Zeile */
   @container haupt (max-width: 760px) {
@@ -778,7 +780,7 @@
       <div class="z-freigabe">${balken}<div class="z-klein">${freiText}<span class="nur-schmal">${schmal}</span></div></div>
       <div class="z-komm">${komm}</div>
       <div class="z-aktiv">${p.letzte ? wann(p.letzte) : 'noch keine'}</div>
-      <div class="z-knoepfe">${p.link ? `<button type="button" class="rund" data-kopieren="${esc(p.link)}" data-i="kopieren" title="Link kopieren" aria-label="Link kopieren"></button><a class="rund nur-breit" href="${esc(p.link)}" target="_blank" rel="noopener" data-i="oeffnen" title="Öffnen" aria-label="Öffnen"></a>` : ''}<button type="button" class="rund" data-bearbeiten="${esc(p.schluessel)}" data-i="menu-horizontal" title="Bearbeiten" aria-label="${esc(p.titel)} bearbeiten"></button></div>
+      <div class="z-knoepfe">${p.link ? `<button type="button" class="rund" data-kopieren="${esc(p.link)}" data-i="kopieren" title="Link kopieren" aria-label="Link kopieren"></button><a class="rund nur-breit" href="${esc(p.link)}" target="_blank" rel="noopener" data-i="oeffnen" title="Öffnen" aria-label="Öffnen"></a>` : ''}<button type="button" class="rund" data-bearbeiten="${esc(p.schluessel)}" data-i="menu-horizontal" title="Bearbeiten" aria-label="${esc(p.titel)} bearbeiten"></button>${p.code ? `<button type="button" class="rund loeschen" data-zeile-loeschen="${esc(p.schluessel)}" data-i="muell" title="Link löschen" aria-label="${esc(p.titel)} löschen"></button>` : ''}</div>
     </article>`;
   }
 
@@ -948,13 +950,22 @@
   });
   // Link löschen (seit 17.11.2026, Ole): Rückfrage, dann stageview offline über den Server. Daten liegen danach im Archiv,
   // TESS oder Claude holen den Link mit „stageview wiederherstellen“ zurück (gleicher Code, gleiche Kommentare)
-  $('p-inhalt').addEventListener('click', async e => {
-    const b = e.target.closest('[data-link-loeschen]'); if (!b || b.disabled) return;
-    const p = projekt(OFFEN); if (!p) return;
+  // Seit 17.11.2026 auch als Mülleimer direkt in der Reihe neben Kopieren, Öffnen und ⋯ (Ole)
+  async function linkLoeschen(p, knopf) {
+    if (!p || !p.code) return;
+    if (D.auftraege.some(a => a.laeuft && a.code === p.code)) return toast('Für diesen Link läuft gerade noch ein Auftrag. Lösch ihn, wenn der fertig ist.', true);
     if (!await frage('Link löschen?', `„${p.titel}“ ist danach für alle weg, auch für den Kunden: ${kurz(p.link)} zeigt nur noch eine Fehlerseite. Videos im Drive und bei Mux und alle Kommentare bleiben gespeichert, zurückholen kann TESS.`, 'Link löschen')) return;
-    b.disabled = true;
-    try { await api(`projekt/${p.code}/loeschen`, { method: 'POST', body: {} }); $('projekt-dialog').close(); toast('Link gelöscht'); await laden(true); }
-    catch (err) { b.disabled = false; toast(err.message, true); }
+    knopf.disabled = true;
+    try { await api(`projekt/${p.code}/loeschen`, { method: 'POST', body: {} }); if ($('projekt-dialog').open) $('projekt-dialog').close(); toast('Link gelöscht'); await laden(true); }
+    catch (err) { knopf.disabled = false; toast(err.message, true); }
+  }
+  $('p-inhalt').addEventListener('click', e => {
+    const b = e.target.closest('[data-link-loeschen]'); if (!b || b.disabled) return;
+    linkLoeschen(projekt(OFFEN), b);
+  });
+  $('liste').addEventListener('click', e => {
+    const b = e.target.closest('[data-zeile-loeschen]'); if (!b || b.disabled) return;
+    linkLoeschen(projekt(b.dataset.zeileLoeschen), b);
   });
   $('projekt-dialog').addEventListener('close', () => { OFFEN = null; });
 
