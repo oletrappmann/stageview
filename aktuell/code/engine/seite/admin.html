@@ -803,7 +803,8 @@
     const zu = lies('sc-admin-meldungen-zu') === '1', fertige = liste.filter(a => !a.laeuft).length;
     const kopf = liste.length >= 2 ? `<div class="m-kopf"><button type="button" class="m-klappen" data-meldungen-klappen aria-expanded="${!zu}"><span data-i="chevron-down"></span>Meldungen <span class="n">${liste.length}</span></button>
       ${fertige ? '<button type="button" class="m-gelesen" data-alle-gelesen>Alle gelesen</button>' : ''}</div>` : '';
-    $('auftraege').innerHTML = kopf + `<div class="m-liste"${kopf && zu ? ' hidden' : ''}>` + liste.map(a => {
+    // Höchstens vier Meldungen auf einmal (Ole, 17.11.2026), laufende zuerst, dann die neuesten. Die Zahl oben zählt alle
+    $('auftraege').innerHTML = kopf + `<div class="m-liste"${kopf && zu ? ' hidden' : ''}>` + liste.slice(0, 4).map(a => {
       const titel = `${ARTEN[a.art] || 'Auftrag'}: ${esc(a.titel)}`;
       if (a.laeuft) return `<div class="auftrag"><span class="kreis"></span><div class="text"><b>${titel}</b><small>${esc(schoen(a.zuletzt))}</small></div></div>`;
       if (a.ok) return `<div class="auftrag"><span class="ok" data-i="check"></span><div class="text"><b>${titel}</b><small>${a.link ? 'Fertig · ' + esc(kurz(a.link)) : 'Fertig'}</small></div>
