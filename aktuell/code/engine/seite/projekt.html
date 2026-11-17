@@ -502,7 +502,10 @@
   #app.quer .steuerung .einstell-menue { right: 24px; }
 
   /* ================= Handy hochkant (seit 13.11.2026, Ole): Video oben, darunter ein Blatt mit Griff zum Ziehen.
-     Drei Stufen: zu (nur Leiste und Steuerung, Video am größten), mitte (plus Freigabe, Standard), offen (Kommentare schreiben).
+     Drei Stufen: zu (nur Leiste und Steuerung, Video am größten), mitte (plus einzeiliges Kommentar Feld, Standard), offen (alles).
+     Seit 17.11.2026 (Ole, Entwurf Runde 2 Nr. 1 „Steuerung bleibt, darunter ein einzeiliges Feld“): beim Öffnen so niedrig wie möglich,
+     nur Steuerung und ein kleines Feld. Kein Freigabe Knopf und kein Kommentar Knopf mehr darunter. Antippen macht das Feld groß
+     (Zeitmarke und Senden), die Freigabe steht erst im aufgezogenen Blatt als Zeile über den Kommentaren. Nicht ungefragt zurückbauen.
      Die Seite selbst scrollt nicht mehr, nur der Inhalt im offenen Blatt. Steuerung und "Mehr aus" schiebt das Skript ins Blatt (modusPruefen). */
   .blatt-kopf, .blatt-scroll { display: contents; }
   html.fest, html.fest body { overflow: hidden; overscroll-behavior: none; }
@@ -521,20 +524,27 @@
     transition: height .52s cubic-bezier(.32,.72,0,1); }
   .app.blatt-modus .seite.zieht { transition: none; }
   .app.blatt-modus .blatt-kopf { display: block; flex: none; touch-action: none; }
-  .app.blatt-modus .griff-zone { display: block; padding: 9px 0 13px; cursor: grab; -webkit-tap-highlight-color: transparent; outline: 0; }
+  .app.blatt-modus .griff-zone { display: block; padding: 6px 0 7px; cursor: grab; -webkit-tap-highlight-color: transparent; outline: 0; }
   .app.blatt-modus .seite.zieht .griff { width: 48px; background: var(--leise); }
-  .app.blatt-modus .steuerung { background: none; padding: 2px 16px 4px; border-radius: 0; margin: 0; }
-  .app.blatt-modus .reihe { margin-top: 6px; }
-  .app.blatt-modus .status-zeile { background: none; padding: 4px 16px 10px; transition: opacity .3s; }
-  /* Status und Kommentar Knopf am Handy flacher (Ole, 14.11.2026: 54 → 44 px), das Blatt misst sich selbst, das Video wird größer */
-  .app.blatt-modus .status-wahl.unten .status-knopf { height: 44px; border-radius: 14px; font-size: 15px; }
-  .app.blatt-modus .status-wahl.unten .status-knopf .aendern { font-size: 13.5px; }
-  .app.blatt-modus .k-knopf { width: 44px; height: 44px; border-radius: 14px; }
-  .app.blatt-modus .k-knopf .zahl { top: 3px; right: 2px; }
-  .app.blatt-modus .seite[data-stand="zu"] .status-zeile { opacity: 0; pointer-events: none; }
-  .app.blatt-modus .status-wahl.unten .status-menue { top: auto; bottom: calc(100% + 8px); }
+  .app.blatt-modus .steuerung { background: none; padding: 0 16px; border-radius: 0; margin: 0; }
+  .app.blatt-modus .reihe { margin-top: 2px; }
+  /* Kommentar Feld direkt unter der Steuerung: klein eine Zeile (40 px), angetippt oder mit Text wie überall (Text, Zeitmarke, Senden) */
+  .app.blatt-modus .seite .eingabe { background: none; padding: 2px 16px 8px; gap: 6px; transition: opacity .3s; }
+  .app.blatt-modus .eingabe.klein .feld { padding: 0 6px; border-radius: 20px; }
+  .app.blatt-modus .eingabe.klein :is(.zeit-chip, .senden, .als) { display: none; }
+  .app.blatt-modus .eingabe.klein .feld textarea { height: 40px !important; min-height: 0; padding: 9px 8px; line-height: 22px; overflow: hidden; }
+  .app.blatt-modus .seite[data-stand="zu"] .eingabe { opacity: 0; pointer-events: none; }
+  /* Freigabe erst im aufgezogenen Blatt: Zeile „Freigabe“ mit dem Stand als Pille, das Menü klappt nach unten auf */
+  .freigabe-titel { display: none; }
+  .app.blatt-modus .status-zeile { align-items: center; gap: 10px; margin: 4px 16px 0; padding: 8px 0; background: none;
+    border-top: 1px solid var(--linie); border-bottom: 1px solid var(--linie); }
+  .app.blatt-modus .freigabe-titel { display: block; flex: 1; font-size: 15px; font-weight: 600; }
+  .app.blatt-modus .status-zeile .k-knopf { display: none; }
+  .app.blatt-modus .status-wahl.unten { flex: none; }
+  .app.blatt-modus .status-wahl.unten .status-knopf { width: auto; height: 36px; border-radius: 999px; padding: 0 10px 0 13px; font-size: 14px; gap: 8px; }
+  .app.blatt-modus .status-wahl.unten .status-knopf .aendern { display: none; }
+  .app.blatt-modus .status-wahl.unten .status-menue { top: calc(100% + 6px); bottom: auto; left: auto; right: 0; width: min(330px, calc(100vw - 32px)); }
   .app.blatt-modus .blatt-scroll { display: block; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-  .app.blatt-modus .seite .eingabe { background: none; padding-top: 4px; }
   .app.blatt-modus .kommentare { background: none; padding-top: 10px; }
   .app.blatt-modus .seite .km { background: var(--panel-2); }
   .app.blatt-modus .seite .leer { border-color: var(--panel-3); }
@@ -742,6 +752,7 @@
         <div class="blatt-kopf" id="blatt-kopf">
           <div class="griff-zone" id="griff-zone" role="button" tabindex="0" aria-label="Kommentare auf oder zu klappen"><div class="griff"></div></div>
           <div class="status-zeile" id="status-zeile">
+            <span class="freigabe-titel">Freigabe</span>
             <div class="status-wahl unten"><button class="status-knopf" data-status-knopf aria-haspopup="menu"><span class="punkt"></span><span data-status-text>Zur Freigabe</span><span class="aendern">Status ändern</span><span data-i="chevron-down"></span></button><div class="status-menue" role="menu" hidden></div></div>
             <button class="k-knopf" id="k-knopf" title="Kommentare" aria-label="Kommentare"><span data-i="comment"></span><span class="zahl" id="k-zahl" hidden></span></button>
           </div>
@@ -1417,6 +1428,18 @@
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('eingabe').requestSubmit(); }
   });
   eingabe.addEventListener('focus', () => { if (mv && !mv.paused) mv.pause(); });
+  // Am Handy im Blatt (seit 17.11.2026): leer und nicht angetippt ist das Feld eine Zeile, sonst groß mit Zeitmarke und Senden.
+  // Das Blatt misst sich danach neu. Zeitmarke und Senden nehmen den Fokus nicht weg, sonst klappte das Feld vor dem Tipp zu
+  function feldKlein() {
+    const f = $('eingabe'), klein = imBlatt() && !f.contains(document.activeElement) && !eingabe.value.trim();
+    if (f.classList.contains('klein') === klein) return;
+    f.classList.toggle('klein', klein);
+    if (!klein) feldHoehe();
+    if (imBlatt() && !$('videoseite').hidden) blattSetzen(BLATT.stand);
+  }
+  $('eingabe').addEventListener('focusin', feldKlein);
+  $('eingabe').addEventListener('focusout', () => setTimeout(feldKlein, 120));
+  $('feld').addEventListener('mousedown', e => { if (e.target.closest('button') && document.activeElement === eingabe) e.preventDefault(); });
   $('zeit-chip').addEventListener('click', () => { const c = $('zeit-chip'); c.classList.toggle('an');
     $('zeit-chip-text').textContent = c.classList.contains('an') ? zeit(mv ? mv.currentTime : 0) : 'Ohne Zeit'; });
   $('eingabe').addEventListener('submit', async e => {
@@ -1430,6 +1453,7 @@
       K.kommentare.push(k); neuId = k.id; eingabe.value = ''; feldHoehe(); $('feld').classList.remove('voll');
       if (filter === 'erledigt') { filter = 'alle'; $('filter').querySelectorAll('button').forEach(x => x.classList.toggle('an', x.dataset.f === 'alle')); }
       zeichnen(); uebersichtSpaeter(); toast('Kommentar gespeichert');
+      if (imBlatt()) { eingabe.blur(); feldKlein(); }
       karteZeigen(document.querySelector(`.km[data-id="${k.id}"]`));
     } catch (err) { toast(err.message); }
     $('senden').disabled = false;
@@ -1479,8 +1503,10 @@
     if (b !== imBlatt()) {
       app.classList.toggle('blatt-modus', b);
       // Steuerung und "Mehr aus" wandern am Handy ins Blatt, sonst zurück unter das Video bzw. ans Seitenende
-      if (b) { $('griff-zone').after(steuerung); $('blatt-scroll').append($('weitere')); }
-      else { viewer.append(steuerung); $('videoseite').append($('weitere')); }
+      // Seit 17.11.2026: das Kommentar Feld steht im Blatt direkt unter der Steuerung, die Freigabe oben in der Liste
+      if (b) { $('griff-zone').after(steuerung); steuerung.after($('eingabe')); $('blatt-scroll').prepend($('status-zeile')); $('blatt-scroll').append($('weitere')); }
+      else { viewer.append(steuerung); $('blatt-kopf').append($('status-zeile')); $('blatt-scroll').prepend($('eingabe')); $('videoseite').append($('weitere')); }
+      feldKlein();
       if (P) wischHinweis();
     }
     document.documentElement.classList.toggle('fest', (b || istQuer) && aufVideo);
@@ -1493,17 +1519,17 @@
   function blattMessen() {
     const platz = $('inhalt').clientHeight, sicher = parseFloat(getComputedStyle(blatt).paddingBottom) || 0;
     const zu = Math.round($('griff-zone').offsetHeight + steuerung.offsetHeight + sicher);
-    const mitte = zu + $('status-zeile').offsetHeight;
+    const mitte = zu + $('eingabe').offsetHeight;
     const offen = Math.max(mitte + 140, Math.round(platz - Math.max(150, platz * .3)));
     BLATT.stufen = { zu, mitte, offen };
   }
   function blattSetzen(stand, sanft = true) {
-    blattMessen(); BLATT.stand = stand; BLATT.h = BLATT.stufen[stand];
+    const vorher = BLATT.stand; blattMessen(); BLATT.stand = stand; BLATT.h = BLATT.stufen[stand];
     if (!sanft) blatt.classList.add('zieht');
     blatt.style.setProperty('--blatt-h', BLATT.h + 'px');
     blatt.dataset.stand = stand; $('videoseite').dataset.blatt = stand;
     if (!sanft) { blatt.offsetHeight; blatt.classList.remove('zieht'); }
-    if (stand !== 'mitte') menueZu();
+    if (stand !== vorher) menueZu();
   }
   // Über die Grenzen hinaus gibt das Blatt nur noch zäh nach (wie bei iOS)
   const gummi = d => 90 * (1 - 1 / (d / 90 * .55 + 1));
@@ -1541,7 +1567,7 @@
   }
   $('zeit-fang').addEventListener('pointerdown', e => gesteStart(e, 'leiste'));
   $('blatt-kopf').addEventListener('pointerdown', e => {
-    if (!imBlatt() || e.target.closest('.status-menue')) return;
+    if (!imBlatt() || e.target.closest('.status-menue') || e.target.closest('.eingabe:not(.klein) textarea')) return;
     if (e.pointerType === 'mouse' && !e.target.closest('.griff-zone')) return;
     gesteStart(e, 'kopf');
   });
