@@ -123,6 +123,18 @@
   @keyframes dreh { to { transform: rotate(360deg); } }
   .auftrag .ok { color: var(--akzent); --s: 22px; }
   .auftrag .weg { color: var(--muted); }
+  /* Ab zwei Meldungen eine Kopfzeile (Ole, 17.11.2026): Tipp klappt alle ein (gemerkt pro Browser), „Alle gelesen“ blendet alle
+     fertigen und fehlgeschlagenen aus. Laufende bleiben, bis sie fertig sind */
+  .m-kopf { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 2px; }
+  .m-klappen { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 6px; margin-left: -6px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; color: var(--muted); --s: 16px; }
+  .m-klappen:hover { color: var(--text); }
+  .m-klappen svg { transition: transform .2s ease; }
+  .m-klappen[aria-expanded="false"] svg { transform: rotate(-90deg); }
+  .m-klappen .n { font-weight: 500; font-variant-numeric: tabular-nums; }
+  .m-gelesen { height: 32px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--akzent); }
+  .m-gelesen:hover { background: var(--panel-2); }
+  .m-liste { display: grid; gap: 8px; }
 
   /* Liste: eine Zeile pro Link. Tipp auf die Zeile öffnet Bearbeiten, Kopieren und Öffnen gehen direkt */
   .tabelle { display: flex; flex-direction: column; gap: 6px; }
@@ -788,7 +800,10 @@
     const grenze = Date.now() - 2 * 3600e3, weg = JSON.parse(lies('sc-admin-weg') || '[]');
     const liste = D.auftraege.filter(a => a.laeuft || (new Date(a.start) > grenze && !weg.includes(a.id)));
     const ARTEN = { neu: 'Neuer Link', dazu: 'Videos dazu' };  // Titel: bei „dazu“ das Projekt
-    $('auftraege').innerHTML = liste.map(a => {
+    const zu = lies('sc-admin-meldungen-zu') === '1', fertige = liste.filter(a => !a.laeuft).length;
+    const kopf = liste.length >= 2 ? `<div class="m-kopf"><button type="button" class="m-klappen" data-meldungen-klappen aria-expanded="${!zu}"><span data-i="chevron-down"></span>Meldungen <span class="n">${liste.length}</span></button>
+      ${fertige ? '<button type="button" class="m-gelesen" data-alle-gelesen>Alle gelesen</button>' : ''}</div>` : '';
+    $('auftraege').innerHTML = kopf + `<div class="m-liste"${kopf && zu ? ' hidden' : ''}>` + liste.map(a => {
       const titel = `${ARTEN[a.art] || 'Auftrag'}: ${esc(a.titel)}`;
       if (a.laeuft) return `<div class="auftrag"><span class="kreis"></span><div class="text"><b>${titel}</b><small>${esc(schoen(a.zuletzt))}</small></div></div>`;
       if (a.ok) return `<div class="auftrag"><span class="ok" data-i="check"></span><div class="text"><b>${titel}</b><small>${a.link ? 'Fertig · ' + esc(kurz(a.link)) : 'Fertig'}</small></div>
@@ -796,7 +811,8 @@
         <button type="button" class="rund klein weg" data-weg="${esc(a.id)}" data-i="x-mark" title="Ausblenden" aria-label="Ausblenden"></button></div>`;
       return `<div class="auftrag fehler"><div class="text"><b>${titel}</b><small>Hat nicht geklappt: ${esc(a.fehler || 'unbekannter Fehler')}</small></div>
         <button type="button" class="rund klein weg" data-weg="${esc(a.id)}" data-i="x-mark" title="Ausblenden" aria-label="Ausblenden"></button></div>`;
-    }).join('');
+    }).join('') + '</div>';
+    if (!liste.length) $('auftraege').innerHTML = '';  // leer bleibt die Fläche ganz weg (.auftraege:empty)
     symbole($('auftraege'));
   }
   // Protokollzeilen von stageview lesbar machen
@@ -821,7 +837,12 @@
     const kb = e.target.closest('[data-kunde-bearbeiten]'); if (kb) return kundeDialog(kb.dataset.kundeBearbeiten);
     const kl = e.target.closest('[data-kunde-loeschen]'); if (kl) return kundeLoeschen(kl.dataset.kundeLoeschen);
     if (e.target.closest('[data-abmelden]')) return abmelden();
-    const w = e.target.closest('[data-weg]'); if (w) { const weg = JSON.parse(lies('sc-admin-weg') || '[]'); weg.push(w.dataset.weg); merke('sc-admin-weg', JSON.stringify(weg.slice(-40))); return auftraegeZeichnen(); }
+    const w = e.target.closest('[data-weg]'); if (w) { const weg = JSON.parse(lies('sc-admin-weg') || '[]'); weg.push(w.dataset.weg); merke('sc-admin-weg', JSON.stringify(weg.slice(-200))); return auftraegeZeichnen(); }
+    if (e.target.closest('[data-alle-gelesen]')) {
+      const weg = JSON.parse(lies('sc-admin-weg') || '[]'); D.auftraege.filter(a => !a.laeuft).forEach(a => weg.push(a.id));
+      merke('sc-admin-weg', JSON.stringify([...new Set(weg)].slice(-200))); return auftraegeZeichnen();
+    }
+    if (e.target.closest('[data-meldungen-klappen]')) { merke('sc-admin-meldungen-zu', lies('sc-admin-meldungen-zu') === '1' ? null : '1'); return auftraegeZeichnen(); }
     if (!e.target.closest('.status-wahl')) { $('konto-menue').hidden = true; $('konto-knopf').setAttribute('aria-expanded', 'false'); }
   });
   $('suche').addEventListener('input', e => { SUCHE = e.target.value; zeichnen(); });
