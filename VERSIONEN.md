@@ -13,3 +13,4 @@ Eine Zeile pro Version, neueste unten. Ordner in `versionen/`, Wiederherstellen 
 | 2026-11-17_1959 | Code |
 | 2026-11-17_2015 | Daten und Code |
 | 2026-11-17_2017 | Code |
+| 2026-11-19_0340 | Daten |
