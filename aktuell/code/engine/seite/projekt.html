@@ -186,6 +186,20 @@
   /* Freigabe Status: großer Knopf mit Menü. Rechner oben rechts neben Download, Handy breit unter der Steuerung (seit 12.11. abends, Ole: größer) */
   .status-wahl { position: relative; }
   .status-wahl.oben { display: none; }
+  /* Video wechseln am Rechner (Ole, 20.11.2026, Entwurf B von vier): oben rechts „‹ 2 von 5 ›“, nur am Desktop mit Maus
+     (Regel im Desktop Teil unten). Am Handy wischt man seitlich. Beim Drüberfahren zeigt eine Karte das Video, das als Nächstes kommt */
+  .vw { display: none; position: relative; align-items: center; gap: 2px; height: 44px; padding: 0 4px; border-radius: 22px; background: var(--panel-2); }
+  .vw-knopf { width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; --s: 20px; }
+  .vw-knopf:hover, .vw-knopf:focus-visible { background: var(--panel-3); outline: 0; }
+  .vw-zahl { font-size: 13.5px; font-weight: 600; min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .vw-zahl i { font-style: normal; font-weight: 500; color: var(--muted); }
+  .vw-tipp { position: absolute; top: calc(100% + 10px); left: 0; z-index: 30; display: flex; align-items: center; gap: 12px; width: max-content; max-width: 340px;
+    padding: 8px 16px 8px 8px; border-radius: 14px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--linie), 0 10px 30px rgba(0,0,0,.45); pointer-events: none; }
+  .vw-tipp img { width: 40px; height: 56px; object-fit: cover; border-radius: 6px; flex: none; background: var(--panel-3); }
+  .vw-tipp.quer img { width: 72px; height: 41px; }
+  .vw-tipp div { min-width: 0; }
+  .vw-tipp small { display: block; font-size: 11.5px; color: var(--muted); }
+  .vw-tipp b { display: block; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .status-zeile { display: flex; gap: 8px; align-items: stretch; background: var(--panel); padding: 4px 16px 8px; }
   .status-wahl.unten { flex: 1; min-width: 0; }
   .k-knopf { position: relative; width: 54px; height: 54px; border-radius: 16px; background: var(--panel-2); display: inline-flex; align-items: center;
@@ -453,6 +467,7 @@
     .titel .projekt-name { display: block; }
     .titel h1 { display: block; white-space: nowrap; text-overflow: ellipsis; font-size: 17px; text-align: left; }
     .status-wahl.oben { display: block; }
+    @media (hover: hover) and (pointer: fine) { .vw.da { display: inline-flex; } }  /* nur Desktop mit Maus (Ole, 20.11.2026) */
     .status-zeile { display: none; }
     /* Breite der Kommentare zum Ziehen (Ole, 16.11.2026): 320 bis 640 px, das Video behält immer mindestens rund 500 px.
        --seite-wunsch setzt der Griff, Standard 400 px, Doppelklick auf den Griff stellt ihn zurück. Gemerkt pro Browser */
@@ -464,6 +479,11 @@
     .trenner:hover::before, .trenner:focus-visible::before, .trenner.zieht::before { background: var(--muted); height: 72px; }
     .viewer { border-radius: 24px; overflow: hidden; position: sticky; top: 76px; }
     .video-box { height: calc(var(--app-h) - 76px - 24px - 118px); max-height: calc((100cqw - var(--seite-b) - 64px) / var(--ar)); }
+    /* Vorschaubild beim Wechseln (Pfeile oben, Tasten N und P) genau so groß wie das Video. Vorher ragte es am Rechner über die
+       Steuerleiste (20.11.2026). Handy quer behält seine eigene Größe */
+    .app:not(.quer) .nachbar { padding: inherit; align-items: flex-start; }  /* oben, da sitzt am Rechner auch das Video (Hoch und Quer) */
+    .app:not(.quer) .nachbar img { width: auto; max-width: 100%; aspect-ratio: var(--ar);
+      height: calc(var(--app-h) - 76px - 24px - 118px); max-height: calc((100cqw - var(--seite-b) - 64px) / var(--ar)); }
     .steuerung { border-radius: 0; margin-top: 0; }
     .griff-zone, .wischen { display: none; }
     .reihe media-volume-range { display: block; }
@@ -617,6 +637,8 @@
     .app[data-layout] .video-flaeche { padding: 22px 22px 18px; }
     .app[data-layout] .video-box { border-radius: 14px; box-shadow: 0 14px 44px rgba(0,0,0,.38);
       height: calc(var(--app-h) - 76px - 24px - 118px - 40px); max-height: calc((100cqw - var(--seite-b) - 108px) / var(--ar)); }
+    .app[data-layout]:not(.quer) .nachbar img { border-radius: 14px;  /* wie die Video Box hier drüber */
+      height: calc(var(--app-h) - 76px - 24px - 118px - 40px); max-height: calc((100cqw - var(--seite-b) - 108px) / var(--ar)); }
     .app[data-layout="licht"] .viewer { overflow: hidden; isolation: isolate; }
     .app[data-layout="licht"] .video-flaeche { overflow: visible; }
     .app[data-layout="licht"] .steuerung { border-radius: 0; background: transparent; }
@@ -705,6 +727,12 @@
         <h1 id="v-titel"></h1>
       </div>
       <div class="rechts">
+        <div class="vw" id="vw" role="group" aria-label="Video wechseln">
+          <button type="button" class="vw-knopf" id="vw-zurueck" aria-label="Video davor" data-i="chevron-left"></button>
+          <span class="vw-zahl" id="vw-zahl"></span>
+          <button type="button" class="vw-knopf" id="vw-vor" aria-label="Nächstes Video" data-i="chevron-right"></button>
+          <div class="vw-tipp" id="vw-tipp" hidden><img alt=""><div><small></small><b></b></div></div>
+        </div>
         <button class="rund" data-teilen title="Link teilen" aria-label="Link teilen" data-i="link"></button>
         <div class="status-wahl oben"><button class="status-knopf" data-status-knopf aria-haspopup="menu"><span class="punkt"></span><span data-status-text>Zur Freigabe</span><span data-i="chevron-down"></span></button><div class="status-menue" role="menu" hidden></div></div>
         <a class="dl-pill" id="dl" href="#" rel="noopener"><span data-i="download"></span>Download <span id="dl-groesse"></span></a>
@@ -1132,7 +1160,43 @@
     const reihe = [...P.videos.slice(i + 1), ...P.videos.slice(0, i)];
     $('weitere-raster').innerHTML = reihe.map((v, n) => kachel(v, n === 0 ? '<span class="naechstes">Als Nächstes</span>' : '')).join('');
     $('weitere').hidden = !reihe.length;  // Projekt mit nur einem Video (z.B. ein YouTube Video): kein leeres "Mehr aus"
+    wechslerZeichnen();
   }
+
+  // Video wechseln am Rechner (Ole, 20.11.2026, Entwurf B von vier): oben rechts „‹ 2 von 5 ›“ und die Tasten N und P.
+  // Sichtbar nur am Desktop mit Maus (CSS), am Handy wischt man seitlich. Das Video gleitet seitlich raus wie beim Wischen,
+  // das nächste läuft gleich los. Nach dem letzten kommt wieder das erste, wie beim Wischen
+  function wechslerZeichnen() {
+    const n = P.videos.length, i = P.videos.indexOf(AKT);
+    $('vw').classList.toggle('da', n > 1);
+    $('vw-zahl').innerHTML = `${i + 1} <i>von ${n}</i>`;
+    const ueber = [['vw-vor', 1], ['vw-zurueck', -1]].find(([id]) => $(id).matches(':hover'));
+    ueber ? tippZeigen(ueber[1]) : tippWeg();  // Maus noch auf dem Pfeil: Karte zeigt gleich das neue nächste Video
+  }
+  function tippWeg() { $('vw-tipp').hidden = true; }
+  function tippZeigen(r) {
+    if (!P || P.videos.length < 2 || !AKT) return;
+    const v = naechstes(r), t = $('vw-tipp');
+    t.classList.toggle('quer', (v.seitenverhaeltnis || .5625) > 1);
+    t.querySelector('img').src = bild(v, 240);
+    t.querySelector('small').textContent = r > 0 ? 'Als Nächstes · Taste N' : 'Davor · Taste P';
+    t.querySelector('b').textContent = v.titel;
+    t.hidden = false;
+  }
+  let wechselSperre = 0;
+  function videoWechseln(r) {
+    if (!P || P.videos.length < 2 || !AKT || imVollbild() || geste || Date.now() < wechselSperre) return;
+    wechselSperre = Date.now() + 450; tippWeg();
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { autoStart = true; gehe(videoLink(naechstes(r))); return; }
+    const d = r > 0 ? -30 : 30;  // wie ein kurzer Wisch, wischEnde schiebt den Rest und lädt das neue Video
+    wischZiehen(d, 'X'); requestAnimationFrame(() => wischEnde(d, -r, false, 'X'));
+  }
+  [['vw-vor', 1], ['vw-zurueck', -1]].forEach(([id, r]) => {
+    const k = $(id);
+    k.addEventListener('click', () => videoWechseln(r));
+    k.addEventListener('mouseenter', () => tippZeigen(r)); k.addEventListener('focus', () => tippZeigen(r));
+    k.addEventListener('mouseleave', tippWeg); k.addEventListener('blur', tippWeg);
+  });
   $('weiter').addEventListener('click', () => { autoStart = true; gehe(videoLink(naechstes(1))); });
 
   // Status oben (Zur Freigabe, Änderung gewünscht, Freigegeben)
@@ -1923,15 +1987,16 @@
   addEventListener('keydown', e => {
     if ($('videoseite').hidden || !mv || e.metaKey || e.ctrlKey || e.altKey) return;
     if (tippFeld(e.target) || tippFeld(e.composedPath()[0])) return;
-    const taste = e.key === 'K' ? 'k' : e.key === 'F' ? 'f' : e.key;
+    const taste = e.key.length === 1 ? e.key.toLowerCase() : e.key;  // k, f, n, p auch mit Feststelltaste
     if (taste === 'ArrowRight' || taste === 'ArrowLeft') { if (e.target.closest('media-volume-range')) return; }
-    else if (![' ', 'k', 'f'].includes(taste)) { if (taste === 'Escape') menueZu(); return; }
+    else if (![' ', 'k', 'f', 'n', 'p'].includes(taste)) { if (taste === 'Escape') menueZu(); return; }
     e.preventDefault(); e.stopPropagation(); genommen.add(e.code);
     if (e.repeat && taste !== 'ArrowRight' && taste !== 'ArrowLeft') return;
     if (taste === ' ' || taste === 'k') mv.paused ? mv.play().catch(() => {}) : mv.pause();
     else if (taste === 'ArrowRight') mv.currentTime = Math.min(mv.duration || 1e9, mv.currentTime + 5);
     else if (taste === 'ArrowLeft') mv.currentTime = Math.max(0, mv.currentTime - 5);
     else if (taste === 'f') vollbildUmschalten();
+    else if (taste === 'n' || taste === 'p') videoWechseln(taste === 'n' ? 1 : -1);  // N nächstes, P Video davor (20.11.2026)
   }, true);
   addEventListener('keyup', e => { if (genommen.delete(e.code)) { e.preventDefault(); e.stopPropagation(); } }, true);
 
