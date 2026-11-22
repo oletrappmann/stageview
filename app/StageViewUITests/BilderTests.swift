@@ -282,6 +282,17 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Offene Kommentare unter den Videos (23.11.2026)
+    func testKommentareUnten() {
+        let a = app("projekt:u9kd8m")
+        bild("o1-oben", warten: 3.5)
+        a.swipeUp()
+        bild("o2-mitte", warten: 1.2)
+        a.swipeUp()
+        bild("o3-unten", warten: 1.2)
+        a.terminate()
+    }
+
     /// Grüner Verlauf ohne Kante an der Kopfleiste, „Alle gelesen“ immer über den Meldungen (23.11.2026)
     func testVerlauf() {
         var a = app("meldungen")

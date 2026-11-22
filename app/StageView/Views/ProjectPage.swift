@@ -118,11 +118,6 @@ struct ProjectPage: View {
                     .padding(.top, 14)
                 }
 
-                // Offene Kommentare direkt unter der Freigabe (Review 22.11.2026: vorher ganz unten nach allen Videos)
-                if !project.openComments.isEmpty {
-                    SectionTitle(title: "Offene Kommentare", count: project.openComments.count).padding(.top, 30).padding(.horizontal, 4)
-                    comments(project).padding(.top, 10)
-                }
 
                 if project.videos.count != 1 {
                     SectionTitle(title: "Videos", count: project.videos.count).padding(.top, 30).padding(.horizontal, 4)
@@ -151,6 +146,12 @@ struct ProjectPage: View {
                         .foregroundStyle(Palette.muted)
                         .padding(.top, 8)
                         .padding(.horizontal, 4)
+                }
+
+                // Offene Kommentare unter den Videos (Ole, 23.11.2026)
+                if !project.openComments.isEmpty {
+                    SectionTitle(title: "Offene Kommentare", count: project.openComments.count).padding(.top, 30).padding(.horizontal, 4)
+                    comments(project).padding(.top, 10)
                 }
 
                 if project.code != nil {
