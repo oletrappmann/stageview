@@ -282,6 +282,28 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Zahnrad Menü wie im Web statt Apples Glasmenü (23.11.2026)
+    func testZahnrad() {
+        var a = app("player:zskz92:2")
+        Thread.sleep(forTimeInterval: 4)
+        a.buttons["einstellungen"].firstMatch.tap()
+        bild("z1-offen", warten: 0.8)
+        a.buttons["e-tempo"].firstMatch.tap()
+        bild("z2-tempo", warten: 0.8)
+        a.buttons["tempo-1.5"].firstMatch.tap()
+        bild("z3-gewaehlt", warten: 0.8)
+        a.buttons["e-quali"].firstMatch.tap()
+        bild("z4-qualitaet", warten: 0.8)
+        a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap()
+        bild("z5-zu", warten: 0.8)
+        a.terminate()
+        a = app("player:8fykkr:1")
+        Thread.sleep(forTimeInterval: 4)
+        a.buttons["einstellungen"].firstMatch.tap()
+        bild("z6-quer", warten: 0.8)
+        a.terminate()
+    }
+
     /// Offene Kommentare unter den Videos (23.11.2026)
     func testKommentareUnten() {
         let a = app("projekt:u9kd8m")

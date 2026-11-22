@@ -38,6 +38,10 @@ struct PlayerScreen: View {
     @State private var renameText = ""
     @State private var removing: Video?
     @State private var fullscreen = false
+    /// Zahnrad Menü wie im Web (offen für dieses Video), Drehung des Zahnrads und wo es steht
+    @State private var settingsVideo: Video?
+    @State private var gearTurns: Double = 0
+    @State private var gearFrame: CGRect = .zero
     @State private var sending = false
     @State private var commentFilter = CommentFilter.all
     /// Kommentar, mit dem der Player geöffnet wurde (Ole, 22.11.2026: „Kommentar antippen: der Kommentar geht auf und ist hervorgehoben“)
@@ -95,6 +99,9 @@ struct PlayerScreen: View {
                 ShareDialog(request: request) { store.share = nil }
             }
         }
+        .overlay {
+            if let video = settingsVideo { settingsLayer(video) }
+        }
         // Hinweise (kopiert, Fehler beim Senden) auch im Player, MainView zeigt sie nur ohne Player
         .overlay(alignment: .top) {
             if let notice = store.notice {
@@ -115,6 +122,7 @@ struct PlayerScreen: View {
             review?.unwatch()
         }
         .onChange(of: currentID) { old, new in
+            settingsVideo = nil
             guard old != nil, let video = videos.first(where: { $0.id == new }) else { return }
             Haptics.swap()
             replyTo = nil
@@ -544,24 +552,18 @@ struct PlayerScreen: View {
         .padding(.horizontal, 16)
     }
 
-    /// Zahnrad wie auf der Videoseite: Tempo und Qualität (Auto zeigt die Stufe, die gerade läuft)
+    /// Zahnrad wie auf der Videoseite: öffnet das eigene Menü (SettingsPanel), dreht sich bei jedem Drücken ein Stück weiter
+    /// mit leichtem Nachfedern (Web: 120 Grad, das Rad hat sechs Zähne)
     private func settingsMenu(_ video: Video) -> some View {
-        Menu {
-            Section("Tempo") {
-                Picker("Tempo", selection: Binding(get: { pool.speed }, set: { pool.speed = $0; Haptics.select() })) {
-                    ForEach(PlayerPool.speeds, id: \.self) { rate in Text(PlayerPool.speedText(rate)).tag(rate) }
-                }
-            }
-            Section("Qualität") {
-                Picker("Qualität", selection: Binding(get: { pool.quality }, set: { pool.quality = $0; Haptics.select() })) {
-                    Text(pool.currentHeight.map { "Auto · " + PlayerPool.qualityText($0) } ?? "Auto").tag(Int?.none)
-                    ForEach(pool.qualities(for: video), id: \.self) { height in Text(PlayerPool.qualityText(height)).tag(Int?.some(height)) }
-                }
-            }
+        Button {
+            Haptics.select()
+            withAnimation(.spring(response: 0.62, dampingFraction: 0.62)) { gearTurns += 1 }
+            withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.2)) { settingsVideo = settingsVideo == nil ? video : nil }
         } label: {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 18, weight: .medium))
+                    .rotationEffect(.degrees(gearTurns * 120))
                     .frame(width: 42, height: 44)
                 if pool.speed != 1 {
                     Text(PlayerPool.speedText(pool.speed))
@@ -573,9 +575,35 @@ struct PlayerScreen: View {
                 }
             }
         }
-        .simultaneousGesture(TapGesture().onEnded { Haptics.select() })
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { gearFrame = $0 }
         .accessibilityLabel("Einstellungen")
         .accessibilityIdentifier("einstellungen")
+    }
+
+    /// Das offene Menü über dem Zahnrad, dahinter abgedunkelt (Tipp daneben schließt)
+    private func settingsLayer(_ video: Video) -> some View {
+        GeometryReader { g in
+            let origin = g.frame(in: .global).origin
+            let right = g.size.width - 12  // rechts 12 Punkte vom Rand wie im Web (right: 12px)
+            let bottom = gearFrame.minY - origin.y - 6
+            ZStack(alignment: .topLeading) {
+                Color.black.opacity(0.28)
+                    .contentShape(Rectangle())
+                    .onTapGesture { closeSettings() }
+                    .accessibilityHidden(true)
+                SettingsPanel(pool: pool, video: video)
+                    .frame(width: min(300, g.size.width - 24))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: right, height: max(bottom, 0), alignment: .bottomTrailing)
+                    .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .bottomTrailing)).combined(with: .offset(y: 8)))
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    private func closeSettings() {
+        Haptics.select()
+        withAnimation(.easeOut(duration: 0.16)) { settingsVideo = nil }
     }
 
     /// Vollbild über Apples eigenen Player (Ole, 22.11.2026), auch wenn man das iPhone quer dreht
