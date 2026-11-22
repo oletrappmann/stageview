@@ -140,21 +140,80 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
-    /// Links von außen: stageview://<code> öffnet den Link, stageview://<code>/<nr>?t=… den Player an der Stelle (gleich wie
-    /// videos.stagecraft.media/<code>/<nr>?t=… als Universal Link auf dem iPhone)
+    /// Kundenansicht wie videos.stagecraft.media/<code> (22.11.2026): Kategorien, YouTube Darstellung, Raster, Querformat, Hinweis
+    func testKunde() {
+        var a = app("kundenansicht:zskz92")
+        bild("c-zskz92-1", warten: 4)
+        a.swipeUp()
+        bild("c-zskz92-2", warten: 1.5)
+        a.swipeUp(); a.swipeUp()
+        bild("c-zskz92-3", warten: 1.5)
+        a.swipeDown(); a.swipeDown(); a.swipeDown(); a.swipeDown()
+        Thread.sleep(forTimeInterval: 0.8)
+        a.buttons["kunde-sortierung"].firstMatch.tap()
+        bild("c-sortierung")
+        a.terminate()
+
+        a = app("kundenansicht:zskz92")
+        Thread.sleep(forTimeInterval: 3)
+        a.swipeUp()
+        Thread.sleep(forTimeInterval: 1)
+        let kategorie = a.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'kategorie-Hook'")).firstMatch
+        if kategorie.waitForExistence(timeout: 3) { kategorie.tap() }
+        bild("c-zskz92-zu", warten: 1.2)
+        a.terminate()
+
+        for code in ["bh7abm", "pcujkd", "8fykkr", "7zn3a4"] {
+            a = app("kundenansicht:\(code)")
+            bild("c-\(code)-1", warten: 4)
+            a.swipeUp()
+            bild("c-\(code)-2", warten: 1.5)
+            if code == "bh7abm" { a.swipeUp(); a.swipeUp(); bild("c-\(code)-3", warten: 1.5) }
+            a.terminate()
+        }
+
+        // Kachel antippen: Player über der Kundenansicht, schließen führt zurück
+        a = app("kundenansicht:pcujkd")
+        Thread.sleep(forTimeInterval: 3)
+        a.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'kachel-'")).firstMatch.tap()
+        bild("c-player", warten: 4)
+        a.buttons["player-schliessen"].firstMatch.tap()
+        bild("c-zurueck", warten: 1.5)
+        a.terminate()
+
+        // Seite des Links (Verwaltung): der Link öffnet die Kundenansicht
+        a = app("projekt:zskz92")
+        Thread.sleep(forTimeInterval: 3)
+        a.buttons["link-kundenansicht"].firstMatch.tap()
+        bild("c-aus-verwaltung", warten: 3)
+        a.terminate()
+    }
+
+    /// Nur gemischte Formate (Querformat in der Hochkant Kachel)
+    func testKundeGemischt() {
+        let a = app("kundenansicht:7zn3a4")
+        bild("c-7zn3a4-1", warten: 4)
+        a.terminate()
+    }
+
+    /// Links von außen: stageview://<code> öffnet die Kundenansicht, stageview://<code>/<nr>?t=… den Player an der Stelle darüber
+    /// (gleich wie videos.stagecraft.media/<code>/<nr>?t=… als Universal Link auf dem iPhone)
     func testLinks() {
         let a = app("liste")
         Thread.sleep(forTimeInterval: 2.5)
         a.open(URL(string: "stageview://zskz92")!)
-        bild("l1-link-projekt", warten: 2.5)
+        bild("l1-link-projekt", warten: 3)
         a.open(URL(string: "stageview://8fykkr/1?t=30")!)
         bild("l2-link-video-zeit", warten: 5)
+        a.buttons["player-schliessen"].firstMatch.tap()
+        bild("l3-nach-player", warten: 2)
         a.terminate()
     }
 
     func testAlles() {
         testAnmeldung()
         testStart()
+        testKunde()
         testPlayer()
         testLinks()
         testBilder()

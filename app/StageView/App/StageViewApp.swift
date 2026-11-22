@@ -32,6 +32,8 @@ struct StageViewApp: App {
 enum Route: Hashable {
     case project(String)
     case customer(String)
+    /// Kundenansicht eines Links wie videos.stagecraft.media/<code>
+    case client(String)
 }
 
 /// Neuer Link, auf Wunsch schon mit Kunde
@@ -81,6 +83,7 @@ struct MainView: View {
                     switch route {
                     case .project(let key): ProjectPage(key: key, path: $path)
                     case .customer(let id): CustomerPage(id: id, path: $path)
+                    case .client(let key): ClientPage(key: key, path: $path)
                     }
                 }
         }

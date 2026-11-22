@@ -21,7 +21,7 @@ def slug(t):
 liste = subprocess.run(["ssh", "-i", str(Path.home() / ".ssh/id_ed25519"), "hermes@82.165.217.31", "stageview liste"],
                        capture_output=True, text=True, timeout=60).stdout
 zeilen = [re.match(r"^(\w{6})\s+\S+\s+(.*) · ([^·]*?)\s+\((\d+) Videos?, angelegt (\d\d)\.(\d\d)\.(\d{4})\)\s+\[(.*)\]$", z) for z in liste.splitlines()]
-projekte, kommentare_alle, kunden = [], {}, {}
+projekte, kommentare_alle, kunden, seiten = [], {}, {}, {}
 for m in [m for m in zeilen if m]:
     code, titel, kunde, _, tag, monat, jahr, schluessel = m.groups()
     try:
@@ -31,6 +31,9 @@ for m in [m for m in zeilen if m]:
         print("übersprungen", code, e)
         continue
     kommentare_alle[code] = api
+    # Aufbau der Kundenansicht wie in projekt.json (Kategorien, Darstellung, Hinweis, Kategorie pro Video)
+    seiten[code] = {"gruppen": pj.get("gruppen") or [], "darstellung": pj.get("darstellung") or "abschnitte", "hinweis": pj.get("hinweis") or "",
+                    "videos": [{"id": v["id"], "gruppe": v.get("gruppe")} for v in pj.get("videos", [])]}
     offen, gesamt, letzte = defaultdict(int), defaultdict(int), None
     for k in api["kommentare"]:
         letzte = max(letzte or "", k["erstellt"])
@@ -57,5 +60,5 @@ for m in [m for m in zeilen if m]:
     print(f"{code}  {len(videos):2} Videos  {sum(offen.values()):2} offen  {titel}")
 uebersicht = {"projekte": projekte, "kunden": sorted(kunden.values(), key=lambda k: k["name"].lower()), "auftraege": [],
               "ich": {"zugang": "tess", "name": "Ole"}}
-ZIEL.write_text(json.dumps({"uebersicht": uebersicht, "kommentare": kommentare_alle}, ensure_ascii=False), encoding="utf-8")
+ZIEL.write_text(json.dumps({"uebersicht": uebersicht, "kommentare": kommentare_alle, "seiten": seiten}, ensure_ascii=False), encoding="utf-8")
 print("geschrieben:", ZIEL, f"{len(projekte)} Links")

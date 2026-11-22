@@ -43,7 +43,7 @@ struct ProjectPage: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        LinkMenuItems(project: project, delete: { confirmDelete = true })
+                        LinkMenuItems(project: project, client: { path.append(.client(key)) }, delete: { confirmDelete = true })
                     } label: { Image(systemName: "ellipsis") }
                         .accessibilityLabel("Mehr")
                         .accessibilityIdentifier("projekt-mehr")
@@ -173,21 +173,34 @@ struct ProjectPage: View {
     private func linkBox(_ project: Project) -> some View {
         CardBox {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    StageViewMark(size: 26)
-                    Text(project.shortLink)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Palette.text)
-                        .lineLimit(1)
-                        .textSelection(.enabled)
-                    Spacer()
+                // Der Link öffnet die Kundenansicht wie im Web (Ole, 22.11.2026)
+                Button {
+                    guard project.code != nil else { return }
+                    Haptics.select()
+                    path.append(.client(project.key))
+                } label: {
+                    HStack(spacing: 8) {
+                        StageViewMark(size: 26)
+                        Text(project.shortLink)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(project.code != nil ? Palette.accent : Palette.text)
+                            .underline(project.code != nil, color: Palette.accent.opacity(0.4))
+                            .lineLimit(1)
+                        Spacer()
+                        if project.code != nil {
+                            Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.faint)
+                        }
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Kundenansicht öffnen, \(project.shortLink)")
+                .accessibilityIdentifier("link-kundenansicht")
                 if let link = project.link {
                     HStack(spacing: 8) {
                         Button {
-                            guard let first = project.videos.first else { return }
                             Haptics.press()
-                            store.play(project, first, source: "projekt-\(first.id)")
+                            path.append(.client(project.key))
                         } label: { CapsuleButtonLabel(title: "Ansehen", symbol: "play.fill", primary: true) }
                             .buttonStyle(PressStyle())
                             .disabled(project.videos.isEmpty)

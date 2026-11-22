@@ -39,6 +39,7 @@ struct StartActions {
     var customer: (Customer) -> Void
     var delete: (Project) -> Void
     var manageCustomers: () -> Void = {}
+    var client: (Project) -> Void = { _ in }
 }
 
 /// Startseite: Kopf, drei Seiten zum Wischen, Leiste unten, Fenster und Rückfragen
@@ -58,7 +59,8 @@ struct StartPage: View {
                      newLink: { newLink = NewLinkStart(customerID: $0) },
                      customer: { path.append(.customer($0.id)) },
                      delete: { deleting = $0 },
-                     manageCustomers: { customersOpen = true })
+                     manageCustomers: { customersOpen = true },
+                     client: { path.append(.client($0.key)) })
     }
 
     var body: some View {
@@ -314,7 +316,8 @@ struct CustomerPage: View {
                     .padding(.top, 16)
                     LinkFeed(projects: list, actions: StartActions(open: { path.append(.project($0.key)) },
                                                                    play: { project, video, source in store.play(project, video, source: source) },
-                                                                   newLink: { _ in }, customer: { _ in }, delete: { deleting = $0 }))
+                                                                   newLink: { _ in }, customer: { _ in }, delete: { deleting = $0 },
+                                                                   client: { path.append(.client($0.key)) }))
                 }
                 .sheet(isPresented: $editing) { CustomerEditSheet(customer: customer) }
             } else {

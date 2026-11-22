@@ -13,11 +13,15 @@ enum DeleteText {
 struct LinkMenuItems: View {
     let project: Project
     var open: (() -> Void)?
+    /// Kundenansicht wie im Web, sonst spielt „Ansehen“ das erste Video
+    var client: (() -> Void)?
     let delete: () -> Void
     @State private var store = Store.shared
 
     var body: some View {
-        if let first = project.videos.first {
+        if let client, project.code != nil {
+            Button(action: client) { Label("Kundenansicht", systemImage: "play.rectangle.on.rectangle") }
+        } else if let first = project.videos.first {
             Button { store.play(project, first, source: nil) } label: { Label("Ansehen", systemImage: "play.rectangle") }
         }
         if let open { Button(action: open) { Label("Öffnen", systemImage: "rectangle.stack") } }

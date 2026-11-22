@@ -163,7 +163,7 @@ struct StartLinkRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PressStyle(scale: 0.98))
-        .contextMenu { LinkMenuItems(project: project, open: { actions.open(project) }, delete: { actions.delete(project) }) }
+        .contextMenu { LinkMenuItems(project: project, open: { actions.open(project) }, client: { actions.client(project) }, delete: { actions.delete(project) }) }
         .accessibilityIdentifier("zeile-\(project.code ?? project.key)")
     }
 }

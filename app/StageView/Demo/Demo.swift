@@ -4,7 +4,7 @@ import SwiftUI
 /// Vorführung ohne Anmeldung und ohne Server (nur Testbuilds). Daten aus SV_DEMO_DATEI (scripts/demo_daten.py, echter Stand der
 /// öffentlichen Videoseiten), sonst ein kleines Beispiel. SV_DEMO wählt den Startpunkt:
 ///   liste, anmeldung, kunde:<id>, filter:<kommentare|aenderung|fertig>, suche:<text>, projekt:<code>, bearbeiten:<code>,
-///   player:<code>:<nr>[:<sekunde>], neu, neu-lauf, kunden, meldungen
+///   player:<code>:<nr>[:<sekunde>], kundenansicht:<code>, neu, neu-lauf, kunden, meldungen
 /// Schreiben bleibt lokal, nichts geht an den Server.
 enum Demo {
     static let mode = ProcessInfo.processInfo.environment["SV_DEMO"]
@@ -14,6 +14,7 @@ enum Demo {
     private struct File: Decodable {
         var uebersicht: Overview
         var kommentare: [String: ReviewState]
+        var seiten: [String: ClientLayout]?
     }
 
     private static let file: File? = {
@@ -28,6 +29,7 @@ enum Demo {
     }()
 
     static func review(_ code: String) -> ReviewState { file?.kommentare[code] ?? ReviewState() }
+    static func page(_ code: String) -> ClientLayout { file?.seiten?[code] ?? ClientLayout() }
 
     private static var parts: [String] { (mode ?? "").split(separator: ":").map(String.init) }
 
@@ -53,6 +55,7 @@ enum Demo {
     @MainActor
     static var initialPath: [Route] {
         if parts.first == "kundenseite", parts.count > 1 { return [.customer(parts[1])] }
+        if parts.first == "kundenansicht", parts.count > 1, let project = Store.shared.project(code: parts[1]) { return [.client(project.key)] }
         guard ["projekt", "bearbeiten"].contains(parts.first ?? ""), parts.count > 1, let project = Store.shared.project(code: parts[1]) else { return [] }
         return [.project(project.key)]
     }

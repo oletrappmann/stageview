@@ -176,7 +176,8 @@ final class Store {
     // MARK: Links von außen (videos.stagecraft.media und stageview://)
 
     /// Öffnet einen StageView Link in der App (Ole, 22.11.2026: „StageView Web und System mit der iOS App verknüpfen“):
-    /// /admin → Startseite, /<code> → Seite des Links, /<code>/<nr>?t=42 → Player an der Stelle. Gleiche Form mit stageview://
+    /// /admin → Startseite, /<code> → Kundenansicht wie im Web (Ole, 22.11.2026: „erst mal in den normalen Client öffnen, nicht
+    /// in die Admin Ansicht“), /<code>/<nr>?t=42 → Player an der Stelle über der Kundenansicht. Gleiche Form mit stageview://
     /// (stageview://abc123/2?t=42). Vor der Anmeldung oder solange die Übersicht noch lädt, wartet der Link.
     func open(_ url: URL) {
         let parts = (url.scheme == "stageview" ? [url.host ?? ""] + url.pathComponents : url.pathComponents)
@@ -191,7 +192,7 @@ final class Store {
             show("Diesen Link gibt es nicht (mehr) oder er ist noch nicht in der Übersicht.", error: true)
             return
         }
-        jump = [.project(project.key)]
+        jump = [.client(project.key)]
         if parts.count > 1, let nr = Int(parts[1]), let video = project.videos.first(where: { $0.nr == nr }) {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(450))
