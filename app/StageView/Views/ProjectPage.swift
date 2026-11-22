@@ -89,8 +89,20 @@ struct ProjectPage: View {
                 linkBox(project).padding(.top, 18)
                 if !project.videos.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        ApprovalBar(approved: project.approved, changes: project.changes, total: project.videos.count, height: 8)
-                        Text(project.approvalSummary).font(.system(size: 15)).foregroundStyle(Palette.muted)
+                        // Feedback statt Freigabe (Ole, 22.11.2026), gleich wie im Admin Dashboard
+                        let total = project.feedbackTotal, open = project.openCount, done = project.feedbackDone
+                        if total > 0 {
+                            GeometryReader { g in
+                                HStack(spacing: 2) {
+                                    if done > 0 { Capsule().fill(Palette.approved).frame(width: max(4, (g.size.width - (open > 0 ? 2 : 0)) * CGFloat(done) / CGFloat(total))) }
+                                    if open > 0 { Capsule().fill(Palette.pending) }
+                                }
+                            }
+                            .frame(height: 8)
+                        }
+                        Text(total == 0 ? "Noch kein Feedback" : open == 0 ? "Feedback erledigt · \(Plural.count(total, "Kommentar", "Kommentare"))"
+                             : "\(done) von \(total) Kommentaren erledigt · \(open) offen")
+                            .font(.system(size: 15)).foregroundStyle(Palette.muted)
                     }
                     .padding(.top, 20)
                     .padding(.horizontal, 4)
@@ -275,11 +287,15 @@ struct ProjectPage: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(project.videos.enumerated()), id: \.element.id) { index, video in
-                        videoRow(project, video)
-                            .overlay(alignment: .top) { if index > 0 { RowDivider(leading: 78) } }
+                        // Nach links wischen: von der Seite nehmen (Ole, 22.11.2026), mit Rückfrage
+                        SwipeReveal(title: "Entfernen", symbol: "rectangle.badge.minus") { removing = video } content: {
+                            videoRow(project, video)
+                        }
+                        .overlay(alignment: .top) { if index > 0 { RowDivider(leading: 78) } }
                     }
                 }
                 .padding(.vertical, 4)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .background(Palette.field, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Palette.line.opacity(0.6), lineWidth: 0.5))
             }
@@ -287,10 +303,12 @@ struct ProjectPage: View {
     }
 
     private func videoRow(_ project: Project, _ video: Video) -> some View {
-        Button {
+        // Kein Button: der löst auch bei einer Wischbewegung aus, dann spielte das Video statt „Entfernen“ zu zeigen
+        let play = {
             Haptics.press()
             store.play(project, video, source: "projekt-\(video.id)")
-        } label: {
+        }
+        return Group {
             HStack(spacing: 12) {
                 RemoteImage(url: video.thumbnail(width: 360))
                     .frame(width: video.portrait ? 40 : 54, height: video.portrait ? 71 : 30)
@@ -329,11 +347,16 @@ struct ProjectPage: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
+            .background(Palette.field)
             .contentShape(Rectangle())
+            .onTapGesture(perform: play)
         }
-        .buttonStyle(PressStyle(scale: 0.98))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(.default, play)
+        .accessibilityIdentifier("videozeile-\(video.nr)")
         .contextMenu {
-            Button { store.play(project, video, source: "projekt-\(video.id)") } label: { Label("Ansehen", systemImage: "play.rectangle") }
+            Button { store.play(project, video, source: "projekt-\(video.id)") } label: { Label("Abspielen", systemImage: "play.rectangle") }
             Button {
                 renameText = video.title
                 renaming = video

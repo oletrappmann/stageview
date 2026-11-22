@@ -249,6 +249,39 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Nur die Startseite (grüner Verlauf prüfen)
+    func testKopf() {
+        let a = app("liste")
+        bild("k-links", warten: 3.5)
+        a.terminate()
+    }
+
+    /// Feedback statt Freigabe, Überschriften, grüner Verlauf, Wischen zum Entfernen (22.11.2026)
+    func testFeedback() {
+        var a = app("liste")
+        bild("f1-links", warten: 3.5)
+        a.swipeUp()
+        bild("f1b-links-gescrollt", warten: 1.5)
+        a.swipeDown()
+        a.swipeLeft()
+        bild("f2-kommentare", warten: 1.5)
+        a.swipeLeft()
+        bild("f3-kunden", warten: 1.5)
+        a.terminate()
+        a = app("liste", env: ["SV_WIDGET": "zahlen"])
+        bild("f4-zahlen", warten: 3.5)
+        a.terminate()
+        a = app("projekt:u9kd8m")
+        bild("f5-projekt", warten: 3)
+        a.swipeUp()
+        Thread.sleep(forTimeInterval: 1)
+        let zeile = a.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Makler ersetzen' AND label CONTAINS 'Zur Freigabe'")).firstMatch
+        zeile.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: zeile.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5)))
+        bild("f6-wischen", warten: 1)
+        a.terminate()
+    }
+
     /// Teilen Fenster wie im Web (22.11.2026): im Player mit „Ab 0:12 starten“, Kopiert, und in der Kundenansicht
     func testTeilen() {
         var a = app("player:8fykkr:1:12")

@@ -1,10 +1,11 @@
 import SwiftUI
 
 /// Oben auf der Seite Links: Widgets und kleine Berichte (Ole, 22.11.2026: „noch mehr Vorschläge, oben irgendwelche Widgets,
-/// irgendwelche Berichte“). Fünf Entwürfe, bis Ole wählt (Testbuild: SV_WIDGET = zahlen, woche, zutun, freigabe, stapel).
+/// irgendwelche Berichte“). Entwürfe, bis Ole wählt (Testbuild: SV_WIDGET = zahlen, woche, zutun, stapel). Der Entwurf „Freigabe“
+/// ist seit 22.11.2026 raus (Ole: keine Zahl, wie viele Videos freigegeben sind).
 /// Ohne Wahl steht oben nichts, so wie abgenommen.
 enum WidgetStyle: String {
-    case keine, zahlen, woche, zutun, freigabe, stapel
+    case keine, zahlen, woche, zutun, stapel
 
     static var current: WidgetStyle {
         #if DEBUG
@@ -68,7 +69,6 @@ struct StartWidgets: View {
         case .zahlen: NumbersWidget(go: go).padding(.horizontal, 16).padding(.bottom, 14)
         case .woche: WeekWidget().padding(.horizontal, 16).padding(.bottom, 14)
         case .zutun: WaitingWidget(actions: actions, go: go).padding(.horizontal, 16).padding(.bottom, 14)
-        case .freigabe: ApprovalWidget().padding(.horizontal, 16).padding(.bottom, 14)
         case .stapel: WidgetStack(actions: actions, go: go).padding(.bottom, 10)
         }
     }
@@ -108,14 +108,16 @@ struct NumbersWidget: View {
 
     var body: some View {
         let t = store.totals
+        // Ohne Freigabe Zahlen (Ole, 22.11.2026): offene Kommentare, Links ohne Feedback, neue Links der Woche, Videos
+        let silent = store.projects.filter { !$0.videos.isEmpty && $0.feedbackTotal == 0 }.count
         HStack(spacing: 0) {
             cell(t.openComments, "Offen", Palette.changes) { go(.kommentare) }
             divider
-            cell(t.changes, "Änderung", Palette.changes) { store.filter = .changes }
+            cell(silent, "Ohne Feedback", Palette.faint) {}
             divider
-            cell(t.pending, "Zur Freigabe", Palette.pending) { store.filter = .all }
+            cell(store.weekProjects.count, "Neu diese Woche", Palette.accent) {}
             divider
-            cell(t.approved, "Freigegeben", Palette.approved) { store.filter = .done }
+            cell(t.videos, "Videos", Palette.forestLight) {}
         }
         .padding(.vertical, 12)
         .background(Palette.field, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -296,73 +298,6 @@ struct WaitingWidget: View {
     }
 }
 
-// MARK: 4 Freigabe
-
-/// Freigabe über alle Videos: Ring mit drei Teilen (freigegeben, Änderung, zur Freigabe) und daneben dieselben Zahlen als Text
-struct ApprovalWidget: View {
-    var compact = false
-    @State private var store = Store.shared
-
-    var body: some View {
-        let t = store.totals
-        let total = max(t.videos, 1)
-        WidgetCard(height: compact ? 182 : nil) {
-            WidgetTitle(title: "Freigabe", detail: Plural.count(store.projects.count, "Link", "Links"))
-            HStack(spacing: 20) {
-                StatusRing(parts: [(t.approved, Palette.approved), (t.changes, Palette.changes), (t.pending, Palette.pending)], total: total)
-                    .frame(width: 96, height: 96)
-                    .overlay {
-                        VStack(spacing: 0) {
-                            Text("\(t.approved)").font(.system(size: 24, weight: .semibold).monospacedDigit()).foregroundStyle(Palette.text)
-                            Text("von \(t.videos)").font(.system(size: 11.5)).foregroundStyle(Palette.muted)
-                        }
-                    }
-                VStack(alignment: .leading, spacing: 9) {
-                    row(Palette.approved, "Freigegeben", t.approved)
-                    row(Palette.changes, "Änderung gewünscht", t.changes)
-                    row(Palette.pending, "Zur Freigabe", t.pending)
-                }
-            }
-            .padding(.top, 12)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("widget-freigabe")
-    }
-
-    private func row(_ color: Color, _ title: String, _ value: Int) -> some View {
-        HStack(spacing: 8) {
-            Circle().fill(color).frame(width: 8, height: 8)
-            Text(title).font(.system(size: 13.5)).foregroundStyle(Palette.muted).lineLimit(1)
-            Spacer(minLength: 6)
-            Text("\(value)").font(.system(size: 14, weight: .semibold).monospacedDigit()).foregroundStyle(Palette.text)
-        }
-    }
-}
-
-/// Ring aus Teilen mit kleinem Abstand dazwischen (Fläche der Karte), Anfang oben
-struct StatusRing: View {
-    let parts: [(Int, Color)]
-    let total: Int
-
-    var body: some View {
-        let gap = parts.filter { $0.0 > 0 }.count > 1 ? 0.006 : 0
-        ZStack {
-            Circle().stroke(Palette.line, lineWidth: 10)
-            ForEach(parts.indices, id: \.self) { i in
-                let start = Double(parts[..<i].reduce(0) { $0 + $1.0 }) / Double(total)
-                let end = start + Double(parts[i].0) / Double(total)
-                if parts[i].0 > 0 {
-                    Circle()
-                        .trim(from: start + gap, to: max(start + gap + 0.002, end - gap))
-                        .stroke(parts[i].1, style: StrokeStyle(lineWidth: 10, lineCap: .butt))
-                        .rotationEffect(.degrees(-90))
-                }
-            }
-        }
-        .padding(5)
-    }
-}
-
 // MARK: 5 Stapel
 
 /// Die Widgets als Stapel zum seitlichen Wischen wie auf dem Home Bildschirm, Punkte darunter
@@ -376,12 +311,11 @@ struct WidgetStack: View {
             TabView(selection: $page) {
                 WeekWidget(compact: true).padding(.horizontal, 16).tag(0)
                 WaitingWidget(actions: actions, go: go, compact: true).padding(.horizontal, 16).tag(1)
-                ApprovalWidget(compact: true).padding(.horizontal, 16).tag(2)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(height: 182)
             HStack(spacing: 6) {
-                ForEach(0..<3, id: \.self) { i in
+                ForEach(0..<2, id: \.self) { i in
                     Capsule().fill(i == page ? Palette.text : Palette.faint)
                         .frame(width: i == page ? 16 : 6, height: 6)
                 }

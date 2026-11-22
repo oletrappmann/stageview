@@ -70,7 +70,22 @@ struct StartTopBar: View {
             .frame(height: 56)
             if !Connection.shared.online { OfflineCapsule().transition(.opacity) }
         }
-        .background(alignment: .top) { TopEdge() }
+        .background(alignment: .top) {
+            // Grüner Verlauf oben wie in der Kundenansicht und auf der Webseite (Ole, 22.11.2026: „ein grüner Ambient Farbverlauf,
+            // der Sinn macht“): hinter Logo und Überschrift, bleibt stehen, läuft weich in die Seite aus
+            // Nur im Kopf und nach unten weich auslaufend, so liegt nichts über der Liste
+            TopEdge()
+                .overlay {
+                    HeroGlow()
+                        .frame(height: 340)
+                        .offset(y: -60)
+                        .opacity(0.9)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.62),
+                                                     .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+                }
+                .allowsHitTesting(false)
+        }
         .confirmationDialog("Abmelden?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Abmelden", role: .destructive) { Task { await store.signOut() } }
         } message: {
@@ -181,5 +196,37 @@ struct OpenBadge: View {
         .frame(height: 22)
         .background(Palette.changes, in: Capsule())
         .accessibilityLabel(Plural.count(count, "offener Kommentar", "offene Kommentare"))
+    }
+}
+
+extension Project {
+    /// Kommentare insgesamt und davon erledigt (Feedback statt Freigabe, Ole 22.11.2026)
+    var feedbackTotal: Int { videos.reduce(0) { $0 + $1.comments } }
+    var feedbackDone: Int { max(0, feedbackTotal - openCount) }
+}
+
+/// Rechts in der Zeile eines Links: offene Kommentare, „erledigt“ oder „kein Feedback“ (Ole, 22.11.2026: „die Zahl, wie viele
+/// Videos freigegeben sind, entfernen, etwas Brauchbares hin“). Gleich wie die Spalte Feedback im Admin Dashboard.
+struct FeedbackMark: View {
+    let project: Project
+
+    var body: some View {
+        let open = project.openCount, total = project.feedbackTotal
+        VStack(spacing: 2) {
+            if open > 0 {
+                Text("\(open)").font(.system(size: 18, weight: .semibold).monospacedDigit()).foregroundStyle(Palette.changesInk)
+                Text("offen").font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.muted)
+            } else if total > 0 {
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 19)).foregroundStyle(Palette.approvedInk)
+                Text("erledigt").font(.system(size: 11, weight: .medium)).foregroundStyle(Palette.muted)
+            } else {
+                Image(systemName: "bubble.left").font(.system(size: 16)).foregroundStyle(Palette.faint)
+                Text("kein Feedback").font(.system(size: 10.5, weight: .medium)).foregroundStyle(Palette.faint)
+                    .multilineTextAlignment(.center).lineLimit(2)
+            }
+        }
+        .frame(width: 62)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(open > 0 ? "\(open) offene Kommentare" : total > 0 ? "Feedback erledigt" : "Noch kein Feedback")
     }
 }

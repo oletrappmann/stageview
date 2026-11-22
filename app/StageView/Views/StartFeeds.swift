@@ -156,15 +156,12 @@ struct StartLinkRow: View {
                     }
                     Text(subtitle ?? [project.customerName, project.company].filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.system(size: 13)).foregroundStyle(Palette.muted).lineLimit(1)
-                    if project.openCount > 0 || project.lastActivity != nil {
-                        HStack(spacing: 6) {
-                            if project.openCount > 0 { OpenBadge(count: project.openCount) }
-                            if let last = project.lastActivity { Text(When.ago(last)).font(.system(size: 12)).foregroundStyle(Palette.faint) }
-                        }
+                    if let last = project.lastActivity {
+                        Text(When.ago(last)).font(.system(size: 12)).foregroundStyle(Palette.faint)
                     }
                 }
                 Spacer(minLength: 4)
-                ApprovalRing(project: project, size: 44)
+                FeedbackMark(project: project)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -176,18 +173,40 @@ struct StartLinkRow: View {
     }
 }
 
+/// Seitenüberschrift wie „Alle Links“ auf jeder Seite der Startseite (Ole, 22.11.2026), rechts optional ein Knopf
+struct PageHeading<Trailing: View>: View {
+    let title: String
+    var detail: String?
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 24, weight: .bold))
+                    .tracking(-0.4)
+                    .foregroundStyle(Palette.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .accessibilityAddTraits(.isHeader)
+                if let detail { Text(detail).font(.system(size: 13)).foregroundStyle(Palette.muted).lineLimit(1) }
+            }
+            Spacer(minLength: 8)
+            trailing
+        }
+        .padding(.leading, 22)
+        .padding(.trailing, 16)
+        .padding(.top, 4)
+    }
+}
+
 /// Zeile über den Links: links die Zahlen, rechts klein der Filter
 struct FeedLine: View {
     @State private var store = Store.shared
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(store.summary).font(.system(size: 13)).foregroundStyle(Palette.muted).lineLimit(1)
-            Spacer(minLength: 8)
-            FilterMenu()
-        }
-        .padding(.leading, 22)
-        .padding(.trailing, 16)
+        // Einfach „Alle Links“ als Überschrift (Ole, 22.11.2026), gefiltert der Name der Ansicht
+        PageHeading(title: store.filter == .all ? "Alle Links" : store.filter.longLabel) { FilterMenu() }
     }
 }
 
@@ -256,10 +275,9 @@ struct CommentFeed: View {
         let items = store.allOpenComments
         if showsLine {
             let fresh = store.newCommentCount
-            Text(Plural.count(items.count, "offener Kommentar", "offene Kommentare") + (fresh > 0 ? " · \(fresh) neu" : "") + " · neueste zuerst")
-                .font(.system(size: 13)).foregroundStyle(Palette.muted)
-                .padding(.horizontal, 22)
-                .frame(height: 34)
+            PageHeading(title: "Kommentare",
+                        detail: Plural.count(items.count, "offen", "offen") + (fresh > 0 ? " · \(fresh) neu" : "") + " · neueste zuerst") { EmptyView() }
+                .padding(.bottom, 6)
         }
         if items.isEmpty {
             StartEmpty(text: "Keine offenen Kommentare")
@@ -339,9 +357,7 @@ struct CustomerFeed: View {
 
     var body: some View {
         let items = store.customersWithLinks
-        HStack {
-            Text("\(Plural.count(items.count, "Kunde", "Kunden")) · neuester Link zuerst").font(.system(size: 13)).foregroundStyle(Palette.muted)
-            Spacer()
+        PageHeading(title: "Kunden", detail: "\(Plural.count(items.count, "Kunde", "Kunden")) · neuester Link zuerst") {
             Button {
                 Haptics.select()
                 actions.manageCustomers()
@@ -353,8 +369,6 @@ struct CustomerFeed: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("kunden-verwalten")
         }
-        .padding(.leading, 22)
-        .padding(.trailing, 16)
         StartCard {
             ForEach(Array(items.enumerated()), id: \.element.customer.id) { index, item in
                 row(item.customer, item.projects)

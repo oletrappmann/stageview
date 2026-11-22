@@ -260,3 +260,77 @@ struct MadeByStagecraft: View {
             .accessibilityLabel("Made by Stagecraft")
     }
 }
+
+/// Zeile, die beim Wischen nach links eine rote Aktion freilegt (wie Apples Wischen in Listen, hier ohne List). Tippen auf die
+/// Aktion oder ganz durchwischen löst sie aus, Tippen auf die offene Zeile schließt sie wieder. Senkrecht scrollt die Seite weiter.
+struct SwipeReveal<Content: View>: View {
+    let title: String
+    let symbol: String
+    let action: () -> Void
+    @ViewBuilder let content: Content
+
+    @State private var offset: CGFloat = 0
+    @State private var start: CGFloat?
+    @State private var armed = false
+    private let width: CGFloat = 92
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            Button {
+                Haptics.press()
+                close()
+                action()
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: symbol).font(.system(size: 18, weight: .semibold))
+                    Text(title).font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .frame(width: max(width, -offset), alignment: .center)
+                .frame(maxHeight: .infinity)
+                .background(Palette.overdue)
+            }
+            .buttonStyle(.plain)
+            .opacity(offset < 0 ? 1 : 0)
+            .accessibilityHidden(offset == 0)
+            content
+                .offset(x: offset)
+                .overlay {
+                    if offset < 0 {
+                        Color.clear.contentShape(Rectangle()).offset(x: offset).onTapGesture(perform: close)
+                    }
+                }
+        }
+        .clipped()
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 18)
+                .onChanged { value in
+                    guard abs(value.translation.width) > abs(value.translation.height) * 1.4 || start != nil else { return }
+                    if start == nil { start = offset }
+                    let raw = (start ?? 0) + value.translation.width
+                    offset = min(0, raw > -width * 2.2 ? raw : -width * 2.2 + (raw + width * 2.2) * 0.3)
+                    let full = offset < -width * 1.9
+                    if full != armed { armed = full; Haptics.select() }
+                }
+                .onEnded { value in
+                    guard start != nil else { return }
+                    start = nil
+                    if armed {
+                        armed = false
+                        Haptics.press()
+                        close()
+                        action()
+                    } else {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                            offset = offset < -width * 0.45 || value.predictedEndTranslation.width < -width ? -width : 0
+                        }
+                    }
+                }
+        )
+        .accessibilityAction(named: title, action)
+    }
+
+    private func close() {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) { offset = 0 }
+    }
+}
