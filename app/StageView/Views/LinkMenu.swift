@@ -40,3 +40,32 @@ struct LinkMenuItems: View {
         }
     }
 }
+
+/// Freigabe per langem Drücken auf ein Video, ohne erst den Player zu öffnen (Review 22.11.2026)
+struct StatusMenuItems: View {
+    let project: Project
+    let video: Video
+
+    var body: some View {
+        if let code = project.code {
+            let review = ReviewStore.of(code)
+            let current = review.status(of: video)
+            Section("Freigabe") {
+                ForEach(ReviewStatus.allCases) { option in
+                    Button {
+                        option == .approved ? Haptics.check() : Haptics.select()
+                        Task { await review.setStatus(option, for: video) }
+                    } label: { Label(option.title, systemImage: option == current ? "checkmark" : option.symbol) }
+                }
+            }
+        }
+    }
+}
+
+extension Array where Element == Route {
+    /// Zur Kundenansicht bzw. Verwaltung eines Links wechseln. Liegt das Gegenstück direkt davor, geht es zurück statt immer
+    /// tiefer (Review 22.11.2026: Kundenansicht und Verwaltung stapelten sich endlos)
+    mutating func switchTo(_ route: Route) {
+        if count >= 2, self[count - 2] == route { removeLast() } else { append(route) }
+    }
+}

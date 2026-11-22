@@ -80,7 +80,8 @@ final class Store {
 
     private init() {
         let d = UserDefaults.standard
-        filter = LinkFilter(rawValue: d.string(forKey: "sv.ansicht") ?? "") ?? .all
+        // Beim Start immer alle Links (Review 22.11.2026: gestern „Fertig“ gewählt, heute die neuen Links nicht oben)
+        filter = .all
         sort = LinkSort(rawValue: d.string(forKey: "sv.sortierung") ?? "") ?? .activity
         dismissedJobs = d.stringArray(forKey: "sv.meldungen.weg") ?? []
         jobsCollapsed = d.bool(forKey: "sv.meldungen.zu")

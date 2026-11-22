@@ -61,11 +61,11 @@ struct ClientPage: View {
             if let project {
                 ToolbarItem(placement: .topBarTrailing) { shareMenu(project) }
                 ToolbarItem(placement: .topBarTrailing) {
+                    // „Verwalten“ als Wort: das Reglersymbol sah wie ein Filter aus (Review 22.11.2026)
                     Button {
                         Haptics.select()
-                        path.append(.project(key))
-                    } label: { Image(systemName: "slider.horizontal.3") }
-                        .accessibilityLabel("Verwalten")
+                        path.switchTo(.project(key))
+                    } label: { Text("Verwalten").font(.system(size: 15, weight: .semibold)) }
                         .accessibilityIdentifier("kunde-verwalten")
                 }
             }
@@ -397,6 +397,16 @@ struct ClientPage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PressStyle(scale: 0.97))
+        .contextMenu {
+            Button { store.play(project, video, source: "kunde-\(video.id)") } label: { Label("Abspielen", systemImage: "play.fill") }
+            if let link = project.videoLink(video) {
+                Button {
+                    UIPasteboard.general.url = link
+                    store.show("Link zum Video kopiert", symbol: "doc.on.doc")
+                } label: { Label("Link zum Video kopieren", systemImage: "doc.on.doc") }
+            }
+            StatusMenuItems(project: project, video: video)
+        }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("kachel-\(video.nr)")
     }

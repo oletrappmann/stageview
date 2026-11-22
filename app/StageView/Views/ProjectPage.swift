@@ -13,6 +13,7 @@ struct ProjectPage: View {
     @State private var removing: Video?
     @State private var sources = ""
     @State private var addTitle = ""
+    @State private var addOpen = false
     @Environment(\.zoomSpace) private var zoom
     @Environment(\.dismiss) private var dismiss
 
@@ -43,7 +44,7 @@ struct ProjectPage: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        LinkMenuItems(project: project, client: { path.append(.client(key)) }, delete: { confirmDelete = true })
+                        LinkMenuItems(project: project, client: { path.switchTo(.client(key)) }, delete: { confirmDelete = true })
                     } label: { Image(systemName: "ellipsis") }
                         .accessibilityLabel("Mehr")
                         .accessibilityIdentifier("projekt-mehr")
@@ -108,6 +109,12 @@ struct ProjectPage: View {
                     .padding(.top, 14)
                 }
 
+                // Offene Kommentare direkt unter der Freigabe (Review 22.11.2026: vorher ganz unten nach allen Videos)
+                if !project.openComments.isEmpty {
+                    SectionTitle(title: "Offene Kommentare", count: project.openComments.count).padding(.top, 30).padding(.horizontal, 4)
+                    comments(project).padding(.top, 10)
+                }
+
                 SectionTitle(title: "Videos", count: project.videos.count).padding(.top, 30).padding(.horizontal, 4)
                 videos(project).padding(.top, 10)
                 if project.waiting > 0 {
@@ -119,13 +126,35 @@ struct ProjectPage: View {
                 }
 
                 if project.code != nil {
-                    SectionTitle(title: "Videos dazu", detail: "Neue Schnittfassung? Einfach dazu, die alte bleibt mit ihren Kommentaren daneben stehen.")
-                        .padding(.top, 30).padding(.horizontal, 4)
-                    addBox(project).padding(.top, 10)
+                    Button {
+                        Haptics.select()
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) { addOpen.toggle() }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(Palette.text)
+                                .frame(width: 34, height: 34)
+                                .background(Palette.surface, in: Circle())
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Videos dazu").font(.system(size: 16, weight: .semibold)).foregroundStyle(Palette.text)
+                                Text("Neue Schnittfassung? Die alte bleibt mit ihren Kommentaren stehen.")
+                                    .font(.system(size: 13)).foregroundStyle(Palette.muted).lineLimit(2).multilineTextAlignment(.leading)
+                            }
+                            Spacer(minLength: 4)
+                            Image(systemName: "chevron.down").font(.system(size: 13, weight: .bold)).foregroundStyle(Palette.faint)
+                                .rotationEffect(.degrees(addOpen ? 0 : -90))
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 30)
+                    .padding(.horizontal, 4)
+                    .accessibilityIdentifier("videos-dazu")
+                    if addOpen {
+                        addBox(project).padding(.top, 10).transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
-
-                SectionTitle(title: "Offene Kommentare", count: project.openComments.count).padding(.top, 30).padding(.horizontal, 4)
-                comments(project).padding(.top, 10)
 
                 if project.code != nil {
                     deleteBox(project).padding(.top, 34)
@@ -177,7 +206,7 @@ struct ProjectPage: View {
                 Button {
                     guard project.code != nil else { return }
                     Haptics.select()
-                    path.append(.client(project.key))
+                    path.switchTo(.client(project.key))
                 } label: {
                     HStack(spacing: 8) {
                         StageViewMark(size: 26)
@@ -200,7 +229,7 @@ struct ProjectPage: View {
                     HStack(spacing: 8) {
                         Button {
                             Haptics.press()
-                            path.append(.client(project.key))
+                            path.switchTo(.client(project.key))
                         } label: { CapsuleButtonLabel(title: "Projekt anzeigen", symbol: "rectangle.grid.2x2", primary: true) }
                             .buttonStyle(PressStyle())
                             .disabled(project.videos.isEmpty)
@@ -282,8 +311,9 @@ struct ProjectPage: View {
                             .multilineTextAlignment(.leading)
                     }
                     HStack(spacing: 6) {
-                        StatusDot(status: video.status)
-                        Text([video.status.title, Clock.text(video.duration)].joined(separator: " · "))
+                        let status = project.code.map { ReviewStore.of($0).status(of: video) } ?? video.status
+                        StatusDot(status: status)
+                        Text([status.title, Clock.text(video.duration)].joined(separator: " · "))
                             .foregroundStyle(Palette.muted)
                         if video.open > 0 {
                             Text("· \(Plural.count(video.open, "offen", "offen"))").foregroundStyle(Palette.changesInk).fontWeight(.semibold)
@@ -316,7 +346,8 @@ struct ProjectPage: View {
                 ShareLink(item: link) { Label("Teilen", systemImage: "square.and.arrow.up") }
                 Link(destination: link) { Label("In Safari öffnen", systemImage: "safari") }
             }
-            if let drive = video.driveURL { Link(destination: drive) { Label("Im Drive öffnen", systemImage: "externaldrive") } }
+            if let drive = video.driveURL { Link(destination: drive) { Label("Original im Drive", systemImage: "arrow.down.circle") } }
+            StatusMenuItems(project: project, video: video)
             Divider()
             Button(role: .destructive) { removing = video } label: { Label("Von der Seite nehmen", systemImage: "rectangle.badge.minus") }
         }
@@ -372,7 +403,11 @@ struct ProjectPage: View {
     private func commentRow(_ project: Project, _ comment: OpenComment) -> some View {
         let video = project.videos.first { $0.id == comment.video }
         return Button {
-            guard let video else { return }
+            guard let video else {
+                Haptics.error()
+                store.show("Das Video ist nicht mehr auf der Seite", symbol: "rectangle.badge.minus", error: true)
+                return
+            }
             Haptics.press()
             store.play(project, video, at: comment.time, source: "projekt-\(video.id)", comment: comment.id)
         } label: {

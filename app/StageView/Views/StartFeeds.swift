@@ -84,6 +84,7 @@ struct LinkFeed: View {
     let projects: [Project]
     let actions: StartActions
     var empty: String?
+    var subtitle: ((Project) -> String)?
 
     var body: some View {
         if projects.isEmpty {
@@ -100,7 +101,7 @@ struct LinkFeed: View {
                 .accessibilityAddTraits(.isHeader)
                 StartCard {
                     ForEach(Array(group.items.enumerated()), id: \.element.id) { index, project in
-                        StartLinkRow(project: project, actions: actions)
+                        StartLinkRow(project: project, actions: actions, subtitle: subtitle?(project))
                             .overlay(alignment: .top) { if index > 0 { RowDivider(leading: 84) } }
                     }
                 }
@@ -124,6 +125,8 @@ struct StartCard<Content: View>: View {
 struct StartLinkRow: View {
     let project: Project
     let actions: StartActions
+    /// Zweite Zeile, sonst Kunde · Firma (auf der Seite eines Kunden: Firma · Code)
+    var subtitle: String?
 
     var body: some View {
         Button {
@@ -146,8 +149,13 @@ struct StartLinkRow: View {
                 }
                 .frame(width: 56, height: 70)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(project.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Palette.text).lineLimit(1)
-                    Text(project.detail).font(.system(size: 13)).foregroundStyle(Palette.muted).lineLimit(1)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        if Seen.shared.isNewLink(project) { NewDot().alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 } }
+                        Text(project.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Palette.text).lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Text(subtitle ?? [project.customerName, project.company].filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(.system(size: 13)).foregroundStyle(Palette.muted).lineLimit(1)
                     if project.openCount > 0 || project.lastActivity != nil {
                         HStack(spacing: 6) {
                             if project.openCount > 0 { OpenBadge(count: project.openCount) }
@@ -185,14 +193,16 @@ struct FeedLine: View {
 
 /// Kleiner Glasknopf mit Menü: Ansicht (mit Zahlen) und Kunde
 struct FilterMenu: View {
-    var customers = true
+    /// Eigener Filter (Seite eines Kunden), sonst der der Startseite
+    var selection: Binding<LinkFilter>?
+    var customers = false
     /// In der Navigationsleiste: nur das Zeichen, das Glas kommt von der Leiste
     var bare = false
     @State private var store = Store.shared
 
     var body: some View {
         Menu {
-            Picker("Ansicht", selection: $store.filter) {
+            Picker("Ansicht", selection: selection ?? $store.filter) {
                 ForEach(LinkFilter.allCases, id: \.self) { filter in
                     Text(filter.longLabel).tag(filter)
                 }
@@ -207,7 +217,7 @@ struct FilterMenu: View {
                 .pickerStyle(.menu)
             }
         } label: {
-            let active = store.filter != .all || (customers && store.customerID != nil)
+            let active = current != .all || (customers && store.customerID != nil)
             if bare {
                 Image(systemName: active ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
             } else {
@@ -225,8 +235,10 @@ struct FilterMenu: View {
         .accessibilityIdentifier("filter-menue")
     }
 
+    private var current: LinkFilter { selection?.wrappedValue ?? store.filter }
+
     private var label: String {
-        let parts = [store.filter == .all ? nil : store.filter.label,
+        let parts = [current == .all ? nil : current.label,
                      customers ? store.customer.map { $0.name.split(separator: " ").first.map(String.init) ?? $0.name } : nil]
             .compactMap { $0 }
         return parts.isEmpty ? "Alle" : parts.joined(separator: " · ")
@@ -243,7 +255,8 @@ struct CommentFeed: View {
     var body: some View {
         let items = store.allOpenComments
         if showsLine {
-            Text(Plural.count(items.count, "offener Kommentar", "offene Kommentare") + " · neueste zuerst")
+            let fresh = store.newCommentCount
+            Text(Plural.count(items.count, "offener Kommentar", "offene Kommentare") + (fresh > 0 ? " · \(fresh) neu" : "") + " · neueste zuerst")
                 .font(.system(size: 13)).foregroundStyle(Palette.muted)
                 .padding(.horizontal, 22)
                 .frame(height: 34)
@@ -270,14 +283,24 @@ private struct CommentFeedRow: View {
     var body: some View {
         let video = project.videos.first { $0.id == comment.video }
         Button {
-            guard let video else { return }
+            guard let video else {
+                Haptics.error()
+                store.show("Das Video ist nicht mehr auf der Seite", symbol: "rectangle.badge.minus", error: true)
+                return
+            }
             Haptics.press()
             store.play(project, video, at: comment.time, source: nil, comment: comment.id)
         } label: {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
+                        if Seen.shared.isNewComment(comment) { NewDot() }
                         Text(comment.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(Palette.text)
+                        // Notizen aus dem Team erkennbar, wie im Player (Review 22.11.2026)
+                        if comment.team {
+                            Text("Stagecraft").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.muted)
+                                .padding(.horizontal, 6).frame(height: 18).background(Palette.surface, in: Capsule())
+                        }
                         if let time = comment.time {
                             Text(Clock.text(time)).font(.system(size: 12, weight: .semibold).monospacedDigit())
                                 .foregroundStyle(Color(UIColor(hex: 0x1E1E1C))).padding(.horizontal, 7).frame(height: 20)
@@ -286,7 +309,10 @@ private struct CommentFeedRow: View {
                         Text(When.ago(comment.created)).font(.system(size: 12)).foregroundStyle(Palette.faint)
                     }
                     Text(comment.text).font(.system(size: 15)).foregroundStyle(Palette.text).lineLimit(2).multilineTextAlignment(.leading)
-                    Text("\(project.title) · \(video?.title ?? "")").font(.system(size: 13)).foregroundStyle(Palette.muted).lineLimit(1)
+                    // Kunde · Video, der Linktitel nur, wenn er anders heißt als das Video
+                    Text([project.customerName, project.title == video?.title ? nil : project.title, video?.title ?? "nicht mehr auf der Seite"]
+                            .compactMap { $0 }.joined(separator: " · "))
+                        .font(.system(size: 13)).foregroundStyle(Palette.muted).lineLimit(1)
                 }
                 Spacer(minLength: 4)
                 if let video {
@@ -365,5 +391,14 @@ struct CustomerFeed: View {
         }
         .buttonStyle(PressStyle(scale: 0.98))
         .accessibilityIdentifier("kunde-\(customer.id)")
+    }
+}
+
+/// Punkt für Neues seit dem letzten Blick (Akzent Salbei, mit Text „neu“ für VoiceOver)
+struct NewDot: View {
+    var body: some View {
+        // Kräftigeres Salbei als der Akzent, damit es auf Dunkel nicht grau wirkt (nicht die Freigabe Farbe)
+        Circle().fill(Color(UIColor(hex: 0x8FD3A3))).frame(width: 9, height: 9)
+            .accessibilityLabel("neu")
     }
 }

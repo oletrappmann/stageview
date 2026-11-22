@@ -79,8 +79,12 @@ struct StartPage: View {
         .sheet(item: $newLink) { start in NewLinkSheet(start: start, path: $path) }
         // Suchen gilt den Links: dorthin blättern
         .onChange(of: searching) { _, now in if now, page != .links { withAnimation(.smooth(duration: 0.35)) { page = .links } } }
-        // Kurzer Tick bei jedem Seitenwechsel, gewischt oder getippt (wie TESS)
-        .onChange(of: page) { _, _ in Haptics.select() }
+        // Kurzer Tick bei jedem Seitenwechsel, gewischt oder getippt (wie TESS). Wer eine Seite verlässt, hat sie gesehen
+        .onChange(of: page) { old, _ in
+            Haptics.select()
+            if old == .kommentare { Seen.shared.markComments() }
+            if old == .links { Seen.shared.markLinks() }
+        }
         #if DEBUG
         .onAppear {
             if Demo.sheet == "kunden" { customersOpen = true }
@@ -190,7 +194,8 @@ struct StageTabBar: View {
     }
 
     private func item(_ s: StartSection, chosen: Bool) -> some View {
-        let open = s == .kommentare ? store.totals.openComments : 0
+        // Nur Neues seit dem letzten Blick, sonst stand dort dauerhaft dieselbe Zahl (Review 22.11.2026)
+        let open = s == .kommentare ? store.newCommentCount : 0
         return Button {
             withAnimation(.smooth(duration: 0.35)) { page = s }
         } label: {
@@ -214,7 +219,7 @@ struct StageTabBar: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(open > 0 ? "\(s.title), \(open) offen" : s.title)
+        .accessibilityLabel(open > 0 ? "\(s.title), \(open) neu" : s.title)
         .accessibilityAddTraits(chosen ? .isSelected : [])
         .accessibilityIdentifier("leiste-\(s.rawValue)")
     }
@@ -264,11 +269,24 @@ struct StartEmpty: View {
     @State private var store = Store.shared
     var body: some View {
         VStack(spacing: 6) {
+            let narrowed = store.filter != .all || !store.search.isEmpty
             Text(text ?? (store.projects.isEmpty ? "Noch keine Links" : !store.search.isEmpty ? "Nichts gefunden" : "Hier ist gerade nichts"))
                 .font(.system(size: 17, weight: .semibold)).foregroundStyle(Palette.text)
             if text == nil {
                 Text(store.projects.isEmpty ? "Das Plus legt den ersten an." : !store.search.isEmpty ? "Such nach Titel, Kunde oder Code." : "In dieser Ansicht gibt es keinen Link.")
                     .font(.system(size: 15)).foregroundStyle(Palette.muted)
+                if narrowed && !store.projects.isEmpty {
+                    Button {
+                        Haptics.select()
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            store.filter = .all
+                            store.search = ""
+                        }
+                    } label: { CapsuleButtonLabel(title: "Filter zurücksetzen", symbol: "arrow.counterclockwise") }
+                        .buttonStyle(PressStyle())
+                        .padding(.top, 10)
+                        .accessibilityIdentifier("filter-zuruecksetzen")
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -286,6 +304,8 @@ struct CustomerPage: View {
     @State private var editing = false
     @State private var newLink: NewLinkStart?
     @State private var deleting: Project?
+    /// Eigener Filter, verstellt nicht still die Startseite (Review 22.11.2026)
+    @State private var filter: LinkFilter = .all
 
     private var customer: Customer? { store.customers.first { $0.id == id } }
 
@@ -293,7 +313,7 @@ struct CustomerPage: View {
         Group {
             if let customer {
                 let all = store.projects(of: customer).sorted { ($0.created ?? "") > ($1.created ?? "") }
-                let list = all.filter { store.filter.matches($0) }
+                let list = all.filter { filter.matches($0) }
                 let videos = all.flatMap(\.videos)
                 StartScroll(bottom: 40) {
                     HStack(spacing: 14) {
@@ -324,7 +344,9 @@ struct CustomerPage: View {
                     LinkFeed(projects: list, actions: StartActions(open: { path.append(.project($0.key)) },
                                                                    play: { project, video, source in store.play(project, video, source: source) },
                                                                    newLink: { _ in }, customer: { _ in }, delete: { deleting = $0 },
-                                                                   client: { path.append(.client($0.key)) }))
+                                                                   client: { path.append(.client($0.key)) }),
+                             empty: filter == .all ? nil : "Kein Link in dieser Ansicht",
+                             subtitle: { p in [p.company, p.code ?? ""].filter { !$0.isEmpty }.joined(separator: " · ") })
                 }
                 .sheet(isPresented: $editing) { CustomerEditSheet(customer: customer) }
             } else {
@@ -334,7 +356,7 @@ struct CustomerPage: View {
         }
         .background(Palette.canvas.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { FilterMenu(customers: false, bare: true) } }
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { FilterMenu(selection: $filter, customers: false, bare: true) } }
         .sheet(item: $newLink) { start in NewLinkSheet(start: start, path: $path) }
         .linkDeletion($deleting)
     }

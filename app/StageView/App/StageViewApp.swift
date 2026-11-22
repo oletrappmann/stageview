@@ -63,6 +63,8 @@ struct RootView: View {
         }
         .onChange(of: phase, initial: true) { _, now in
             if now == .active && store.signedIn { store.startPolling() } else if now != .active { store.stopPolling() }
+            // App weggelegt: die Links gelten als gesehen, beim nächsten Öffnen leuchtet nur, was danach kam
+            if now == .background && store.signedIn { Seen.shared.markLinks() }
         }
         .onChange(of: store.signedIn) { _, now in
             if now { store.startPolling() } else { store.stopPolling() }

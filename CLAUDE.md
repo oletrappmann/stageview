@@ -2,7 +2,7 @@
 
 Das StageView Admin Dashboard (https://videos.stagecraft.media/admin) als eigene iPhone App für das Team, mit eigenem Player. Seit 22.11.2026 im Bau (Ole: „über die App alles verwalten“). Bundle `media.stagecraft.stageview`, Team 9ZM98AMD7M, iOS 26+, nur iPhone.
 
-**Stand 22.11.2026 abends:** Anmeldung, Startseite (Leiste unten, Wischen, Plus daneben), Player wie die Videoseite und Kundenansicht gebaut und auf Oles iPhone („22iPhone“, `scripts/iphone.sh`). Offen bei Ole (Artifact https://claude.ai/artifact/Se633A2p7WZionUBHrxnJi): Widgets oben auf der Seite Links, fünf Entwürfe (`Views/StartWidgets.swift`, `SV_WIDGET` zahlen, woche, zutun, freigabe, stapel; ohne Wahl steht nichts oben), und ob ein Tipp auf eine Zeile der Startseite direkt „Projekt anzeigen“ öffnen soll. Kommentar antippen öffnet den Player mit offenem Blatt, Kommentar hervorgehoben (`PlayerRequest.comment`). Noch offen: Oles Test der Links aus WhatsApp, Notizen, TESS App.
+**Stand 22.11.2026 spät:** Anmeldung, Startseite, Player, Kundenansicht gebaut und auf Oles iPhone (`scripts/iphone.sh`). Review der Bedienbarkeit in `docs/review-2026-11-22.md`, Quick wins und „Neu seit dem letzten Blick“ (`Model/Seen.swift`) umgesetzt. Griff im Player größer (Ole: „für den Daumen“), Zeitleiste zieht senkrecht das Blatt. Offen bei Ole (Artifact https://claude.ai/artifact/Se633A2p7WZionUBHrxnJi): Widgets oben auf der Seite Links (`SV_WIDGET` zahlen, woche, zutun, freigabe, stapel; ohne Wahl nichts), ob ein Tipp auf eine Zeile der Startseite direkt die Kundenansicht öffnet. Noch offen: Oles Test der Links aus WhatsApp, Notizen, TESS App.
 
 ## Oles Vorgaben
 
@@ -40,7 +40,7 @@ app/
   StageViewUITests/      BilderTests (Screenshots aller Seiten)
   scripts/
     demo_daten.py        echter Datenstand aus den öffentlichen Videoseiten nach build/demo.json (nicht ins Paket)
-    bilder.sh            Screenshots auf dem eigenen Simulator „StageView Test“ (TEST=testAlles, testStart, testWidgets, testKunde, testPlayer, testAnmeldung, testLinks, DUNKEL=1; SV_BLATT=zu|offen für den Player)
+    bilder.sh            Screenshots auf dem eigenen Simulator „StageView Test“ (TEST=testAlles, testStart, testWidgets, testNeu, testGriff, testMeldungen, testKunde, testPlayer, testAnmeldung, testLinks, DUNKEL=1; SV_BLATT=zu|offen für den Player)
     icon.js              App Symbol aus dem StageView Zeichen
     iphone.sh            Release signiert direkt aufs verbundene iPhone (ohne TestFlight), wie bei der Regie App
 ```

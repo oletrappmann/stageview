@@ -104,7 +104,7 @@ struct ProjectEditSheet: View {
     }
 
     var body: some View {
-        SheetFrame(title: "Link bearbeiten", action: "Sichern", actionEnabled: !changes.isEmpty && !title.trimmingCharacters(in: .whitespaces).isEmpty,
+        SheetFrame(title: "Link bearbeiten", action: "Speichern", actionEnabled: !changes.isEmpty && !title.trimmingCharacters(in: .whitespaces).isEmpty,
                    busy: saving, perform: save) {
             FieldBox(label: "Titel") {
                 TextField("", text: $title, prompt: Text("Content Day November").foregroundStyle(Palette.faint))
@@ -141,7 +141,7 @@ struct ProjectEditSheet: View {
                 .tint(Palette.text)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Text("Der Link bleibt immer gleich, auch wenn sich der Titel ändert. Die Seite wird nach dem Sichern neu gebaut.")
+            Text("Der Link bleibt immer gleich, auch wenn sich der Titel ändert. Die Seite wird nach dem Speichern neu gebaut.")
                 .font(.system(size: 13))
                 .foregroundStyle(Palette.muted)
                 .padding(.horizontal, 4)
@@ -221,10 +221,6 @@ struct CustomersSheet: View {
         .buttonStyle(PressStyle(scale: 0.98))
         .contextMenu {
             Button { editing = customer } label: { Label("Bearbeiten", systemImage: "pencil") }
-            Button {
-                store.customerID = customer.id
-                dismiss()
-            } label: { Label("Links zeigen", systemImage: "line.3.horizontal.decrease") }
             if links == 0 {
                 Button(role: .destructive) { deleting = customer } label: { Label("Löschen", systemImage: "trash") }
             }
@@ -253,7 +249,7 @@ struct CustomerEditSheet: View {
 
     var body: some View {
         let links = customer.map { store.links(of: $0) } ?? 0
-        SheetFrame(title: customer == nil ? "Neuer Kunde" : "Kunde bearbeiten", action: customer == nil ? "Anlegen" : "Sichern",
+        SheetFrame(title: customer == nil ? "Neuer Kunde" : "Kunde bearbeiten", action: customer == nil ? "Anlegen" : "Speichern",
                    actionEnabled: !name.trimmingCharacters(in: .whitespaces).isEmpty
                     && (customer == nil || name != customer?.name || company != customer?.company),
                    busy: saving, perform: save) {

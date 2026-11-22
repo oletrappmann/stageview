@@ -9,9 +9,13 @@ struct Scrubber: View {
     let video: Video
     let seek: (Double, Bool) -> Void
     var scrubbing: Binding<Bool>
+    /// Senkrecht gewischt: das gehört dem Blatt (Weg, Tempo, losgelassen), wie im Web (blatt-kopf schließt die Zeitleiste ein)
+    var vertical: ((CGFloat, CGFloat, Bool) -> Void)?
 
     @State private var dragTime: Double?
     @State private var lastMarker: Int?
+    @State private var mode: Mode?
+    private enum Mode { case scrub, vertical }
 
     var body: some View {
         GeometryReader { geo in
@@ -49,18 +53,27 @@ struct Scrubber: View {
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
                         guard duration > 0 else { return }
-                        if dragTime == nil { scrubbing.wrappedValue = true; Haptics.select() }
+                        if mode == nil {
+                            // Erst klar seitlich wird gespult, klar senkrecht zieht das Blatt, ein Tipper springt beim Loslassen
+                            let dx = abs(value.translation.width), dy = abs(value.translation.height)
+                            if vertical != nil && dy > 8 && dy > dx { mode = .vertical }
+                            else if dx > 4 { mode = .scrub; scrubbing.wrappedValue = true; Haptics.select() }
+                            else { return }
+                        }
+                        if mode == .vertical { vertical?(value.translation.height, value.velocity.height, false); return }
                         let t = min(max(value.location.x / width, 0), 1) * duration
                         withAnimation(.easeOut(duration: 0.12)) { dragTime = t }
                         tickMarkers(near: t, width: width)
                         seek(t, false)
                     }
                     .onEnded { value in
+                        defer { mode = nil; lastMarker = nil }
+                        if mode == .vertical { vertical?(value.translation.height, value.velocity.height, true); return }
+                        guard duration > 0 else { return }
                         let t = min(max(value.location.x / width, 0), 1) * duration
                         seek(t, true)
                         withAnimation(.easeOut(duration: 0.18)) { dragTime = nil }
                         scrubbing.wrappedValue = false
-                        lastMarker = nil
                     }
             )
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: active)

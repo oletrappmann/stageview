@@ -33,7 +33,6 @@ struct PlayerScreen: View {
     @State private var draftTime: Double = 0
     @State private var replyTo: Comment?
     @State private var editing: Comment?
-    @State private var editText = ""
     @State private var deleting: Comment?
     @State private var renaming: Video?
     @State private var renameText = ""
@@ -49,6 +48,8 @@ struct PlayerScreen: View {
     @State private var dragY: CGFloat = 0
     @State private var dragSideways = false
     @State private var headHeight: CGFloat = 96
+    /// Zuletzt berechnete Stufen, für das Ziehen über die Zeitleiste
+    @State private var stopsBox = StopsBox()
     @State private var fieldHeight: CGFloat = 50
     @FocusState private var composing: Bool
     @Environment(\.dismiss) private var dismiss
@@ -72,6 +73,7 @@ struct PlayerScreen: View {
         GeometryReader { geo in
             let stops = sheetStops(total: geo.size.height)
             let sheetHeight = liveHeight(stops)
+            let _ = updateStops(stops)
             VStack(spacing: 0) {
                 header
                     .frame(height: Self.headerHeight)
@@ -133,14 +135,6 @@ struct PlayerScreen: View {
             Button("Speichern") {
                 guard let video = renaming, let project else { return }
                 Task { await store.renameVideo(project, video, to: renameText) }
-            }
-        }
-        .alert("Kommentar bearbeiten", isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
-            TextField("Text", text: $editText, axis: .vertical)
-            Button("Abbrechen", role: .cancel) {}
-            Button("Speichern") {
-                guard let comment = editing, let review else { return }
-                Task { _ = await review.edit(comment, text: editText) }
             }
         }
         .confirmationDialog("Kommentar löschen?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
@@ -234,10 +228,19 @@ struct PlayerScreen: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .contentTransition(.opacity)
-                if videos.count > 1 {
-                    Text("\(index + 1) von \(videos.count)")
-                        .font(.system(size: 12, weight: .medium).monospacedDigit())
-                        .foregroundStyle(Color.white.opacity(0.5))
+                if let video = current {
+                    // „2 von 14 · Zur Freigabe · 3 offen“: Stand des Videos auch bei zugeklapptem Blatt (Review 22.11.2026)
+                    let status = review?.status(of: video) ?? video.status
+                    let open = review.map { r in r.threads(for: video.id).filter { !$0.root.done }.count } ?? video.open
+                    HStack(spacing: 5) {
+                        if videos.count > 1 { Text("\(index + 1) von \(videos.count) ·") }
+                        Circle().fill(dot(status)).frame(width: 6, height: 6)
+                        Text(status.title)
+                        if open > 0 { Text("· \(open) offen") }
+                    }
+                    .font(.system(size: 12, weight: .medium).monospacedDigit())
+                    .foregroundStyle(Color.white.opacity(0.55))
+                    .lineLimit(1)
                 }
             }
             .padding(.horizontal, 62)
@@ -256,7 +259,13 @@ struct PlayerScreen: View {
                 Button {
                     UIPasteboard.general.url = link
                     store.show("Link zum Video kopiert", symbol: "doc.on.doc")
-                } label: { Label("Link kopieren", systemImage: "doc.on.doc") }
+                } label: { Label("Link zum Video kopieren", systemImage: "doc.on.doc") }
+                if let page = project.link {
+                    Button {
+                        UIPasteboard.general.url = page
+                        store.show("Link zur Seite kopiert", symbol: "doc.on.doc")
+                    } label: { Label("Link zur ganzen Seite kopieren", systemImage: "rectangle.grid.2x2") }
+                }
                 if pool.time >= 1, let timed = URL(string: link.absoluteString + "?t=\(Int(pool.time))") {
                     Button {
                         UIPasteboard.general.url = timed
@@ -277,6 +286,16 @@ struct PlayerScreen: View {
     private var moreMenu: some View {
         Menu {
             if let video = current {
+                Section {
+                    // Aus dem Player zur Seite des Links (Kundenansicht), etwa wenn man von einem Kommentar kam
+                    Button {
+                        Haptics.select()
+                        let key = request.projectKey
+                        pool.pause()
+                        store.playing = nil
+                        store.jump = [.client(key)]
+                    } label: { Label("Zum Projekt", systemImage: "rectangle.grid.2x2") }
+                }
                 Section {
                     if let drive = video.driveURL { Link(destination: drive) { Label("Original im Drive", systemImage: "arrow.down.circle") } }
                     Button {
@@ -366,26 +385,38 @@ struct PlayerScreen: View {
                     guard !dragSideways else { return }
                     // Erst klar senkrecht wird gezogen, seitlich gehört der Finger der Zeitleiste oder dem Wischen
                     guard abs(value.translation.height) > abs(value.translation.width) else { dragSideways = true; return }
-                    if composing { composing = false }
-                    dragBase = stops[stop]
                 }
-                dragY = value.translation.height
+                sheetDragChanged(value.translation.height, stops: stops)
             }
             .onEnded { value in
                 dragSideways = false
-                guard let base = dragBase else { return }
-                // Mit Schwung gerechnet zur nächsten Stufe (Web: blattLoslassen, 220 ms)
-                let h = base - value.translation.height
-                let target = h - value.velocity.height * 0.22
-                let best = SheetStop.allCases.min { abs((stops[$0] ?? 0) - target) < abs((stops[$1] ?? 0) - target) } ?? stop
-                if best != stop { Haptics.select() }
-                withAnimation(Self.sheetSpring) {
-                    stop = best
-                    dragBase = nil
-                    dragY = 0
-                }
+                sheetDragEnded(value.translation.height, value.velocity.height, stops: stops)
             }
     }
+
+    private func sheetDragChanged(_ dy: CGFloat, stops: [SheetStop: CGFloat]) {
+        if dragBase == nil {
+            if composing { composing = false }
+            dragBase = stops[stop]
+        }
+        dragY = dy
+    }
+
+    /// Mit Schwung gerechnet zur nächsten Stufe (Web: blattLoslassen, 220 ms)
+    private func sheetDragEnded(_ dy: CGFloat, _ vy: CGFloat, stops: [SheetStop: CGFloat]) {
+        guard let base = dragBase else { return }
+        let target = base - dy - vy * 0.22
+        let best = SheetStop.allCases.min { abs((stops[$0] ?? 0) - target) < abs((stops[$1] ?? 0) - target) } ?? stop
+        if best != stop { Haptics.select() }
+        withAnimation(Self.sheetSpring) {
+            stop = best
+            dragBase = nil
+            dragY = 0
+        }
+    }
+
+    private var lastStops: [SheetStop: CGFloat] { stopsBox.value }
+    private func updateStops(_ stops: [SheetStop: CGFloat]) { stopsBox.value = stops }
 
     private func toggleSheet() {
         Haptics.select()
@@ -416,6 +447,16 @@ struct PlayerScreen: View {
         }
         .frame(height: height, alignment: .top)
         .frame(maxWidth: .infinity)
+        // Unsichtbarer Streifen über der Kante: der Daumen trifft das Blatt auch knapp darüber (Ole, 22.11.2026)
+        .overlay(alignment: .top) {
+            Color.clear
+                .frame(height: 18)
+                .contentShape(Rectangle())
+                .gesture(sheetDrag(stops))
+                .onTapGesture(perform: toggleSheet)
+                .offset(y: -18)
+                .accessibilityHidden(true)
+        }
         .background(alignment: .top) {
             UnevenRoundedRectangle(topLeadingRadius: 22, topTrailingRadius: 22, style: .continuous)
                 .fill(Self.panel)
@@ -427,12 +468,14 @@ struct PlayerScreen: View {
     /// Griff, Zeitleiste und Steuerung: daran zieht man das Blatt
     private var sheetHead: some View {
         VStack(spacing: 0) {
+            // Griff höher und leichter zu treffen (Ole, 22.11.2026: „die Fläche zum Hochziehen leicht größer, für den Daumen“):
+            // 28 pt Streifen, dazu 16 pt über der Kante des Blatts
             Capsule()
-                .fill(Color.white.opacity(dragBase != nil ? 0.36 : 0.2))
-                .frame(width: dragBase != nil ? 48 : 38, height: 5)
+                .fill(Color.white.opacity(dragBase != nil ? 0.4 : 0.24))
+                .frame(width: dragBase != nil ? 50 : 42, height: 5)
                 .frame(maxWidth: .infinity)
-                .padding(.top, 7)
-                .padding(.bottom, 4)
+                .padding(.top, 10)
+                .padding(.bottom, 13)
                 .contentShape(Rectangle())
                 .onTapGesture(perform: toggleSheet)
                 .animation(.easeOut(duration: 0.2), value: dragBase != nil)
@@ -455,7 +498,10 @@ struct PlayerScreen: View {
                      markers: threads.compactMap { t in t.root.time.map { ($0, !t.root.done) } },
                      video: video,
                      seek: { t, exact in pool.seek(to: t, exact: exact) },
-                     scrubbing: $scrubbing)
+                     scrubbing: $scrubbing,
+                     vertical: { dy, vy, ended in
+                         ended ? sheetDragEnded(dy, vy, stops: lastStops) : sheetDragChanged(dy, stops: lastStops)
+                     })
             HStack(spacing: 2) {
                 Button {
                     Haptics.select()
@@ -547,11 +593,30 @@ struct PlayerScreen: View {
 
     // MARK: Kommentarfeld (Web seit 17.11.2026: eine Zeile, angetippt groß mit Zeitmarke und Senden)
 
-    private var composerOpen: Bool { composing || replyTo != nil || !draft.isEmpty }
+    private var composerOpen: Bool { composing || replyTo != nil || editing != nil || !draft.isEmpty }
     private var canSend: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !sending }
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if let editing {
+                HStack(spacing: 6) {
+                    Image(systemName: "pencil").font(.system(size: 11, weight: .bold))
+                    Text("Kommentar von \(editing.name) bearbeiten").font(.system(size: 13, weight: .semibold))
+                    Spacer()
+                    Button {
+                        Haptics.select()
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            self.editing = nil
+                            draft = ""
+                            composing = false
+                        }
+                    } label: { Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).frame(width: 28, height: 24) }
+                        .accessibilityLabel("Bearbeiten abbrechen")
+                }
+                .foregroundStyle(Color.white.opacity(0.65))
+                .padding(.horizontal, 4)
+                .transition(.opacity)
+            }
             if let replyTo {
                 HStack(spacing: 6) {
                     Image(systemName: "arrowshape.turn.up.left.fill").font(.system(size: 11))
@@ -582,7 +647,7 @@ struct PlayerScreen: View {
                     .accessibilityIdentifier("kommentar-feld")
                 if composerOpen {
                     HStack {
-                        if replyTo == nil { timeChip }
+                        if replyTo == nil && editing == nil { timeChip }
                         Spacer()
                         sendButton
                     }
@@ -592,8 +657,9 @@ struct PlayerScreen: View {
                 }
             }
             .background(Self.panel2, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            if composerOpen && replyTo == nil {
-                Text("Pausier an der Stelle, die du ändern willst. Die Zeit wird mitgeschickt.")
+            if composerOpen && editing == nil {
+                // Kommentare aus dem Team stehen auch beim Kunden (Review 22.11.2026)
+                Text(replyTo == nil ? "Sieht auch der Kunde. Pausier an der Stelle, die du meinst, die Zeit geht mit." : "Sieht auch der Kunde.")
                     .font(.system(size: 12.5))
                     .foregroundStyle(Color.white.opacity(0.4))
                     .fixedSize(horizontal: false, vertical: true)
@@ -607,6 +673,7 @@ struct PlayerScreen: View {
         .fixedSize(horizontal: false, vertical: true)
         .animation(.spring(response: 0.35, dampingFraction: 0.86), value: composerOpen)
         .animation(.easeOut(duration: 0.2), value: replyTo)
+        .animation(.easeOut(duration: 0.2), value: editing)
     }
 
     private var timeChip: some View {
@@ -648,6 +715,21 @@ struct PlayerScreen: View {
         guard let review, let video = current, canSend else { return }
         let text = draft
         sending = true
+        if let comment = editing {
+            Task {
+                let ok = await review.edit(comment, text: text)
+                sending = false
+                if ok {
+                    Haptics.sent()
+                    draft = ""
+                    editing = nil
+                    composing = false
+                } else {
+                    Haptics.error()
+                }
+            }
+            return
+        }
         Task {
             let ok = await review.add(video: video.id, text: text, time: attachTime ? draftTime : nil, replyTo: replyTo?.id)
             sending = false
@@ -851,7 +933,13 @@ struct PlayerScreen: View {
                        comment.done ? Haptics.select() : Haptics.check()
                        Task { await review?.setDone(comment, !comment.done) }
                    },
-                   edit: { comment in editText = comment.text; editing = comment },
+                   edit: { comment in
+                       // Bearbeiten im selben Feld wie Antworten (Review 22.11.2026: vorher ein einzeiliges Systemfenster)
+                       replyTo = nil
+                       editing = comment
+                       draft = comment.text
+                       composing = true
+                   },
                    delete: { comment in deleting = comment })
     }
 
@@ -958,3 +1046,6 @@ private struct Stage: View {
         }
     }
 }
+
+/// Ablage der Stufen ohne neues Zeichnen (eine Klasse, SwiftUI beobachtet sie nicht)
+final class StopsBox { var value: [SheetStop: CGFloat] = [:] }

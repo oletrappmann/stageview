@@ -209,13 +209,21 @@ struct NewLinkSheet: View {
                 .background(Palette.field, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Palette.line.opacity(0.6), lineWidth: 0.5))
 
+                // Was noch fehlt, steht über dem Knopf, statt erst beim Tippen als Hinweis (Review 22.11.2026)
+                if canCreate && !missing.isEmpty && !creating {
+                    Text("Es fehlt noch: " + missing.joined(separator: ", "))
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(Palette.muted)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("neu-fehlt")
+                }
                 Button(action: create) {
                     CapsuleButtonLabel(title: creating ? "Link wird angelegt …" : canCreate ? "Link anlegen" : "Videos werden gesucht …",
                                        symbol: canCreate && !creating ? "plus" : nil, primary: true, height: 52)
                 }
                 .buttonStyle(PressStyle())
-                .disabled(!canCreate || creating)
-                .opacity(canCreate ? 1 : 0.5)
+                .disabled(!canCreate || !missing.isEmpty || creating)
+                .opacity(canCreate && missing.isEmpty ? 1 : 0.5)
                 .accessibilityIdentifier("link-anlegen")
             }
         }
@@ -223,6 +231,15 @@ struct NewLinkSheet: View {
     }
 
     private var canCreate: Bool { Self.readyPhases.contains(prep?.prep?.phase ?? "") }
+
+    /// Titel, Kunde und beim neuen Kunden sein Name
+    private var missing: [String] {
+        var list: [String] = []
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { list.append("Titel") }
+        if customerID.isEmpty { list.append("Kunde") }
+        if customerID == "__neu__" && newName.trimmingCharacters(in: .whitespaces).isEmpty { list.append("Name des neuen Kunden") }
+        return list
+    }
 
     private var progressCard: some View {
         let p = prep?.prep

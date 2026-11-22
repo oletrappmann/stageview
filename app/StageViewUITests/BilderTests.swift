@@ -219,6 +219,48 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Griff größer (22.11.2026): knapp über der Kante des Blatts ziehen, senkrecht auf der Zeitleiste wischen, Feld zum Bearbeiten
+    func testGriff() {
+        var a = app("player:zskz92:2:8")
+        Thread.sleep(forTimeInterval: 5)
+        let griff = a.descendants(matching: .any)["griff"].firstMatch
+        let kante = griff.frame.minY
+        // 10 pt über dem Griffstreifen, also über dem Blatt auf dem Video, nach oben ziehen
+        let start = a.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: a.frame.midX, dy: kante - 10))
+        start.press(forDuration: 0.05, thenDragTo: a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)))
+        bild("g1-ueber-kante-offen", warten: 1.5)
+        // Senkrecht auf der Zeitleiste nach unten: zu
+        let leiste = a.descendants(matching: .any)["zeitleiste"].firstMatch
+        leiste.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)))
+        bild("g2-zeitleiste-zu", warten: 1.5)
+        a.terminate()
+
+        // Player mit Kopf (Status, offen), Menüs und Bearbeiten im Feld
+        a = app("player:8fykkr:1:12", env: ["SV_BLATT": "offen"])
+        bild("g3-kopf-status", warten: 5)
+        a.buttons["player-link"].firstMatch.tap()
+        bild("g4-link-menue", warten: 1)
+        a.terminate()
+        a = app("player:8fykkr:1:12")
+        Thread.sleep(forTimeInterval: 4)
+        a.buttons["player-mehr"].firstMatch.tap()
+        bild("g5-mehr-menue", warten: 1)
+        a.terminate()
+    }
+
+    /// Neu seit dem letzten Blick (22.11.2026): Punkte an Links und Kommentaren, Zahl am Tab nur Neues
+    func testNeu() {
+        var a = app("liste", env: ["SV_GESEHEN": "2026-11-16T12:00"])
+        bild("n-links", warten: 3.5)
+        a.terminate()
+        a = app("liste", env: ["SV_GESEHEN": "2026-11-15"])
+        Thread.sleep(forTimeInterval: 3)
+        a.buttons.matching(NSPredicate(format: "identifier == 'leiste-kommentare'")).firstMatch.tap()
+        bild("n-kommentare", warten: 1.5)
+        a.terminate()
+    }
+
     /// Meldungen oben auf der Startseite und Hinweis im Player (22.11.2026, aus dem Review)
     func testMeldungen() {
         var a = app("meldungen")
