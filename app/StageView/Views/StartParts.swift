@@ -1,30 +1,12 @@
 import SwiftUI
 
-// Gemeinsame Teile der Startseite: Kopf mit Suche und Konto, Filter als Glaskapseln, schwebender Knopf Neuer Link, Kennzahlen.
+// Gemeinsame Teile der Startseite: Kopf mit Suche und Konto, Kennzahlen, Ring der Freigabe, Marke offener Kommentare.
 // Designsprache wie die TESS App (Glas, Farben, Haptik), Aufbau eigenständig (Ole, 22.11.2026).
 
 extension Store {
     /// Links eines Kunden, neueste Aktivität zuerst
     func projects(of customer: Customer) -> [Project] {
         projects.filter { customer.owns($0) }.sorted { ($0.lastActivity ?? $0.created ?? "") > ($1.lastActivity ?? $1.created ?? "") }
-    }
-
-    /// Zuletzt aktive Links (Kommentar, Status, angelegt)
-    func recent(_ limit: Int) -> [Project] {
-        Array(projects.filter { !$0.videos.isEmpty }.sorted { ($0.lastActivity ?? $0.created ?? "") > ($1.lastActivity ?? $1.created ?? "") }.prefix(limit))
-    }
-
-    /// Kunden mit ihren sichtbaren Links (Ansicht und Suche gelten), Kunden mit der neuesten Aktivität zuerst
-    var shelves: [(customer: Customer, projects: [Project])] {
-        let visible = visibleProjects
-        return customers.compactMap { c -> (Customer, [Project])? in
-            let list = visible.filter { c.owns($0) }
-            return list.isEmpty ? nil : (c, list)
-        }
-        .sorted { a, b in
-            let x = a.1.map { $0.lastActivity ?? $0.created ?? "" }.max() ?? "", y = b.1.map { $0.lastActivity ?? $0.created ?? "" }.max() ?? ""
-            return x > y
-        }
     }
 
     /// Neueste offene Kommentare über alle Links
@@ -58,10 +40,8 @@ extension Store {
 struct StartTopBar: View {
     @Binding var searching: Bool
     var customers: () -> Void
-    /// Entwurf D: Neuer Link als Glasknopf im Kopf (unten liegt die Tab Leiste)
+    /// Plus im Kopf (Entwurf „oben“)
     var newLink: (() -> Void)?
-    /// Entwurf B: Umschalter Links, Kommentare, Kunden unter dem Kopf
-    var tabs: Binding<StartSection>?
     @State private var store = Store.shared
     @State private var confirmSignOut = false
     @FocusState private var focused: Bool
@@ -99,7 +79,6 @@ struct StartTopBar: View {
             }
             .padding(.horizontal, 18)
             .frame(height: 56)
-            if let tabs { StartTabs(section: tabs).padding(.bottom, 6) }
             if !Connection.shared.online { OfflineCapsule().transition(.opacity) }
         }
         .background(alignment: .top) { TopEdge() }
@@ -165,103 +144,7 @@ struct StartTopBar: View {
     }
 }
 
-// MARK: Filter
-
-/// Ansichten als einzelne Glaskapseln zum Wischen (nicht der Schalter der TESS App): gewählt dunkelgrün, Zahl dahinter
-struct FilterChips: View {
-    var leading: CGFloat = 20
-    @State private var store = Store.shared
-
-    var body: some View {
-        let t = store.totals
-        ScrollView(.horizontal) {
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    chip(.all, "Alle", nil)
-                    chip(.comments, "Offene Kommentare", t.openComments)
-                    chip(.changes, "Änderung gewünscht", t.changes)
-                    chip(.done, "Freigegeben", t.doneLinks)
-                }
-            }
-            .padding(.horizontal, leading)
-            .padding(.vertical, 4)
-        }
-        .scrollIndicators(.hidden)
-    }
-
-    private func chip(_ filter: LinkFilter, _ title: String, _ count: Int?) -> some View {
-        let chosen = store.filter == filter
-        return Button {
-            Haptics.select()
-            withAnimation(.easeOut(duration: 0.18)) { store.filter = chosen && filter != .all ? .all : filter }
-        } label: {
-            HStack(spacing: 6) {
-                Text(title).font(.system(size: 14, weight: chosen ? .semibold : .medium))
-                if let count, count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(chosen ? Palette.forest : Palette.canvas)
-                        .padding(.horizontal, 6)
-                        .frame(minWidth: 20, minHeight: 20)
-                        .background(chosen ? Color.white : (filter == .comments ? Palette.changesInk : Palette.muted), in: Capsule())
-                }
-            }
-            .foregroundStyle(chosen ? Color.white : Palette.text)
-            .padding(.horizontal, 14)
-            .frame(height: 38)
-            .glassEffect(chosen ? .regular.tint(Palette.forest).interactive() : .regular.interactive(), in: .capsule)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("filter-\(filter.rawValue)")
-        .accessibilityAddTraits(chosen ? .isSelected : [])
-    }
-}
-
-// MARK: Neuer Link
-
-/// Schwebender Glasknopf unten in der Mitte: „Neuer Link“
-struct NewLinkCapsule: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button {
-            Haptics.press()
-            action()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "plus").font(.system(size: 17, weight: .bold))
-                Text("Neuer Link").font(.system(size: 16, weight: .semibold))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 22)
-            .frame(height: 54)
-            .glassEffect(.regular.tint(Palette.forest).interactive(), in: .capsule)
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("neuer-link")
-    }
-}
-
 // MARK: Bausteine
-
-/// Mosaik aus den Standbildern eines Links: Hochkant bis drei nebeneinander, Querformat ein Bild
-struct LinkCover: View {
-    let project: Project
-    var count = 3
-    var width = 480
-
-    var body: some View {
-        let videos = Array(project.videos.prefix(project.allLandscape ? 1 : count))
-        HStack(spacing: 2) {
-            ForEach(videos) { video in
-                RemoteImage(url: video.thumbnail(width: width))
-            }
-            if videos.isEmpty { Palette.surface }
-        }
-        .accessibilityHidden(true)
-    }
-}
 
 /// Ring mit Anteil freigegeben (Änderungen warm), Zahl in der Mitte
 struct ApprovalRing: View {
@@ -301,36 +184,5 @@ struct OpenBadge: View {
         .frame(height: 22)
         .background(Palette.changes, in: Capsule())
         .accessibilityLabel(Plural.count(count, "offener Kommentar", "offene Kommentare"))
-    }
-}
-
-/// Überschrift eines Bereichs mit optionalem Knopf rechts
-struct StartHeading: View {
-    let title: String
-    var detail: String?
-    var action: (title: String, run: () -> Void)?
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(size: 20, weight: .bold)).tracking(-0.3).foregroundStyle(Palette.text)
-                if let detail { Text(detail).font(.system(size: 14)).foregroundStyle(Palette.muted) }
-            }
-            Spacer()
-            if let action {
-                Button {
-                    Haptics.select()
-                    action.run()
-                } label: {
-                    HStack(spacing: 3) {
-                        Text(action.title).font(.system(size: 15, weight: .semibold))
-                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
-                    }
-                    .foregroundStyle(Palette.accent)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 20)
     }
 }

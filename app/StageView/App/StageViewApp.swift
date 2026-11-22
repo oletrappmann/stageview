@@ -32,10 +32,6 @@ struct StageViewApp: App {
 enum Route: Hashable {
     case project(String)
     case customer(String)
-    /// Alle offenen Kommentare, alle Kunden, Links einer Ansicht (Kurzwege der Startseite)
-    case comments
-    case customers
-    case filtered(String)
 }
 
 /// Neuer Link, auf Wunsch schon mit Kunde
@@ -85,9 +81,6 @@ struct MainView: View {
                     switch route {
                     case .project(let key): ProjectPage(key: key, path: $path)
                     case .customer(let id): CustomerPage(id: id, path: $path)
-                    case .comments: CommentsPage()
-                    case .customers: CustomersPage(path: $path)
-                    case .filtered(let raw): FilteredLinksPage(filter: LinkFilter(rawValue: raw) ?? .all, path: $path)
                     }
                 }
         }

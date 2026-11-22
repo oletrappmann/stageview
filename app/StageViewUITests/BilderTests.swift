@@ -16,10 +16,10 @@ final class BilderTests: XCTestCase {
         continueAfterFailure = true
     }
 
-    private func app(_ mode: String, start: String? = nil) -> XCUIApplication {
+    private func app(_ mode: String, plus: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["SV_DEMO"] = mode
-        if let start { app.launchEnvironment["SV_START"] = start }
+        if let plus { app.launchEnvironment["SV_PLUS"] = plus }
         app.launchEnvironment["SV_DEMO_DATEI"] = daten
         app.launchArguments += ["-sv.darstellung", hell ? "hell" : "dunkel", "-sv.ansicht", "alle", "-sv.sortierung", "aktiv"]
         app.launch()
@@ -85,57 +85,40 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
-    /// Startseite Runde 3 (22.11.2026): vier Entwürfe auf Basis von Konzept 2, neueste Links oben, keine großen Kacheln
+    /// Startseite (22.11.2026): Links, Kommentare, Kunden mit Leiste unten und Wischen, drei Plätze für das Plus
     func testStart() {
-        // A: nur Links
-        var a = app("liste", start: "liste")
-        bild("s-a-liste", warten: 3.5)
+        var a = app("liste", plus: "daneben")
+        bild("t-daneben-links", warten: 3.5)
         a.swipeUp()
-        bild("s-a-liste-weiter", warten: 1.5)
+        bild("t-daneben-gescrollt", warten: 1.5)
         a.swipeDown(); a.swipeDown()
         Thread.sleep(forTimeInterval: 0.8)
+        a.swipeLeft()
+        bild("t-daneben-kommentare", warten: 1.5)
+        a.swipeLeft()
+        bild("t-daneben-kunden", warten: 1.5)
+        a.buttons["leiste-links"].firstMatch.tap()
+        bild("t-daneben-zurueck", warten: 1.5)
         a.buttons["filter-menue"].firstMatch.tap()
-        bild("s-a-filter")
+        bild("t-daneben-filter")
         a.terminate()
-
-        // B: Tabs oben
-        a = app("liste", start: "tabs")
-        bild("s-b-links", warten: 3.5)
-        a.buttons["tab-kommentare"].firstMatch.tap()
-        bild("s-b-kommentare", warten: 1.5)
-        a.buttons["tab-kunden"].firstMatch.tap()
-        bild("s-b-kunden", warten: 1.5)
-        a.terminate()
-
-        // C: Kurzwege, jeder öffnet eine eigene Seite
-        a = app("liste", start: "kurzwege")
-        bild("s-c-kurzwege", warten: 3.5)
-        a.buttons["kurzweg-kommentare"].firstMatch.tap()
-        bild("s-c-kommentare", warten: 2)
-        a.terminate()
-        a = app("liste", start: "kurzwege")
+        a = app("liste", plus: "daneben")
         Thread.sleep(forTimeInterval: 3)
-        a.buttons["kurzweg-kunden"].firstMatch.tap()
-        bild("s-c-kunden", warten: 2)
-        a.terminate()
-        a = app("liste", start: "kurzwege")
-        Thread.sleep(forTimeInterval: 3)
-        a.buttons["kurzweg-fertig"].firstMatch.tap()
-        bild("s-c-freigegeben", warten: 2)
+        for _ in 0..<6 { a.swipeUp() }
+        bild("t-daneben-ende", warten: 2)
         a.terminate()
 
-        // D: Leiste unten
-        a = app("liste", start: "leiste")
-        bild("s-d-links", warten: 3.5)
-        a.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Kommentare'")).firstMatch.tap()
-        bild("s-d-kommentare", warten: 1.5)
-        a.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Kunden'")).firstMatch.tap()
-        bild("s-d-kunden", warten: 1.5)
-        a.terminate()
+        for plus in ["oben", "darueber"] {
+            a = app("liste", plus: plus)
+            bild("t-\(plus)-links", warten: 3.5)
+            a.buttons["leiste-kommentare"].firstMatch.tap()
+            bild("t-\(plus)-kommentare", warten: 1.5)
+            a.terminate()
+        }
 
-        // Seite eines Kunden, jetzt auch kompakt
-        a = app("kundenseite:lukas-doberenz", start: "liste")
-        bild("s-kundenseite", warten: 3.5)
+        // Seite eines Kunden
+        a = app("kundenseite:lukas-doberenz")
+        bild("t-kundenseite", warten: 3.5)
         a.terminate()
     }
 
@@ -177,7 +160,7 @@ final class BilderTests: XCTestCase {
     /// Links von außen: stageview://<code> öffnet den Link, stageview://<code>/<nr>?t=… den Player an der Stelle (gleich wie
     /// videos.stagecraft.media/<code>/<nr>?t=… als Universal Link auf dem iPhone)
     func testLinks() {
-        let a = app("liste", start: "liste")
+        let a = app("liste")
         Thread.sleep(forTimeInterval: 2.5)
         a.open(URL(string: "stageview://zskz92")!)
         bild("l1-link-projekt", warten: 2.5)

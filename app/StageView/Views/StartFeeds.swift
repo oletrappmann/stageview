@@ -1,7 +1,7 @@
 import SwiftUI
 
-// Listen der Startseite (Runde 3, 22.11.2026): Links kompakt wie in Konzept 2 „Eingang“, die neuesten oben und nach Tagen
-// gruppiert, dazu offene Kommentare und Kunden als eigene Listen für Tabs und Kurzwege. Keine großen Kacheln.
+// Listen der drei Seiten (22.11.2026): Links kompakt wie in Konzept 2 „Eingang“, die neuesten oben und nach Tagen gruppiert,
+// dazu offene Kommentare und Kunden. Keine großen Kacheln.
 
 extension Store {
     /// Sichtbare Links (Ansicht, Kunde, Suche), zuletzt angelegte zuerst. Am selben Tag bleibt die letzte Aktivität vorne.
@@ -365,51 +365,5 @@ struct CustomerFeed: View {
         }
         .buttonStyle(PressStyle(scale: 0.98))
         .accessibilityIdentifier("kunde-\(customer.id)")
-    }
-}
-
-// MARK: Tabs (Entwurf B)
-
-/// Umschalter unter dem Kopf: Links, Kommentare (mit Zahl), Kunden. Gewählt grünes Glas, das mitgleitet.
-struct StartTabs: View {
-    @Binding var section: StartSection
-    @State private var store = Store.shared
-    @Namespace private var space
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(StartSection.allCases) { s in
-                let chosen = section == s
-                let count = s == .kommentare ? store.totals.openComments : 0
-                Button {
-                    Haptics.select()
-                    withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) { section = s }
-                } label: {
-                    HStack(spacing: 5) {
-                        Text(s.title).font(.system(size: 14, weight: chosen ? .semibold : .medium)).lineLimit(1)
-                        if count > 0 {
-                            Text("\(count)").font(.system(size: 11, weight: .bold).monospacedDigit())
-                                .foregroundStyle(chosen ? Color(UIColor(hex: 0x3A443D)) : .white)
-                                .padding(.horizontal, 5).frame(minWidth: 18, minHeight: 18)
-                                .background(chosen ? Color.white : Palette.changes, in: Capsule())
-                        }
-                    }
-                    .fixedSize()
-                    .foregroundStyle(chosen ? Color.white : Palette.text)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 38)
-                    .background {
-                        if chosen { Capsule().fill(Color(UIColor(hex: 0x5F8068))).matchedGeometryEffect(id: "tab", in: space) }
-                    }
-                    .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("tab-\(s.rawValue)")
-                .accessibilityAddTraits(chosen ? .isSelected : [])
-            }
-        }
-        .padding(4)
-        .glassEffect(.regular, in: .capsule)
-        .padding(.horizontal, 16)
     }
 }
