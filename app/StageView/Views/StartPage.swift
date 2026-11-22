@@ -118,6 +118,8 @@ struct StartPage: View {
             .scrollTargetLayout()
         }
         .scrollTargetBehavior(.paging)
+        // Keine Linie unter der Kopfleiste (Ole, 23.11.2026): Apples Scrollkante oben aus, der Kopf läuft selbst weich aus
+        .scrollEdgeEffectHidden(true, for: .top)
         .scrollPosition(id: $page)
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
             geometry.containerSize.width > 0 ? geometry.contentOffset.x / geometry.containerSize.width : 0

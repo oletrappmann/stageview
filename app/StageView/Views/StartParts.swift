@@ -95,7 +95,15 @@ struct StartTopBar: View {
                     Palette.canvas.frame(height: StartGlow.height).overlay(alignment: .top) { StartGlow() }
                 }
                 .ignoresSafeArea(edges: .top)
-                .mask { TopEdge(color: .black) }
+                // Deckend bis knapp unter die Logo Zeile, dann kurz auslaufend: Apples Scrollkante ist aus (sie zog eine Linie,
+                // Ole 23.11.2026), deshalb verdeckt der Kopf die Liste beim Scrollen selbst
+                .mask {
+                    LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.8),
+                                           .init(color: .black.opacity(0.55), location: 0.9), .init(color: .clear, location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                        .padding(.bottom, -18)
+                        .ignoresSafeArea(edges: .top)
+                }
                 .allowsHitTesting(false)
         }
         .centerConfirm("Abmelden?", isPresented: $confirmSignOut, action: "Abmelden", symbol: "rectangle.portrait.and.arrow.right",
