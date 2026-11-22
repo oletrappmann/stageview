@@ -184,16 +184,13 @@ struct CustomersSheet: View {
         }
         .sheet(item: $editing) { CustomerEditSheet(customer: $0) }
         .sheet(isPresented: $creating) { CustomerEditSheet(customer: nil) }
-        .confirmationDialog("Kunden löschen?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-                            titleVisibility: .visible) {
-            Button("Löschen", role: .destructive) {
-                guard let customer = deleting else { return }
-                Haptics.cancel()
-                Task { await store.deleteCustomer(customer) }
-            }
-        } message: {
-            Text(deleting?.source == "content-brain" ? "\(deleting?.name ?? "") verschwindet aus StageView. Im Content Brain bleibt der Kunde, wie er ist."
-                    : "\(deleting?.name ?? "") verschwindet aus StageView.")
+        .centerConfirm("Kunden löschen?", item: $deleting, action: "Löschen", symbol: "person.crop.circle.badge.minus",
+                       message: { customer in
+                           customer.source == "content-brain" ? "\(customer.name) verschwindet aus StageView. Im Content Brain bleibt der Kunde, wie er ist."
+                               : "\(customer.name) verschwindet aus StageView."
+                       }) { customer in
+            Haptics.cancel()
+            Task { await store.deleteCustomer(customer) }
         }
     }
 
@@ -277,12 +274,11 @@ struct CustomerEditSheet: View {
                 } label: { CapsuleButtonLabel(title: "Kunden löschen", symbol: "trash", destructive: true) }
                     .buttonStyle(PressStyle())
                     .padding(.top, 10)
-                    .confirmationDialog("Kunden löschen?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                        Button("Löschen", role: .destructive) {
-                            Haptics.cancel()
-                            Task { if await store.deleteCustomer(customer) { dismiss() } }
-                        }
-                    } message: { Text("\(customer.name) verschwindet aus StageView.") }
+                    .centerConfirm("Kunden löschen?", isPresented: $confirmDelete, action: "Löschen", symbol: "person.crop.circle.badge.minus",
+                                   message: { "\(customer.name) verschwindet aus StageView." }) {
+                        Haptics.cancel()
+                        Task { if await store.deleteCustomer(customer) { dismiss() } }
+                    }
             }
         }
     }

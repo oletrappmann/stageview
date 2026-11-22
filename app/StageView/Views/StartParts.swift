@@ -86,10 +86,9 @@ struct StartTopBar: View {
                 }
                 .allowsHitTesting(false)
         }
-        .confirmationDialog("Abmelden?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Abmelden", role: .destructive) { Task { await store.signOut() } }
-        } message: {
-            Text("Dieses iPhone wird auch in der TESS App abgemeldet. Danach braucht es wieder Name und Passwort.")
+        .centerConfirm("Abmelden?", isPresented: $confirmSignOut, action: "Abmelden", symbol: "rectangle.portrait.and.arrow.right",
+                       message: { "Dieses iPhone wird auch in der TESS App abgemeldet. Danach braucht es wieder Name und Passwort." }) {
+            Task { await store.signOut() }
         }
     }
 

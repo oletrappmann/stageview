@@ -21,6 +21,11 @@ def slug(t):
 liste = subprocess.run(["ssh", "-i", str(Path.home() / ".ssh/id_ed25519"), "hermes@82.165.217.31", "stageview liste"],
                        capture_output=True, text=True, timeout=60).stdout
 zeilen = [re.match(r"^(\w{6})\s+\S+\s+(.*) · ([^·]*?)\s+\((\d+) Videos?, angelegt (\d\d)\.(\d\d)\.(\d{4})\)\s+\[(.*)\]$", z) for z in liste.splitlines()]
+# Drive Abgleich (seit 22.11.2026): ausgeblendete Videos und Hinweis pro Link, nur Titel und Datum
+drive = json.loads(subprocess.run(["ssh", "-i", str(Path.home() / ".ssh/id_ed25519"), "hermes@82.165.217.31",
+    "python3 -c 'import json,glob,os;print(json.dumps({os.path.basename(f)[:-5]: {\"weg\": [{\"titel\": w.get(\"titel\"), \"am\": w.get(\"weg_am\")} "
+    "for w in (d.get(\"drive_weg\") or [])], \"hinweis\": d.get(\"drive_hinweis\")} for f in glob.glob(os.path.expanduser(\"~/.hermes/data/stageview/projekte/*.json\")) "
+    "for d in [json.load(open(f))]}))'"], capture_output=True, text=True, timeout=60).stdout or "{}")
 projekte, kommentare_alle, kunden, seiten = [], {}, {}, {}
 for m in [m for m in zeilen if m]:
     code, titel, kunde, _, tag, monat, jahr, schluessel = m.groups()
@@ -56,7 +61,8 @@ for m in [m for m in zeilen if m]:
     projekte.append({"schluessel": schluessel, "code": code, "link": f"https://videos.stagecraft.media/{code}", "titel": pj.get("titel") or titel,
                      "kunde": kunde, "kunde_ordner": kid, "firma": pj.get("firma") or "", "hinweis": pj.get("hinweis") or "",
                      "darstellung": pj.get("darstellung") or "abschnitte", "dreh": pj.get("dreh"), "angelegt": f"{jahr}-{monat}-{tag}",
-                     "stand": pj.get("stand"), "letzte": letzte, "videos": videos, "wartend": 0, "kommentare": offene})
+                     "stand": pj.get("stand"), "letzte": letzte, "videos": videos, "wartend": 0, "kommentare": offene,
+                     "drive_weg": (drive.get(schluessel) or {}).get("weg") or [], "drive_hinweis": (drive.get(schluessel) or {}).get("hinweis")})
     print(f"{code}  {len(videos):2} Videos  {sum(offen.values()):2} offen  {titel}")
 uebersicht = {"projekte": projekte, "kunden": sorted(kunden.values(), key=lambda k: k["name"].lower()), "auftraege": [],
               "ich": {"zugang": "tess", "name": "Ole"}}

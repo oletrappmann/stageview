@@ -282,6 +282,49 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Ein Video groß oben, Drive abgleichen, Rückfragen in der Mitte (22.11.2026)
+    func testDrive() {
+        var a = app("projekt:r92rdb")
+        bild("d1-einzeln", warten: 3.5)
+        a.swipeUp()
+        bild("d2-einzeln-unten", warten: 1.2)
+        a.buttons["drive-abgleichen"].firstMatch.tap()
+        bild("d3-drive-hinweis", warten: 0.9)
+        a.buttons["link-loeschen"].firstMatch.tap()
+        bild("d4-rueckfrage-link", warten: 0.8)
+        a.buttons["rueckfrage-nein"].firstMatch.tap()
+        bild("d4b-zu", warten: 0.8)
+        a.swipeDown()
+        Thread.sleep(forTimeInterval: 0.6)
+        a.buttons["einzelvideo-mehr"].firstMatch.tap()
+        bild("d4c-video-menue", warten: 1)
+        a.terminate()
+        a = app("projekt:edzwtd")
+        Thread.sleep(forTimeInterval: 3)
+        a.swipeUp()
+        bild("d5-ausgeblendet", warten: 1.2)
+        a.terminate()
+        a = app("projekt:8s9f9t")
+        bild("d6-hinweis", warten: 3.5)
+        a.terminate()
+        a = app("projekt:zskz92")
+        Thread.sleep(forTimeInterval: 3)
+        a.swipeUp()
+        Thread.sleep(forTimeInterval: 1)
+        let zeile = a.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'video-'")).firstMatch
+        zeile.press(forDuration: 1.0)
+        Thread.sleep(forTimeInterval: 0.8)
+        a.buttons["Von der Seite nehmen"].firstMatch.tap()
+        bild("d7-rueckfrage-video", warten: 0.8)
+        a.terminate()
+        a = app("liste")
+        Thread.sleep(forTimeInterval: 3)
+        let karte = a.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'zeile-'")).firstMatch
+        karte.press(forDuration: 1.0)
+        bild("d8-link-menue", warten: 1)
+        a.terminate()
+    }
+
     /// Link aus einer Mitteilung (22.11.2026): ?k= öffnet den Player mit dem Kommentar hervorgehoben
     func testMitteilungsLink() {
         let a = app("liste")

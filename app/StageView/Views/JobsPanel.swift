@@ -132,6 +132,7 @@ private struct JobRow: View {
 
     private var detail: String {
         if job.running { return job.readable }
+        if job.ok, job.kind == "drive" { return job.readable }
         if job.ok { return job.link.map { "Fertig · " + $0.absoluteString.replacingOccurrences(of: "https://", with: "") } ?? "Fertig" }
         return "Hat nicht geklappt: " + (job.error ?? "unbekannter Fehler")
     }

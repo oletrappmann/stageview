@@ -47,13 +47,12 @@ struct NewLinkSheet: View {
             }
         }
         .interactiveDismissDisabled(step == .preparing && linkJobID == nil)
-        .confirmationDialog("Neuen Link verwerfen?", isPresented: $confirmDiscard, titleVisibility: .visible) {
-            Button("Verwerfen", role: .destructive) {
-                Haptics.cancel()
-                cancelJobs()
-                dismiss()
-            }
-        } message: { Text("Die Videos, die schon zu Mux gegangen sind, werden dort wieder gelöscht. Im Drive bleibt alles.") }
+        .centerConfirm("Neuen Link verwerfen?", isPresented: $confirmDiscard, action: "Verwerfen", symbol: "xmark",
+                       message: { "Die Videos, die schon zu Mux gegangen sind, werden dort wieder gelöscht. Im Drive bleibt alles." }) {
+            Haptics.cancel()
+            cancelJobs()
+            dismiss()
+        }
         .task(id: allJobs) { await poll() }
         .onAppear {
             customerID = start.customerID ?? ""

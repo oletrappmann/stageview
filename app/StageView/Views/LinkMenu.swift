@@ -35,6 +35,13 @@ struct LinkMenuItems: View {
                 Link(destination: link) { Label("In Safari öffnen", systemImage: "safari") }
             }
             Section {
+                // Drive abgleichen (Ole, 22.11.2026): neue Videos aus dem Ordner holen
+                Button { Task { await store.syncDrive(project) } } label: {
+                    Label("Drive abgleichen", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .disabled(store.isSyncingDrive(project))
+            }
+            Section {
                 Button(role: .destructive, action: delete) { Label("Link löschen", systemImage: "trash") }
             }
         }

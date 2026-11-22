@@ -52,22 +52,18 @@ struct ProjectPage: View {
             }
         }
         .sheet(isPresented: $editing) { if let project { ProjectEditSheet(project: project) } }
-        .confirmationDialog("Link löschen?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Link löschen", role: .destructive) {
-                guard let project else { return }
-                Haptics.cancel()
-                Task { if await store.deleteLink(project) { dismiss() } }
-            }
-        } message: { Text(DeleteText.link(project)) }
-        .confirmationDialog("Von der Seite nehmen?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
-                            titleVisibility: .visible) {
-            Button("Von der Seite nehmen", role: .destructive) {
-                guard let project, let video = removing else { return }
-                Haptics.cancel()
-                Task { await store.removeVideo(project, video) }
-            }
-        } message: {
-            Text("„\(removing?.title ?? "")“ verschwindet von der Seite. Das Video im Drive, bei Mux und alle Kommentare bleiben, die Nummer \(removing?.nr ?? 0) wird nie neu vergeben.")
+        .centerConfirm("Link löschen?", isPresented: $confirmDelete, action: "Link löschen", message: { DeleteText.link(project) }) {
+            guard let project else { return }
+            Haptics.cancel()
+            Task { if await store.deleteLink(project) { dismiss() } }
+        }
+        .centerConfirm("Von der Seite nehmen?", item: $removing, action: "Von der Seite nehmen", symbol: "rectangle.badge.minus",
+                       message: { video in
+                           "„\(video.title)“ verschwindet von der Seite. Das Video im Drive, bei Mux und alle Kommentare bleiben, die Nummer \(video.nr) wird nie neu vergeben."
+                       }) { video in
+            guard let project else { return }
+            Haptics.cancel()
+            Task { await store.removeVideo(project, video) }
         }
         .alert("Titel ändern", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Titel", text: $renameText)
@@ -86,7 +82,8 @@ struct ProjectPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header(project)
-                linkBox(project).padding(.top, 18)
+                // Ein einzelnes Video (Ole, 22.11.2026): gleich oben groß, darunter Link öffnen, Safari usw.
+                linkBox(project, hero: project.videos.count == 1 ? project.videos.first : nil).padding(.top, 18)
                 if !project.videos.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         // Feedback statt Freigabe (Ole, 22.11.2026), gleich wie im Admin Dashboard
@@ -127,8 +124,27 @@ struct ProjectPage: View {
                     comments(project).padding(.top, 10)
                 }
 
-                SectionTitle(title: "Videos", count: project.videos.count).padding(.top, 30).padding(.horizontal, 4)
-                videos(project).padding(.top, 10)
+                if project.videos.count != 1 {
+                    SectionTitle(title: "Videos", count: project.videos.count).padding(.top, 30).padding(.horizontal, 4)
+                    videos(project).padding(.top, 10)
+                }
+                if let note = project.driveNote {
+                    Label(note.hasSuffix(".") ? note : note + ".", systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Palette.changesInk)
+                        .padding(.top, 10)
+                        .padding(.horizontal, 4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !project.driveGone.isEmpty {
+                    Text("Nicht mehr im Drive, deshalb ausgeblendet: \(project.driveGone.map { "„\($0)“" }.joined(separator: ", ")). Liegt ein Video wieder im Ordner, ist es von selbst zurück.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Palette.muted)
+                        .padding(.top, 10)
+                        .padding(.horizontal, 4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("drive-weg")
+                }
                 if project.waiting > 0 {
                     Text("\(Plural.count(project.waiting, "Video ist", "Videos sind")) noch bei Mux und \(project.waiting == 1 ? "erscheint" : "erscheinen") gleich von selbst.")
                         .font(.system(size: 14))
@@ -138,6 +154,7 @@ struct ProjectPage: View {
                 }
 
                 if project.code != nil {
+                    driveRow(project).padding(.top, 30)
                     Button {
                         Haptics.select()
                         withAnimation(.spring(response: 0.38, dampingFraction: 0.88)) { addOpen.toggle() }
@@ -150,7 +167,7 @@ struct ProjectPage: View {
                                 .background(Palette.surface, in: Circle())
                             VStack(alignment: .leading, spacing: 1) {
                                 Text("Videos dazu").font(.system(size: 16, weight: .semibold)).foregroundStyle(Palette.text)
-                                Text("Neue Schnittfassung? Die alte bleibt mit ihren Kommentaren stehen.")
+                                Text("Neue Schnittfassung? Die alte bleibt mit ihren Kommentaren stehen, solange sie im Drive liegt.")
                                     .font(.system(size: 13)).foregroundStyle(Palette.muted).lineLimit(2).multilineTextAlignment(.leading)
                             }
                             Spacer(minLength: 4)
@@ -160,7 +177,7 @@ struct ProjectPage: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .padding(.top, 30)
+                    .padding(.top, 22)
                     .padding(.horizontal, 4)
                     .accessibilityIdentifier("videos-dazu")
                     if addOpen {
@@ -211,9 +228,12 @@ struct ProjectPage: View {
         .padding(.top, 2)
     }
 
-    private func linkBox(_ project: Project) -> some View {
+    private func linkBox(_ project: Project, hero: Video? = nil) -> some View {
         CardBox {
             VStack(alignment: .leading, spacing: 12) {
+                if let hero {
+                    heroVideo(project, hero)
+                }
                 // Der Link öffnet die Kundenansicht wie im Web (Ole, 22.11.2026)
                 Button {
                     guard project.code != nil else { return }
@@ -242,7 +262,10 @@ struct ProjectPage: View {
                         Button {
                             Haptics.press()
                             path.switchTo(.client(project.key))
-                        } label: { CapsuleButtonLabel(title: "Projekt anzeigen", symbol: "rectangle.grid.2x2", primary: true) }
+                        } label: {
+                            CapsuleButtonLabel(title: hero == nil ? "Projekt anzeigen" : "Link öffnen",
+                                               symbol: hero == nil ? "rectangle.grid.2x2" : "arrow.up.forward.app", primary: true)
+                        }
                             .buttonStyle(PressStyle())
                             .disabled(project.videos.isEmpty)
                             .accessibilityIdentifier("projekt-anzeigen")
@@ -274,6 +297,129 @@ struct ProjectPage: View {
                 }
             }
         }
+    }
+
+    // MARK: Ein Video groß
+
+    /// Das einzige Video eines Links groß oben (Ole, 22.11.2026). Tipp spielt es, langes Drücken oder ⋯ hat alles aus der Videozeile
+    private func heroVideo(_ project: Project, _ video: Video) -> some View {
+        let play = {
+            Haptics.press()
+            store.play(project, video, source: "projekt-\(video.id)")
+        }
+        let status = project.code.map { ReviewStore.of($0).status(of: video) } ?? video.status
+        return VStack(alignment: .leading, spacing: 12) {
+            Color.clear
+                .aspectRatio(video.portrait ? 4 / 5 : max(video.aspect, 1), contentMode: .fit)
+                .overlay {
+                    GeometryReader { g in
+                        ZStack {
+                            // Hochkant im Rahmen: dahinter die Bildmitte groß und weich als Licht, vorne das ganze Bild
+                            RemoteImage(url: video.thumbnail(width: 200), placeholder: Palette.surface)
+                                .blur(radius: 30)
+                                .saturation(1.6)
+                                .brightness(0.04)
+                                .scaleEffect(video.portrait ? 2.2 : 1.3)
+                            RemoteImage(url: video.thumbnail(width: 900), placeholder: .clear)
+                                .frame(width: min(g.size.width, g.size.height * video.aspect),
+                                       height: min(g.size.height, g.size.width / max(video.aspect, 0.1)))
+                        }
+                        .frame(width: g.size.width, height: g.size.height)
+                    }
+                }
+                .overlay {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .offset(x: 2)
+                        .frame(width: 68, height: 68)
+                        .glassEffect(.regular.interactive(), in: Circle())
+                }
+                .overlay(alignment: .bottomLeading) {
+                    Text(Clock.text(video.duration))
+                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .frame(height: 22)
+                        .background(.black.opacity(0.45), in: Capsule())
+                        .padding(12)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .zoomSource("projekt-\(video.id)", zoom)
+                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .onTapGesture(perform: play)
+                .contextMenu { videoMenu(project, video) }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(video.title) abspielen")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction(.default, play)
+                .accessibilityIdentifier("einzelvideo")
+            HStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    if video.title != project.title {
+                        Text(video.title)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Palette.text)
+                            .lineLimit(2)
+                    }
+                    HStack(spacing: 6) {
+                        StatusDot(status: status)
+                        Text(status.title).foregroundStyle(Palette.muted)
+                        if video.open > 0 {
+                            Text("· \(Plural.count(video.open, "offen", "offen"))").foregroundStyle(Palette.changesInk).fontWeight(.semibold)
+                        }
+                    }
+                    .font(.system(size: 13))
+                }
+                Spacer(minLength: 4)
+                Menu { videoMenu(project, video) } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Palette.text)
+                        .frame(width: 36, height: 36)
+                        .background(Palette.surface, in: Circle())
+                }
+                .accessibilityLabel("Mehr zum Video")
+                .accessibilityIdentifier("einzelvideo-mehr")
+            }
+            Divider().overlay(Palette.line.opacity(0.6)).padding(.vertical, 2)
+        }
+    }
+
+    // MARK: Drive
+
+    /// Drive abgleichen (Ole, 22.11.2026): holt neue Videos aus dem Ordner. Was nicht mehr im Drive liegt, nimmt der Server
+    /// sowieso alle 5 Minuten von der Seite.
+    private func driveRow(_ project: Project) -> some View {
+        let busy = store.isSyncingDrive(project)
+        return Button {
+            guard !busy else { return }
+            Task { await store.syncDrive(project) }
+        } label: {
+            HStack(spacing: 10) {
+                Group {
+                    if busy {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 15, weight: .bold))
+                    }
+                }
+                .foregroundStyle(Palette.text)
+                .frame(width: 34, height: 34)
+                .background(Palette.surface, in: Circle())
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(busy ? "Drive wird abgeglichen …" : "Drive abgleichen").font(.system(size: 16, weight: .semibold)).foregroundStyle(Palette.text)
+                    Text("Holt neue Videos aus dem Ordner. Was nicht mehr im Drive liegt, verschwindet von selbst.")
+                        .font(.system(size: 13)).foregroundStyle(Palette.muted).lineLimit(2).multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 4)
+            }
+            .padding(.horizontal, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(busy)
+        .accessibilityIdentifier("drive-abgleichen")
     }
 
     // MARK: Videos
@@ -355,7 +501,12 @@ struct ProjectPage: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(.default, play)
         .accessibilityIdentifier("videozeile-\(video.nr)")
-        .contextMenu {
+        .contextMenu { videoMenu(project, video) }
+        .accessibilityIdentifier("video-\(video.nr)")
+    }
+
+    @ViewBuilder
+    private func videoMenu(_ project: Project, _ video: Video) -> some View {
             Button { store.play(project, video, source: "projekt-\(video.id)") } label: { Label("Abspielen", systemImage: "play.rectangle") }
             Button {
                 renameText = video.title
@@ -373,8 +524,6 @@ struct ProjectPage: View {
             StatusMenuItems(project: project, video: video)
             Divider()
             Button(role: .destructive) { removing = video } label: { Label("Von der Seite nehmen", systemImage: "rectangle.badge.minus") }
-        }
-        .accessibilityIdentifier("video-\(video.nr)")
     }
 
     // MARK: Videos dazu

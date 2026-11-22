@@ -193,12 +193,19 @@ struct Project: Decodable, Identifiable, Hashable {
     var videos: [Video]
     var waiting: Int
     var openComments: [OpenComment]
+    /// Nicht mehr im Drive und deshalb ausgeblendet (seit 22.11.2026, der Server gleicht alle 5 Minuten ab)
+    var driveGone: [String] = []
+    /// Hinweis vom Drive Abgleich, z.B. wenn alle Videos fehlen und die Seite deshalb bleibt, wie sie ist
+    var driveNote: String?
 
     var id: String { key }
 
     enum CodingKeys: String, CodingKey {
         case schluessel, code, link, titel, kunde, kunde_ordner, firma, hinweis, darstellung, dreh, angelegt, stand, letzte, videos, wartend, kommentare
+        case drive_weg, drive_hinweis
     }
+
+    private struct Gone: Decodable { var titel: String? }
 
     init(key: String, code: String?, title: String, customer: String, company: String = "", videos: [Video], openComments: [OpenComment] = [],
          lastActivity: String? = nil, created: String? = nil, waiting: Int = 0) {
@@ -226,6 +233,8 @@ struct Project: Decodable, Identifiable, Hashable {
         videos = c.lenient(.videos, [Lenient<Video>]()).compactMap(\.value)
         waiting = Int(c.number(.wartend) ?? 0)
         openComments = c.lenient(.kommentare, [Lenient<OpenComment>]()).compactMap(\.value)
+        driveGone = c.lenient(.drive_weg, [Lenient<Gone>]()).compactMap { $0.value?.titel }.filter { !$0.isEmpty }
+        driveNote = c.lenient(.drive_hinweis)
     }
 
     var customerName: String { customer.isEmpty ? "Ohne Kunde" : customer }
@@ -321,6 +330,7 @@ struct Job: Decodable, Identifiable, Hashable {
         if z.contains("zu Mux") { return "Videos gehen zu Mux" }
         if z.hasPrefix("Link:") { return "Link steht, Mux startet" }
         if z.contains("Mux fertig") { return "Mux fertig, Seite wird gebaut" }
+        if z.hasPrefix("Drive geprüft: ") { return String(z.dropFirst("Drive geprüft: ".count)).capitalizedFirst }
         return z.isEmpty ? "startet …" : z
     }
 
@@ -329,6 +339,7 @@ struct Job: Decodable, Identifiable, Hashable {
         case "neu": "Neuer Link"
         case "dazu": "Videos dazu"
         case "vorbereiten": "Vorbereiten"
+        case "drive": "Drive abgleichen"
         default: "Auftrag"
         }
     }
@@ -515,4 +526,9 @@ enum When {
         let f = DateFormatter(); f.locale = Locale(identifier: "de_DE"); f.setLocalizedDateFormatFromTemplate("EEE d. MMM")
         return f.string(from: date)
     }
+}
+
+extension String {
+    /// „keine neuen Videos“ → „Keine neuen Videos“
+    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
 }

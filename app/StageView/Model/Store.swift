@@ -78,6 +78,8 @@ final class Store {
 
     private var poller: Task<Void, Never>?
     private var noticeTimer: Task<Void, Never>?
+    /// In der App gestartete Drive Abgleiche: ist einer fertig, sagt ein Hinweis, was passiert ist
+    private var watchedJobs: Set<String> = []
     private var busyKeys: Set<String> = []
 
     private init() {
@@ -148,6 +150,12 @@ final class Store {
             withAnimation(.easeOut(duration: 0.25)) { overview = fresh }
             if let who = fresh.me, who != me { remember(who) }
             loadError = nil
+            for job in fresh.jobs where watchedJobs.contains(job.id) && !job.running {
+                watchedJobs.remove(job.id)
+                dismissedJobs.append(job.id)  // der Hinweis reicht, oben keine Meldung mehr
+                if job.ok { show(job.readable, symbol: "arrow.triangle.2.circlepath") }
+                else { show("Drive Abgleich hat nicht geklappt: " + (job.error ?? "unbekannter Fehler"), error: true) }
+            }
             if let id = customerID, !fresh.customers.contains(where: { $0.id == id }) { customerID = nil }
             if let link = pendingLink { pendingLink = nil; open(link) }
         } catch APIError.signedOut {
@@ -386,6 +394,26 @@ final class Store {
         return await run("dazu-\(code)", done: "Läuft, Mux braucht ein paar Minuten") {
             let _: JobRef = try await API.post("admin/projekt/\(code)/dazu", body)
         }
+    }
+
+    /// Knopf „Drive abgleichen“ (Ole, 22.11.2026): neue Videos aus dem Ordner dazu, nicht mehr vorhandene raus.
+    /// Das Rausnehmen macht der Server sowieso alle 5 Minuten, der Knopf holt zusätzlich Neues.
+    func syncDrive(_ project: Project) async -> Bool {
+        guard let code = project.code else { return false }
+        if runningJobs(for: code).contains(where: { $0.kind == "drive" }) { return true }
+        Haptics.sent()
+        let ok = await run("drive-\(code)") {
+            let ref: JobRef = try await API.post("admin/projekt/\(code)/drive", [String: Any]())
+            watchedJobs.insert(ref.id)  // vor dem Neuladen, sonst geht ein ganz schneller Abgleich ohne Hinweis durch
+        }
+        #if DEBUG
+        if Demo.isOn, ok { show("Keine neuen Videos im Ordner, alles aktuell", symbol: "arrow.triangle.2.circlepath") }
+        #endif
+        return ok
+    }
+
+    func isSyncingDrive(_ project: Project) -> Bool {
+        isBusy("drive-\(project.code ?? "")") || runningJobs(for: project.code).contains { $0.kind == "drive" }
     }
 
     struct JobRef: Decodable { var id: String }

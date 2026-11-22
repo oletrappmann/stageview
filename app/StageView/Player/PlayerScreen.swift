@@ -143,27 +143,21 @@ struct PlayerScreen: View {
                 Task { await store.renameVideo(project, video, to: renameText) }
             }
         }
-        .confirmationDialog("Kommentar löschen?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-                            titleVisibility: .visible) {
-            Button("Löschen", role: .destructive) {
-                guard let comment = deleting, let review else { return }
-                Haptics.cancel()
-                Task { await review.delete(comment) }
-            }
-        } message: {
-            Text("Der Kommentar und seine Antworten verschwinden für alle.")
+        .centerConfirm("Kommentar löschen?", item: $deleting, action: "Löschen",
+                       message: { _ in "Der Kommentar und seine Antworten verschwinden für alle." }) { comment in
+            guard let review else { return }
+            Haptics.cancel()
+            Task { await review.delete(comment) }
         }
-        .confirmationDialog("Von der Seite nehmen?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
-                            titleVisibility: .visible) {
-            Button("Von der Seite nehmen", role: .destructive) {
-                guard let video = removing, let project else { return }
-                Haptics.cancel()
-                Task {
-                    if await store.removeVideo(project, video) { if videos.count <= 1 { dismiss() } }
-                }
+        .centerConfirm("Von der Seite nehmen?", item: $removing, action: "Von der Seite nehmen", symbol: "rectangle.badge.minus",
+                       message: { video in
+                           "„\(video.title)“ verschwindet von der Seite. Das Video im Drive, bei Mux und alle Kommentare bleiben, die Nummer wird nie neu vergeben."
+                       }) { video in
+            guard let project else { return }
+            Haptics.cancel()
+            Task {
+                if await store.removeVideo(project, video) { if videos.count <= 1 { dismiss() } }
             }
-        } message: {
-            Text("„\(removing?.title ?? "")“ verschwindet von der Seite. Das Video im Drive, bei Mux und alle Kommentare bleiben, die Nummer wird nie neu vergeben.")
         }
         #if DEBUG
         .task {

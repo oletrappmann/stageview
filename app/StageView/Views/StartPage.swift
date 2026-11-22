@@ -365,13 +365,9 @@ struct CustomerPage: View {
 extension View {
     /// Rückfrage vor dem Löschen eines Links (gleich auf jeder Seite)
     func linkDeletion(_ deleting: Binding<Project?>) -> some View {
-        confirmationDialog("Link löschen?", isPresented: Binding(get: { deleting.wrappedValue != nil }, set: { if !$0 { deleting.wrappedValue = nil } }),
-                           titleVisibility: .visible) {
-            Button("Link löschen", role: .destructive) {
-                guard let project = deleting.wrappedValue else { return }
-                Haptics.cancel()
-                Task { await Store.shared.deleteLink(project) }
-            }
-        } message: { Text(DeleteText.link(deleting.wrappedValue)) }
+        centerConfirm("Link löschen?", item: deleting, action: "Link löschen", message: { DeleteText.link($0) }) { project in
+            Haptics.cancel()
+            Task { await Store.shared.deleteLink(project) }
+        }
     }
 }
