@@ -9,6 +9,16 @@ struct JobsPanel: View {
     var body: some View {
         let jobs = store.visibleJobs
         if !jobs.isEmpty {
+            switch JobsStyle.current {
+            case .karte: classic(jobs)
+            case .leiste: JobsPill(jobs: jobs, path: $path).transition(.opacity)
+            case .ios: JobsNotifications(jobs: jobs, path: $path).transition(.opacity)
+            case .karussell: JobsCarousel(jobs: jobs, path: $path).transition(.opacity)
+            }
+        }
+    }
+
+    private func classic(_ jobs: [Job]) -> some View {
             VStack(alignment: .leading, spacing: 0) {
                 if jobs.count >= 2 {
                     HStack {
@@ -57,7 +67,6 @@ struct JobsPanel: View {
             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .transition(.opacity.combined(with: .scale(scale: 0.97)))
             .accessibilityIdentifier("meldungen")
-        }
     }
 }
 
@@ -130,10 +139,5 @@ private struct JobRow: View {
         }
     }
 
-    private var detail: String {
-        if job.running { return job.readable }
-        if job.ok, job.kind == "drive" { return job.readable }
-        if job.ok { return job.link.map { "Fertig · " + $0.absoluteString.replacingOccurrences(of: "https://", with: "") } ?? "Fertig" }
-        return "Hat nicht geklappt: " + (job.error ?? "unbekannter Fehler")
-    }
+    private var detail: String { job.detailText }
 }

@@ -83,11 +83,14 @@ enum Demo {
     }
 
     private static var sampleJobs: [Job] {
-        let now = ISO8601DateFormatter().string(from: .now)
+        let f = ISO8601DateFormatter()
+        let now = f.string(from: .now), vier = f.string(from: .now.addingTimeInterval(-4 * 60))
+        let zwoelf = f.string(from: .now.addingTimeInterval(-12 * 60)), vierzig = f.string(from: .now.addingTimeInterval(-40 * 60))
         return [
             job(#"{"id":"j1","art":"dazu","titel":"Penthouse an der Spree · Schnitt 2","code":"zskz92","start":"\#(now)","laeuft":true,"ok":false,"zuletzt":"warte auf Mux: 01.mp4 72 %, 02.mp4 41 %","stand":{}}"#),
-            job(#"{"id":"j2","art":"neu","titel":"Content Day Dezember","start":"\#(now)","laeuft":false,"ok":true,"zuletzt":"fertig","link":"https://videos.stagecraft.media/uuwvte","stand":{}}"#),
-            job(#"{"id":"j3","art":"dazu","titel":"Vlog KW48","start":"\#(now)","laeuft":false,"ok":false,"zuletzt":"FEHLER: Kein Zugriff auf den Drive Ordner","fehler":"Kein Zugriff auf den Drive Ordner","stand":{}}"#),
+            job(#"{"id":"j4","art":"drive","titel":"Content Day Oktober","code":"edzwtd","start":"\#(vier)","laeuft":false,"ok":true,"zuletzt":"Drive geprüft: 2 neue Videos dazu","stand":{}}"#),
+            job(#"{"id":"j2","art":"neu","titel":"Content Day Dezember","start":"\#(zwoelf)","laeuft":false,"ok":true,"zuletzt":"fertig","link":"https://videos.stagecraft.media/uuwvte","stand":{}}"#),
+            job(#"{"id":"j3","art":"dazu","titel":"Vlog KW48","start":"\#(vierzig)","laeuft":false,"ok":false,"zuletzt":"FEHLER: Kein Zugriff auf den Drive Ordner","fehler":"Kein Zugriff auf den Drive Ordner","stand":{}}"#),
         ]
     }
 

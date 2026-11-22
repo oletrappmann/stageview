@@ -282,6 +282,43 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Entwürfe für die Meldungen oben (22.11.2026): bisher, Leiste, wie iOS, Karussell
+    func testMeldungsEntwuerfe() {
+        var a = app("meldungen", env: ["SV_MELDUNG": "karte"])
+        bild("e0-bisher", warten: 3.5)
+        a.terminate()
+        a = app("meldungen", env: ["SV_MELDUNG": "leiste"])
+        bild("e1-leiste", warten: 3.5)
+        a.buttons["meldungen-leiste"].firstMatch.tap()
+        bild("e1b-leiste-offen", warten: 1.2)
+        a.terminate()
+        a = app("meldungen", env: ["SV_MELDUNG": "ios"])
+        bild("e2-ios-stapel", warten: 3.5)
+        a.descendants(matching: .any)["ios-stapel"].firstMatch.tap()
+        bild("e2b-ios-offen", warten: 1.2)
+        // zweite Karte (Drive Abgleich) nach links ziehen, bis „Löschen“ steht
+        let karte = a.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Drive abgleichen'")).firstMatch
+        karte.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
+            .press(forDuration: 0.05, thenDragTo: karte.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)), withVelocity: .slow, thenHoldForDuration: 0.1)
+        bild("e2c-ios-wischen", warten: 1)
+        a.buttons["ios-loeschen"].firstMatch.tap()
+        bild("e2d-ios-geloescht", warten: 1.2)
+        // ganz durchwischen löscht sofort (Neuer Link)
+        let neu = a.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Neuer Link: '")).firstMatch
+        neu.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5))
+            .press(forDuration: 0.02, thenDragTo: neu.coordinate(withNormalizedOffset: CGVector(dx: -0.3, dy: 0.5)), withVelocity: .fast, thenHoldForDuration: 0)
+        bild("e2e-ios-durchgewischt", warten: 1.4)
+        a.buttons["ios-weniger"].firstMatch.tap()
+        bild("e2f-ios-wieder-stapel", warten: 1.4)
+        a.terminate()
+        a = app("meldungen", env: ["SV_MELDUNG": "karussell"])
+        bild("e3-karussell", warten: 3.5)
+        let reihe = a.descendants(matching: .any)["meldungen-karussell"].firstMatch
+        reihe.swipeLeft()
+        bild("e3b-karussell-weiter", warten: 1.2)
+        a.terminate()
+    }
+
     /// Ein Video groß oben, Drive abgleichen, Rückfragen in der Mitte (22.11.2026)
     func testDrive() {
         var a = app("projekt:r92rdb")

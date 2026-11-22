@@ -88,6 +88,9 @@ final class Store {
         filter = .all
         sort = LinkSort(rawValue: d.string(forKey: "sv.sortierung") ?? "") ?? .activity
         dismissedJobs = d.stringArray(forKey: "sv.meldungen.weg") ?? []
+        #if DEBUG
+        if Demo.isOn { dismissedJobs = [] }  // Vorführung startet immer mit allen Meldungen
+        #endif
         jobsCollapsed = d.bool(forKey: "sv.meldungen.zu")
         if let zugang = d.string(forKey: "sv.zugang"), let name = d.string(forKey: "sv.name") { me = Me(zugang: zugang, name: name) }
         signedIn = Keychain.token != nil
