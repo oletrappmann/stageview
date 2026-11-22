@@ -1620,6 +1620,22 @@
   let geste = null, klickSperre = 0;
   // Nach einer Geste kommt kein versehentlicher Klick hinterher (z.B. Play, wenn man auf dem Knopf losgezogen hat)
   document.addEventListener('click', e => { if (performance.now() < klickSperre) { e.preventDefault(); e.stopPropagation(); } }, true);
+  // Offenes Menü (Einstellungen, Freigabe Status, Sortierung) geht zu, sobald man irgendwo anders hindrückt (Ole, 22.11.2026: „wenn
+  // man ins Leere davon drückt“). Vorher nur per Klick auf document, der kam am iPhone bei Tipps auf Video, Steuerleiste oder Kopfzeile
+  // nie an (Safari schickt dort keinen Klick). Darum schon beim Drücken. Wer dabei aufs Video drückt, schließt nur das Menü, das Video
+  // läuft bzw. steht weiter. Andere Knöpfe tun beim selben Druck ganz normal ihre Arbeit
+  let menueSchluckt = false, menueKlickWeg = 0;
+  document.addEventListener('pointerdown', e => {
+    menueSchluckt = false;
+    const m = document.querySelector('.status-menue:not([hidden])'); if (!m) return;
+    if (m.contains(e.target) || e.target.closest('.status-wahl, #zahnrad')) return;  // im Menü selbst oder auf seinem Knopf
+    menueZu();
+    if (e.target.closest('#flaeche')) { menueSchluckt = true; menueKlickWeg = performance.now() + 1500; }
+  }, true);
+  // Nur der eine Klick aufs Video, der zum Schließen gehörte, fällt weg (sonst startet media-chrome das Video). Andere Klicks gehen sofort
+  document.addEventListener('click', e => {
+    if (performance.now() < menueKlickWeg && e.target.closest('#flaeche')) { menueKlickWeg = 0; e.preventDefault(); e.stopPropagation(); }
+  }, true);
   function gesteStart(e, quelle) {
     if (geste && geste.id === e.pointerId) { if (quelle === 'kopf') geste.blatt = true; return; }
     if (geste || e.button > 0) return;
@@ -1679,7 +1695,7 @@
   // wieder. Darum schluckt klickSperre den Klick danach. Fest gedrückt (bis 1 s) zählt auch, ohne Apples Menü beim langen Drücken
   let tipp = null;
   $('video-box').addEventListener('pointerdown', e => {
-    tipp = e.pointerType === 'mouse' || !e.isPrimary || e.target.closest('media-play-button, button, a, .wechsel') ? null
+    tipp = menueSchluckt || e.pointerType === 'mouse' || !e.isPrimary || e.target.closest('media-play-button, button, a, .wechsel') ? null
       : { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp };
   });
   $('video-box').addEventListener('pointerup', e => {
