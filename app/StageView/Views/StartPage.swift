@@ -124,6 +124,8 @@ struct StartPage: View {
     private func feed(_ s: StartSection) -> some View {
         switch s {
         case .links:
+            // Meldungen wie im Dashboard (Neuer Link, Videos dazu): beim Aufräumen der Entwürfe am 22.11. versehentlich mit raus
+            if !store.visibleJobs.isEmpty { JobsPanel(path: $path).padding(.horizontal, 16).padding(.bottom, 14) }
             if store.search.isEmpty {
                 StartWidgets(actions: actions, go: { target in withAnimation(.smooth(duration: 0.35)) { page = target } })
             }

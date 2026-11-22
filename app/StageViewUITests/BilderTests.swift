@@ -219,6 +219,20 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Meldungen oben auf der Startseite und Hinweis im Player (22.11.2026, aus dem Review)
+    func testMeldungen() {
+        var a = app("meldungen")
+        bild("m-meldungen", warten: 3)
+        a.terminate()
+        a = app("player:zskz92:2:8")
+        Thread.sleep(forTimeInterval: 4)
+        a.buttons["player-link"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 0.8)
+        a.buttons["Link kopieren"].firstMatch.tap()
+        bild("m-hinweis-player", warten: 0.6)
+        a.terminate()
+    }
+
     /// Nur gemischte Formate (Querformat in der Hochkant Kachel)
     func testKundeGemischt() {
         let a = app("kundenansicht:7zn3a4")

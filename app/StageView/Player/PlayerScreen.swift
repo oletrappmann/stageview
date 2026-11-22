@@ -87,6 +87,16 @@ struct PlayerScreen: View {
             }
         }
         .background(Self.viewer.ignoresSafeArea())
+        // Hinweise (kopiert, Fehler beim Senden) auch im Player, MainView zeigt sie nur ohne Player
+        .overlay(alignment: .top) {
+            if let notice = store.notice {
+                NoticeCapsule(notice: notice)
+                    .padding(.top, 6)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .onTapGesture { withAnimation(.easeOut(duration: 0.25)) { store.notice = nil } }
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: store.notice?.id)
         .environment(\.colorScheme, .dark)
         .preferredColorScheme(.dark)
         .onAppear(perform: start)
