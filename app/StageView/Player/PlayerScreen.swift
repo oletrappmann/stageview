@@ -89,6 +89,12 @@ struct PlayerScreen: View {
             }
         }
         .background(Self.viewer.ignoresSafeArea())
+        // Teilen Fenster über dem Player
+        .overlay {
+            if let request = store.share {
+                ShareDialog(request: request) { store.share = nil }
+            }
+        }
         // Hinweise (kopiert, Fehler beim Senden) auch im Player, MainView zeigt sie nur ohne Player
         .overlay(alignment: .top) {
             if let notice = store.notice {
@@ -252,34 +258,19 @@ struct PlayerScreen: View {
         .padding(.horizontal, 14)
     }
 
-    /// Link Knopf wie auf der Videoseite: kopieren (auf Wunsch ab der aktuellen Stelle), teilen, in Safari
+    /// Link Knopf wie auf der Videoseite (Ole, 22.11.2026: „wie im Web das Popup“): öffnet das Teilen Fenster mit dem Link zum
+    /// Video, auf Wunsch ab der Stelle. Das Video hält dabei an und bleibt danach angehalten
     private var linkMenu: some View {
-        Menu {
-            if let project, let video = current, let link = project.videoLink(video) {
-                Button {
-                    UIPasteboard.general.url = link
-                    store.show("Link zum Video kopiert", symbol: "doc.on.doc")
-                } label: { Label("Link zum Video kopieren", systemImage: "doc.on.doc") }
-                if let page = project.link {
-                    Button {
-                        UIPasteboard.general.url = page
-                        store.show("Link zur Seite kopiert", symbol: "doc.on.doc")
-                    } label: { Label("Link zur ganzen Seite kopieren", systemImage: "rectangle.grid.2x2") }
-                }
-                if pool.time >= 1, let timed = URL(string: link.absoluteString + "?t=\(Int(pool.time))") {
-                    Button {
-                        UIPasteboard.general.url = timed
-                        store.show("Link ab \(Clock.text(pool.time)) kopiert", symbol: "doc.on.doc")
-                    } label: { Label("Ab \(Clock.text(pool.time)) kopieren", systemImage: "timer") }
-                }
-                ShareLink(item: link) { Label("Teilen", systemImage: "square.and.arrow.up") }
-                Link(destination: link) { Label("In Safari öffnen", systemImage: "safari") }
-            }
+        Button {
+            guard let project, let video = current, let link = project.videoLink(video) else { return }
+            Haptics.select()
+            pool.pause()
+            store.share = ShareRequest(title: "Video teilen", subtitle: video.title, url: link, time: Int(pool.time))
         } label: {
             GlassCircle(symbol: "link", size: 42, symbolSize: 16, tint: .white)
         }
-        .simultaneousGesture(TapGesture().onEnded { Haptics.select(); pool.pause() })
-        .accessibilityLabel("Link")
+        .buttonStyle(.plain)
+        .accessibilityLabel("Video teilen")
         .accessibilityIdentifier("player-link")
     }
 
@@ -295,6 +286,15 @@ struct PlayerScreen: View {
                         store.playing = nil
                         store.jump = [.client(key)]
                     } label: { Label("Zum Projekt", systemImage: "rectangle.grid.2x2") }
+                    if let project, let page = project.link {
+                        Button {
+                            UIPasteboard.general.url = page
+                            store.show("Link zur ganzen Seite kopiert", symbol: "doc.on.doc")
+                        } label: { Label("Link zur ganzen Seite kopieren", systemImage: "doc.on.doc") }
+                    }
+                    if let project, let link = project.videoLink(video) {
+                        Link(destination: link) { Label("In Safari öffnen", systemImage: "safari") }
+                    }
                 }
                 Section {
                     if let drive = video.driveURL { Link(destination: drive) { Label("Original im Drive", systemImage: "arrow.down.circle") } }

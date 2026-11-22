@@ -60,6 +60,8 @@ final class Store {
     var overview: Overview?
     var loadError: String?
     var notice: Notice?
+    /// Offenes Teilen Fenster (wie auf der Videoseite), im Player oder über der Navigation
+    var share: ShareRequest?
     /// Offener Player (über allem, wächst aus dem angetippten Vorschaubild)
     var playing: PlayerRequest?
     /// Wohin die Navigation springen soll (Link von außen), MainView übernimmt es

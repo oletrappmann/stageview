@@ -249,6 +249,25 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Teilen Fenster wie im Web (22.11.2026): im Player mit „Ab 0:12 starten“, Kopiert, und in der Kundenansicht
+    func testTeilen() {
+        var a = app("player:8fykkr:1:12")
+        Thread.sleep(forTimeInterval: 4)
+        a.buttons["player-link"].firstMatch.tap()
+        bild("s1-teilen-player", warten: 1)
+        a.buttons["teilen-ab-stelle"].firstMatch.tap()
+        a.buttons["teilen-kopieren"].firstMatch.tap()
+        bild("s2-kopiert", warten: 0.5)
+        a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
+        bild("s3-geschlossen", warten: 1)
+        a.terminate()
+        a = app("kundenansicht:zskz92")
+        Thread.sleep(forTimeInterval: 3)
+        a.buttons["kunde-teilen"].firstMatch.tap()
+        bild("s4-teilen-kunde", warten: 1)
+        a.terminate()
+    }
+
     /// Neu seit dem letzten Blick (22.11.2026): Punkte an Links und Kommentaren, Zahl am Tab nur Neues
     func testNeu() {
         var a = app("liste", env: ["SV_GESEHEN": "2026-11-16T12:00"])

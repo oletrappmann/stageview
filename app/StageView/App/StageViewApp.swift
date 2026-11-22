@@ -99,6 +99,11 @@ struct MainView: View {
             PlayerScreen(request: request)
                 .zoomTransition(request.sourceID, zoom)
         }
+        .overlay {
+            if let request = store.share, store.playing == nil {
+                ShareDialog(request: request) { store.share = nil }
+            }
+        }
         .overlay(alignment: .top) {
             if let notice = store.notice, store.playing == nil {
                 NoticeCapsule(notice: notice)

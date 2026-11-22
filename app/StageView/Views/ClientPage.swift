@@ -77,20 +77,17 @@ struct ClientPage: View {
 
     // MARK: Teilen
 
+    /// „Teilen“ wie auf der Übersicht im Web: dasselbe Fenster wie im Player, hier „Alle Videos teilen“
     private func shareMenu(_ project: Project) -> some View {
-        Menu {
-            if let link = project.link {
-                Button {
-                    UIPasteboard.general.url = link
-                    store.show("Link kopiert", symbol: "doc.on.doc")
-                } label: { Label("Link kopieren", systemImage: "doc.on.doc") }
-                ShareLink(item: link) { Label("Teilen …", systemImage: "square.and.arrow.up") }
-                Link(destination: link) { Label("In Safari öffnen", systemImage: "safari") }
-            }
+        Button {
+            guard let link = project.link else { return }
+            Haptics.select()
+            store.share = ShareRequest(title: "Alle Videos teilen",
+                                       subtitle: [project.title, project.customerName].filter { !$0.isEmpty }.joined(separator: " · "),
+                                       url: link)
         } label: {
-            Label("Teilen", systemImage: "link").labelStyle(.titleAndIcon)
+            Label("Teilen", systemImage: "link")
         }
-        .simultaneousGesture(TapGesture().onEnded { Haptics.select() })
         .accessibilityIdentifier("kunde-teilen")
     }
 
