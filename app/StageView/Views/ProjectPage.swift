@@ -201,10 +201,10 @@ struct ProjectPage: View {
                         Button {
                             Haptics.press()
                             path.append(.client(project.key))
-                        } label: { CapsuleButtonLabel(title: "Ansehen", symbol: "play.fill", primary: true) }
+                        } label: { CapsuleButtonLabel(title: "Projekt anzeigen", symbol: "rectangle.grid.2x2", primary: true) }
                             .buttonStyle(PressStyle())
                             .disabled(project.videos.isEmpty)
-                            .accessibilityIdentifier("ansehen")
+                            .accessibilityIdentifier("projekt-anzeigen")
                         CopyButton(link: link, round: true)
                         ShareLink(item: link) {
                             Image(systemName: "square.and.arrow.up")
@@ -374,7 +374,7 @@ struct ProjectPage: View {
         return Button {
             guard let video else { return }
             Haptics.press()
-            store.play(project, video, at: comment.time, source: "projekt-\(video.id)")
+            store.play(project, video, at: comment.time, source: "projekt-\(video.id)", comment: comment.id)
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {

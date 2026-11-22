@@ -2,7 +2,7 @@
 
 Das StageView Admin Dashboard (https://videos.stagecraft.media/admin) als eigene iPhone App für das Team, mit eigenem Player. Seit 22.11.2026 im Bau (Ole: „über die App alles verwalten“). Bundle `media.stagecraft.stageview`, Team 9ZM98AMD7M, iOS 26+, nur iPhone.
 
-**Stand 22.11.2026 abends:** Anmeldung, Startseite (Leiste unten, Wischen, Plus daneben) und Player wie die Videoseite gebaut, Player wartet auf Oles Blick (Artifact https://claude.ai/artifact/Se633A2p7WZionUBHrxnJi). Seit 22.11. abends auf Oles iPhone („22iPhone“) per `scripts/iphone.sh`, damit die Links in die App gehen. Noch offen: Oles echte Anmeldung am iPhone und sein Test der Links aus WhatsApp, Notizen, TESS App.
+**Stand 22.11.2026 abends:** Anmeldung, Startseite (Leiste unten, Wischen, Plus daneben), Player wie die Videoseite und Kundenansicht gebaut und auf Oles iPhone („22iPhone“, `scripts/iphone.sh`). Offen bei Ole (Artifact https://claude.ai/artifact/Se633A2p7WZionUBHrxnJi): Widgets oben auf der Seite Links, fünf Entwürfe (`Views/StartWidgets.swift`, `SV_WIDGET` zahlen, woche, zutun, freigabe, stapel; ohne Wahl steht nichts oben), und ob ein Tipp auf eine Zeile der Startseite direkt „Projekt anzeigen“ öffnen soll. Kommentar antippen öffnet den Player mit offenem Blatt, Kommentar hervorgehoben (`PlayerRequest.comment`). Noch offen: Oles Test der Links aus WhatsApp, Notizen, TESS App.
 
 ## Oles Vorgaben
 
@@ -40,7 +40,7 @@ app/
   StageViewUITests/      BilderTests (Screenshots aller Seiten)
   scripts/
     demo_daten.py        echter Datenstand aus den öffentlichen Videoseiten nach build/demo.json (nicht ins Paket)
-    bilder.sh            Screenshots auf dem eigenen Simulator „StageView Test“ (TEST=testAlles, testStart, testKunde, testPlayer, testAnmeldung, testLinks, DUNKEL=1; SV_BLATT=zu|offen für den Player)
+    bilder.sh            Screenshots auf dem eigenen Simulator „StageView Test“ (TEST=testAlles, testStart, testWidgets, testKunde, testPlayer, testAnmeldung, testLinks, DUNKEL=1; SV_BLATT=zu|offen für den Player)
     icon.js              App Symbol aus dem StageView Zeichen
     iphone.sh            Release signiert direkt aufs verbundene iPhone (ohne TestFlight), wie bei der Regie App
 ```

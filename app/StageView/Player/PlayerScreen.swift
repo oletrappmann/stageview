@@ -9,6 +9,8 @@ struct PlayerRequest: Identifiable, Equatable {
     var time: Double?
     /// Vorschaubild, aus dem der Player herauswächst (zoom), nil ohne Übergang
     var sourceID: String?
+    /// Angetippter Kommentar: Blatt offen, Kommentar hervorgehoben, Video steht an der Stelle
+    var comment: Int?
 }
 
 /// Stufen des Blatts unter dem Video, wie auf der Videoseite am Handy (projekt.html, BLATT): zu = nur Steuerung (Video am größten),
@@ -39,6 +41,8 @@ struct PlayerScreen: View {
     @State private var fullscreen = false
     @State private var sending = false
     @State private var commentFilter = CommentFilter.all
+    /// Kommentar, mit dem der Player geöffnet wurde (Ole, 22.11.2026: „Kommentar antippen: der Kommentar geht auf und ist hervorgehoben“)
+    @State private var focusComment: Int?
     // Blatt
     @State private var stop: SheetStop = .mitte
     @State private var dragBase: CGFloat?
@@ -96,6 +100,7 @@ struct PlayerScreen: View {
             guard old != nil, let video = videos.first(where: { $0.id == new }) else { return }
             Haptics.swap()
             replyTo = nil
+            focusComment = nil
             // Neues Video: offenes Blatt zurück auf die Mitte, zu bleibt zu (wie auf der Videoseite)
             if stop == .offen { withAnimation(Self.sheetSpring) { stop = .mitte } }
             show(video, autoplay: true)
@@ -169,8 +174,14 @@ struct PlayerScreen: View {
         started = true
         let first = videos.first { $0.id == request.videoID } ?? videos.first
         currentID = nil
+        if let comment = request.comment {
+            // Von einem Kommentar aus: Blatt offen, alle Kommentare, das Video steht an der Stelle
+            focusComment = comment
+            commentFilter = .all
+            stop = .offen
+        }
         if let first {
-            show(first, autoplay: true, at: request.time)
+            show(first, autoplay: request.comment == nil, at: request.time)
             DispatchQueue.main.async { currentID = first.id }
         }
         review?.watch()
@@ -699,9 +710,15 @@ struct PlayerScreen: View {
                     }
                     VStack(spacing: 8) {
                         ForEach(shown) { thread in
+                            let focused = focusThread(in: shown) == thread.id
                             threadView(thread, highlighted: thread.id == activeThread)
-                                .background(Self.panel2, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .background(focused ? Palette.approved.opacity(0.16) : Self.panel2,
+                                            in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .strokeBorder(Palette.approved.opacity(focused ? 0.75 : 0), lineWidth: 1.5))
+                                .animation(.easeOut(duration: 0.3), value: focused)
                                 .id(thread.id)
+                                .accessibilityAddTraits(focused ? .isSelected : [])
                         }
                     }
                     .padding(.horizontal, 12)
@@ -714,8 +731,14 @@ struct PlayerScreen: View {
             .scrollEdgeEffectStyle(.soft, for: .top)
             .scrollDismissesKeyboard(.interactively)
             .onChange(of: activeThread) { _, id in
-                guard let id, !composing, stop == .offen else { return }
+                guard let id, !composing, stop == .offen, focusComment == nil else { return }
                 withAnimation(.easeOut(duration: 0.35)) { proxy.scrollTo(id, anchor: .center) }
+            }
+            // Angetippter Kommentar: hinscrollen, sobald das Blatt offen und die Kommentare da sind
+            .task(id: "\(focusThread(in: shown) ?? -1)-\(review?.loaded ?? false)") {
+                guard let target = focusThread(in: shown) else { return }
+                try? await Task.sleep(for: .milliseconds(450))
+                withAnimation(.easeOut(duration: 0.4)) { proxy.scrollTo(target, anchor: .center) }
             }
         }
     }
@@ -797,6 +820,12 @@ struct PlayerScreen: View {
         case .changes: Palette.changes
         case .approved: Palette.approved
         }
+    }
+
+    /// Faden des angetippten Kommentars (er kann auch eine Antwort sein)
+    private func focusThread(in threads: [CommentThread]) -> Int? {
+        guard let focusComment else { return nil }
+        return threads.first { $0.root.id == focusComment || $0.replies.contains { $0.id == focusComment } }?.id
     }
 
     /// Der Kommentar, an dessen Stelle das Video gerade läuft (bis 4 s danach hervorgehoben, wie auf der Videoseite)

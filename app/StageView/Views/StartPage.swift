@@ -123,7 +123,12 @@ struct StartPage: View {
     @ViewBuilder
     private func feed(_ s: StartSection) -> some View {
         switch s {
-        case .links: FeedLine(); LinkFeed(projects: store.newestProjects, actions: actions)
+        case .links:
+            if store.search.isEmpty {
+                StartWidgets(actions: actions, go: { target in withAnimation(.smooth(duration: 0.35)) { page = target } })
+            }
+            FeedLine()
+            LinkFeed(projects: store.newestProjects, actions: actions)
         case .kommentare: CommentFeed()
         case .kunden: CustomerFeed(actions: actions)
         }

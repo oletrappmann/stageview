@@ -189,6 +189,36 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Widgets oben auf der Seite Links (22.11.2026): fünf Entwürfe, dazu Kommentar antippen und „Projekt anzeigen“
+    func testWidgets() {
+        var a: XCUIApplication
+        for style in ["zahlen", "woche", "zutun", "freigabe", "stapel"] {
+            a = app("liste", env: ["SV_WIDGET": style])
+            bild("w-\(style)", warten: 3.5)
+            if style == "stapel" {
+                let stapel = a.descendants(matching: .any)["widget-stapel"].firstMatch
+                stapel.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.4))
+                    .press(forDuration: 0.05, thenDragTo: stapel.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.4)))
+                bild("w-stapel-2", warten: 1.2)
+            }
+            a.terminate()
+        }
+
+        // Kommentar antippen: Player mit offenem Blatt, der Kommentar hervorgehoben
+        a = app("liste")
+        Thread.sleep(forTimeInterval: 3)
+        a.buttons["leiste-kommentare"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 1.2)
+        let kommentare = a.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'kommentar-'"))
+        kommentare.element(boundBy: min(5, max(kommentare.count - 1, 0))).tap()
+        bild("w-kommentar-offen", warten: 4)
+        a.terminate()
+
+        a = app("projekt:zskz92")
+        bild("w-projekt-anzeigen", warten: 3)
+        a.terminate()
+    }
+
     /// Nur gemischte Formate (Querformat in der Hochkant Kachel)
     func testKundeGemischt() {
         let a = app("kundenansicht:7zn3a4")

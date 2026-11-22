@@ -272,7 +272,7 @@ private struct CommentFeedRow: View {
         Button {
             guard let video else { return }
             Haptics.press()
-            store.play(project, video, at: comment.time, source: nil)
+            store.play(project, video, at: comment.time, source: nil, comment: comment.id)
         } label: {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {

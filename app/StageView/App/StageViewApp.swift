@@ -165,10 +165,11 @@ extension View {
 }
 
 extension Store {
-    /// Player öffnen. source: Kennung des Vorschaubilds, aus dem er wachsen soll
-    func play(_ project: Project, _ video: Video, at time: Double? = nil, source: String?) {
+    /// Player öffnen. source: Kennung des Vorschaubilds, aus dem er wachsen soll. comment: von einem Kommentar aus (Blatt offen,
+    /// Kommentar hervorgehoben, Video steht an der Stelle)
+    func play(_ project: Project, _ video: Video, at time: Double? = nil, source: String?, comment: Int? = nil) {
         guard project.code != nil else { return }
-        playing = PlayerRequest(projectKey: project.key, videoID: video.id, time: time, sourceID: source)
+        playing = PlayerRequest(projectKey: project.key, videoID: video.id, time: time, sourceID: source, comment: comment)
     }
 }
 

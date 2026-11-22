@@ -20,7 +20,7 @@ struct LinkMenuItems: View {
 
     var body: some View {
         if let client, project.code != nil {
-            Button(action: client) { Label("Kundenansicht", systemImage: "play.rectangle.on.rectangle") }
+            Button(action: client) { Label("Projekt anzeigen", systemImage: "rectangle.grid.2x2") }
         } else if let first = project.videos.first {
             Button { store.play(project, first, source: nil) } label: { Label("Ansehen", systemImage: "play.rectangle") }
         }
