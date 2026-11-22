@@ -107,7 +107,7 @@ struct StartTopBar: View {
     private var searchField: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass").font(.system(size: 16, weight: .medium)).foregroundStyle(Palette.muted)
-            TextField("", text: $store.search, prompt: Text("Titel, Kunde oder Code").foregroundStyle(Palette.faint))
+            TextField("", text: $store.search, prompt: Text("Titel, Kunde, Code oder Link").foregroundStyle(Palette.faint))
                 .font(.system(size: 17))
                 .foregroundStyle(Palette.text)
                 .focused($focused)
@@ -115,6 +115,14 @@ struct StartTopBar: View {
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .accessibilityIdentifier("suchfeld")
+                // Einen StageView Link eingefügt: direkt öffnen wie im Browser, die Suche geht zu
+                .onChange(of: store.search) { _, text in
+                    guard text.contains("videos.stagecraft.media/") || text.hasPrefix("stageview://"), store.openLink(in: text) else { return }
+                    Haptics.press()
+                    store.search = ""
+                    focused = false
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { searching = false }
+                }
             Button {
                 Haptics.select()
                 store.search = ""

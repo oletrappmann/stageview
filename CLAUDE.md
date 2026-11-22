@@ -2,7 +2,7 @@
 
 Das StageView Admin Dashboard (https://videos.stagecraft.media/admin) als eigene iPhone App für das Team, mit eigenem Player. Seit 22.11.2026 im Bau (Ole: „über die App alles verwalten“). Bundle `media.stagecraft.stageview`, Team 9ZM98AMD7M, iOS 26+, nur iPhone.
 
-**Stand 22.11.2026 (Runde 5):** Anmeldung „Dunkle Bühne“, Startseite mit Leiste unten, Wischen und Plus neben der Leiste sind abgenommen (Ole: „mir gefällt alles bisher“). Player neu wie die Videoseite am Handy (`Player/PlayerScreen.swift`: Blatt `SheetStop` zu, mitte, offen mit Höhen aus dem Inhalt, Schwung 220 ms, Gummi wie `gummi` im Web; `Player/AmbientLight.swift`: Licht aus dem Mux Storyboard). Wartet auf Oles Blick (Artifact https://claude.ai/artifact/Se633A2p7WZionUBHrxnJi). Noch nicht getestet: echte Anmeldung gegen den Server, iPhone.
+**Stand 22.11.2026 abends:** Anmeldung, Startseite (Leiste unten, Wischen, Plus daneben) und Player wie die Videoseite gebaut, Player wartet auf Oles Blick (Artifact https://claude.ai/artifact/Se633A2p7WZionUBHrxnJi). Seit 22.11. abends auf Oles iPhone („22iPhone“) per `scripts/iphone.sh`, damit die Links in die App gehen. Noch offen: Oles echte Anmeldung am iPhone und sein Test der Links aus WhatsApp, Notizen, TESS App.
 
 ## Oles Vorgaben
 
@@ -12,7 +12,7 @@ Das StageView Admin Dashboard (https://videos.stagecraft.media/admin) als eigene
 - **Startseite:** die neuesten Links ganz oben, kompakte Zeilen wie Konzept 2, keine großen Kacheln (Ole, 22.11.2026)
 - **Seiten unten als Leiste wie iOS**, dazwischen wischen wie in der TESS App (Ole, 22.11.2026: „unbedingt die verschiedenen Seiten unten als iOS Menübar“). Neuer Link nur als Plus
 - **Player wie die Videoseite am Handy** (Ole, 22.11.2026: „unbedingt so wie beim Web“, Vorlage `engine/seite/projekt.html` und `references/seite.md` im Skill `stagecraft-stageview`): Video oben mit Ambient Licht (Storyboard, 1,25 fach, weich, Deckkraft .5), darunter ein Blatt mit Griff in drei Stufen (zu: Steuerung; mitte: dazu einzeiliges Kommentarfeld, Standard; offen: Freigabe als Zeile mit Pille, Kommentare mit Alle/Offen/Erledigt, „Mehr aus …“). Griff antippen: mitte und offen hin und her, von zu auf die Mitte. Neues Video: offen geht auf mitte. Feld antippen hält das Video an. Steuerung wie im Web (Abspielen, Ton, Zeit, Zahnrad mit Tempo und Qualität, Vollbild). Vollbild ist Apples eigener Player (`Fullscreen` in `PlayerPool.swift`), auch beim Querdrehen, die App selbst bleibt hochkant (`AppDelegate.orientations`). Vorteile der App sind erwünscht (Ole: „Vorteile, die eine App hat, voll ausnutzen“): Haptik an den Stufen und Marken, Standbild beim Spulen, Nachbarn vorgeladen
-- **Verknüpft mit StageView im Web** (22.11.2026): Universal Links für `/admin`, `/<code>`, `/<code>/<nr>?t=…` (nginx liefert `/.well-known/apple-app-site-association`, siehe Skill `stagecraft-stageview`, `references/technik.md`). Gleiche Form als `stageview://<code>/<nr>?t=…`. `Store.open(_:)` wartet bis nach der Anmeldung und bis die Übersicht da ist
+- **Verknüpft mit StageView im Web** (22.11.2026, Ole: „StageView Links in der App öffnen wie im Web“): Universal Links für `/admin`, `/<code>`, `/<code>/<nr>?t=…` und die alte Form `/<name>-<code>` (nginx liefert `/.well-known/apple-app-site-association`, siehe Skill `stagecraft-stageview`, `references/technik.md`). Gleiche Form als `stageview://<code>/<nr>?t=…`. `Store.open(_:)` wartet bis nach der Anmeldung und bis die Übersicht da ist. In der App: ein Link in der Suche öffnet direkt (`Store.openLink(in:)`), Links in Kommentaren sind antippbar, StageView Links darin öffnen in der App (`LinkedText`, `Store.isStageViewLink`). Geht nur signiert auf dem iPhone, nicht im Simulator. Tippt man einen Link in Safari auf videos.stagecraft.media selbst, bleibt iOS in Safari (lange drücken: „In StageView öffnen“)
 - „Made by Stagecraft“ unten auf den Seiten (Asset `MadeBy`, zugeschnitten wie in `02_Figma/Stagecraft/ci/ui-elements.md`)
 - TestFlight nur auf Oles Ja
 
@@ -41,6 +41,7 @@ app/
     demo_daten.py        echter Datenstand aus den öffentlichen Videoseiten nach build/demo.json (nicht ins Paket)
     bilder.sh            Screenshots auf dem eigenen Simulator „StageView Test“ (TEST=testAlles, testStart, testPlayer, testAnmeldung, testLinks, DUNKEL=1; SV_BLATT=zu|offen für den Player)
     icon.js              App Symbol aus dem StageView Zeichen
+    iphone.sh            Release signiert direkt aufs verbundene iPhone (ohne TestFlight), wie bei der Regie App
 ```
 
 ## Arbeiten

@@ -200,6 +200,30 @@ final class Store {
         }
     }
 
+    /// Ist das ein Link, den die App selbst öffnet? (videos.stagecraft.media außer /api und Dateien, oder stageview://)
+    static func isStageViewLink(_ url: URL) -> Bool {
+        if url.scheme == "stageview" { return true }
+        guard url.host?.lowercased() == "videos.stagecraft.media", let first = url.pathComponents.dropFirst().first else { return false }
+        if first == "admin" { return true }
+        let code = first.split(separator: "-").last.map(String.init) ?? first
+        return code.count == 6 && code.allSatisfy { $0.isLetter || $0.isNumber } && !first.contains(".")
+    }
+
+    /// Eingefügter Text mit einem StageView Link (zum Beispiel in der Suche): öffnet ihn und sagt ja. Wie die Adresszeile im Browser.
+    @discardableResult
+    func openLink(in text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.lowercased().contains("videos.stagecraft.media/") || trimmed.hasPrefix("stageview://") else { return false }
+        let start = trimmed.range(of: "stageview://") ?? trimmed.range(of: "https://videos.stagecraft.media/", options: .caseInsensitive)
+            ?? trimmed.range(of: "videos.stagecraft.media/", options: .caseInsensitive)
+        guard let start else { return false }
+        var link = String(trimmed[start.lowerBound...]).split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
+        if !link.contains("://") { link = "https://" + link }
+        guard let url = URL(string: link), Self.isStageViewLink(url) else { return false }
+        open(url)
+        return true
+    }
+
     // MARK: Ansicht
 
     var projects: [Project] { overview?.projects ?? [] }

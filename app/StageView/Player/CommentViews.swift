@@ -104,11 +104,17 @@ private struct CommentRow: View {
                         .foregroundStyle(Color.white.opacity(0.4))
                         .lineLimit(1)
                 }
-                Text(comment.text)
+                Text(LinkedText.make(comment.text))
                     .font(.system(size: 15))
                     .foregroundStyle(Color.white.opacity(0.92))
+                    .tint(Palette.approved)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
+                    .environment(\.openURL, OpenURLAction { url in
+                        // StageView Links öffnen in der App, alles andere wie gewohnt in Safari
+                        if Store.isStageViewLink(url) { Haptics.press(); Store.shared.open(url); return .handled }
+                        return .systemAction
+                    })
                 if comment.edited != nil {
                     Text("bearbeitet").font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.35))
                 }
@@ -199,5 +205,24 @@ struct StatusMenu: View {
         case .changes: Palette.changes
         case .approved: Palette.approved
         }
+    }
+}
+
+/// Links in Kommentaren antippbar wie auf der Videoseite (http, https, www.), Satzzeichen am Ende gehören nicht dazu
+enum LinkedText {
+    private static let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+
+    static func make(_ text: String) -> AttributedString {
+        var result = AttributedString(text)
+        guard let detector else { return result }
+        let ns = text as NSString
+        for match in detector.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            guard let url = match.url, let range = Range(match.range, in: text),
+                  let lower = AttributedString.Index(range.lowerBound, within: result),
+                  let upper = AttributedString.Index(range.upperBound, within: result) else { continue }
+            result[lower..<upper].link = url
+            result[lower..<upper].underlineStyle = .single
+        }
+        return result
     }
 }
