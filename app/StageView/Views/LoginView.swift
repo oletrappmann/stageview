@@ -62,7 +62,7 @@ struct LoginView: View {
     private func profiles(size: CGFloat, names: Color) -> some View {
         HStack(spacing: 4) {
             ForEach(Access.allCases) { access in
-                NameButton(access: access, selected: access == chosen, size: passwordFocused ? size * 0.8 : size, names: names) { choose(access) }
+                NameButton(access: access, selected: access == chosen, size: size, names: names) { choose(access) }
             }
         }
         .frame(maxWidth: .infinity)
@@ -70,8 +70,12 @@ struct LoginView: View {
 
     private func choose(_ access: Access) {
         Haptics.select()
-        chosen = access
-        error = nil
+        // Ring und Name in einer Feder, gleich beim Antippen. Die Bilder behalten ihre Größe (Ole, 22.11.2026: der Ring stand
+        // kurz allein): vorher schrumpften sie mit dem Fokus, gleichzeitig schob die Tastatur alles hoch, zwei Bewegungen übereinander
+        withAnimation(Self.spring) {
+            chosen = access
+            error = nil
+        }
         passwordFocused = true
     }
 
@@ -178,18 +182,27 @@ private struct NameButton: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 9) {
+                // Der Ring ist immer da und fährt mit dem Bild in derselben Feder mit (Ole, 22.11.2026: vorher kam er erst beim
+                // Antippen dazu und stand kurz allein an der Endstelle, während das Bild noch hochfuhr). Nie ganz unsichtbar:
+                // bei Deckkraft 0 merkt sich SwiftUI seine Lage nicht und er springt beim Einblenden sofort ans Ziel
                 TeamAvatar(access: access, size: size)
-                    .overlay { if selected { SelectedRing() } }
+                    .overlay {
+                        SelectedRing()
+                            .opacity(selected ? 1 : 0.001)
+                            .scaleEffect(selected ? 1 : 0.86)
+                    }
                     .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
+                // Fett wird fließend (interpolate): sonst blendet iOS den alten Namen an der alten Stelle aus und er hängt kurz unten
                 Text(access.person)
-                    .font(.system(size: 15, weight: selected ? .semibold : .medium))
+                    .font(.system(size: 15))
+                    .fontWeight(selected ? .semibold : .medium)
+                    .contentTransition(.interpolate)
                     .foregroundStyle(selected ? names : names.opacity(0.6))
             }
             .frame(minWidth: 84)
             .contentShape(Rectangle())
         }
         .buttonStyle(PressStyle(scale: 0.94))
-        .animation(.easeOut(duration: 0.18), value: selected)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(access.person)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
