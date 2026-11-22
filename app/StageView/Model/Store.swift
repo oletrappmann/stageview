@@ -62,6 +62,10 @@ final class Store {
     var notice: Notice?
     /// Offener Player (über allem, wächst aus dem angetippten Vorschaubild)
     var playing: PlayerRequest?
+    /// Wohin die Navigation springen soll (Link von außen), MainView übernimmt es
+    var jump: [Route]?
+    /// Link von außen, der wartet, bis die Übersicht geladen ist (oder bis zur Anmeldung)
+    private var pendingLink: URL?
 
     var filter: LinkFilter { didSet { UserDefaults.standard.set(filter.rawValue, forKey: "sv.ansicht") } }
     var sort: LinkSort { didSet { UserDefaults.standard.set(sort.rawValue, forKey: "sv.sortierung") } }
@@ -140,6 +144,7 @@ final class Store {
             if let who = fresh.me, who != me { remember(who) }
             loadError = nil
             if let id = customerID, !fresh.customers.contains(where: { $0.id == id }) { customerID = nil }
+            if let link = pendingLink { pendingLink = nil; open(link) }
         } catch APIError.signedOut {
             Keychain.token = nil
             signedIn = false
@@ -166,6 +171,33 @@ final class Store {
     func stopPolling() {
         poller?.cancel()
         poller = nil
+    }
+
+    // MARK: Links von außen (videos.stagecraft.media und stageview://)
+
+    /// Öffnet einen StageView Link in der App (Ole, 22.11.2026: „StageView Web und System mit der iOS App verknüpfen“):
+    /// /admin → Startseite, /<code> → Seite des Links, /<code>/<nr>?t=42 → Player an der Stelle. Gleiche Form mit stageview://
+    /// (stageview://abc123/2?t=42). Vor der Anmeldung oder solange die Übersicht noch lädt, wartet der Link.
+    func open(_ url: URL) {
+        let parts = (url.scheme == "stageview" ? [url.host ?? ""] + url.pathComponents : url.pathComponents)
+            .filter { !$0.isEmpty && $0 != "/" }
+        let time = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "t" }?.value.flatMap(Double.init)
+        guard signedIn, overview != nil else { pendingLink = url; return }
+        playing = nil
+        guard let first = parts.first, first != "admin" else { jump = []; return }
+        // Alte Form /<slug>-<code> leitet der Server um, hier reicht der Code am Ende
+        let code = String(first.split(separator: "-").last ?? Substring(first))
+        guard let project = project(code: code) else {
+            show("Diesen Link gibt es nicht (mehr) oder er ist noch nicht in der Übersicht.", error: true)
+            return
+        }
+        jump = [.project(project.key)]
+        if parts.count > 1, let nr = Int(parts[1]), let video = project.videos.first(where: { $0.nr == nr }) {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(450))
+                play(project, video, at: time, source: nil)
+            }
+        }
     }
 
     // MARK: Ansicht

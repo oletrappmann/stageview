@@ -14,7 +14,6 @@ struct LinksPage: View {
     @State private var customersOpen = false
     @State private var newLink: NewLinkStart?
     @FocusState private var searchFocused: Bool
-    @AppStorage("sv.darstellung") private var appearance = "auto"
 
     var body: some View {
         ScrollView {
@@ -134,13 +133,6 @@ struct LinksPage: View {
     /// kritische Knöpfe nie direkt neben anderen)
     private var accountMenu: some View {
         Menu {
-            Section("Darstellung") {
-                Picker("Darstellung", selection: $appearance) {
-                    Label("Automatisch", systemImage: "circle.lefthalf.filled").tag("auto")
-                    Label("Hell", systemImage: "sun.max").tag("hell")
-                    Label("Dunkel", systemImage: "moon").tag("dunkel")
-                }
-            }
             Section {
                 Link(destination: URL(string: "https://videos.stagecraft.media/admin")!) {
                     Label("Dashboard im Browser", systemImage: "safari")

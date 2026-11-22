@@ -4,9 +4,11 @@ import UIKit
 /// Farben wie in der TESS App (Stagecraft CI: Canvas, Surface, Text, Forest als einziger Akzent), dazu die drei Freigabe Farben
 /// von videos.stagecraft.media. Quelle: TESS_APP/TESS/Views/Palette.swift, bei Änderungen dort mitziehen.
 enum Palette {
-    static let canvas = dynamic(light: 0xF6F6F3, dark: 0x1E1E1C)
-    static let surface = dynamic(light: 0xEDEDE8, dark: 0x2B2B2B)
-    static let text = dynamic(light: 0x292929, dark: 0xF6F6F3)
+    // Dunkel wie die Videoseite im Web (projekt.html: --bg #121211, --panel #1E1E1C, --panel-2 #2A2A27, --text #F3F2EE).
+    // Die App ist immer dunkel (Ole, 22.11.2026), die hellen Werte bleiben nur für Vorschauen
+    static let canvas = dynamic(light: 0xF6F6F3, dark: 0x121211)
+    static let surface = dynamic(light: 0xEDEDE8, dark: 0x2A2A27)
+    static let text = dynamic(light: 0x292929, dark: 0xF3F2EE)
     static let forest = Color(UIColor(hex: 0x48514A))
     static let accent = dynamic(light: 0x48514A, dark: 0xB3C1B5)
     static let forestLight = Color(UIColor(hex: 0x7C887E))
@@ -14,7 +16,7 @@ enum Palette {
     /// Rot wie überfällige Fristen in der TESS App: Zahlen auf Schaltern, Löschen
     static let overdue = dynamic(light: 0xC92A14, dark: 0xFF7D66)
     /// Weiße Karten und Felder auf dem Canvas
-    static let field = dynamic(light: 0xFDFDFC, dark: 0x2A2A28)
+    static let field = dynamic(light: 0xFDFDFC, dark: 0x1E1E1C)
     static let line = text.opacity(0.10)
     static let muted = text.opacity(0.55)
     static let faint = text.opacity(0.36)

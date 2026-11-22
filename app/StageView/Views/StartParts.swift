@@ -61,7 +61,6 @@ struct StartTopBar: View {
     @State private var store = Store.shared
     @State private var confirmSignOut = false
     @FocusState private var focused: Bool
-    @AppStorage("sv.darstellung") private var appearance = "auto"
 
     var body: some View {
         VStack(spacing: 8) {
@@ -102,13 +101,6 @@ struct StartTopBar: View {
             Section {
                 Button(action: customers) { Label("Kunden verwalten", systemImage: "person.2") }
                 Link(destination: URL(string: "https://videos.stagecraft.media/admin")!) { Label("Dashboard im Browser", systemImage: "safari") }
-            }
-            Section("Darstellung") {
-                Picker("Darstellung", selection: $appearance) {
-                    Label("Automatisch", systemImage: "circle.lefthalf.filled").tag("auto")
-                    Label("Hell", systemImage: "sun.max").tag("hell")
-                    Label("Dunkel", systemImage: "moon").tag("dunkel")
-                }
             }
             Section("Angemeldet als \(store.me?.name ?? "")") {
                 Button(role: .destructive) { confirmSignOut = true } label: { Label("Abmelden", systemImage: "rectangle.portrait.and.arrow.right") }

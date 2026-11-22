@@ -12,7 +12,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct StageViewApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @AppStorage("sv.darstellung") private var appearance = "auto"
 
     init() {
         // Vorschaubilder von Mux bleiben auf der Platte, dann sind sie beim nächsten Öffnen sofort da
@@ -21,8 +20,9 @@ struct StageViewApp: App {
 
     var body: some Scene {
         WindowGroup {
+            // Immer dunkel (Ole, 22.11.2026: „App soll immer Darkmode sein“), Farben wie die Videoseite im Web
             RootView()
-                .preferredColorScheme(appearance == "hell" ? .light : appearance == "dunkel" ? .dark : nil)
+                .preferredColorScheme(.dark)
                 .tint(Palette.accent)
         }
     }
@@ -54,6 +54,11 @@ struct RootView: View {
             }
         }
         .animation(.easeOut(duration: 0.35), value: store.signedIn)
+        // Links von videos.stagecraft.media (Universal Link) und stageview:// öffnen in der App
+        .onOpenURL { store.open($0) }
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            if let url = activity.webpageURL { store.open(url) }
+        }
         .onChange(of: phase, initial: true) { _, now in
             if now == .active && store.signedIn { store.startPolling() } else if now != .active { store.stopPolling() }
         }
@@ -80,6 +85,11 @@ struct MainView: View {
                 }
         }
         .environment(\.zoomSpace, zoom)
+        .onChange(of: store.jump) { _, route in
+            guard let route else { return }
+            path = route
+            store.jump = nil
+        }
         .fullScreenCover(item: $store.playing) { request in
             PlayerScreen(request: request)
                 .zoomTransition(request.sourceID, zoom)

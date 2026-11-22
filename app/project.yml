@@ -40,11 +40,19 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         ITSAppUsesNonExemptEncryption: false
+        # Immer dunkel, auch Start und Systemfenster (Ole, 22.11.2026)
+        UIUserInterfaceStyle: Dark
         # Für später: Links von videos.stagecraft.media direkt in der App öffnen (noch nicht verdrahtet)
         CFBundleURLTypes:
           - CFBundleURLName: media.stagecraft.stageview
             CFBundleURLSchemes:
               - stageview
+    entitlements:
+      path: StageView/StageView.entitlements
+      properties:
+        # Links auf videos.stagecraft.media öffnen die App (Datei auf dem Server: /.well-known/apple-app-site-association)
+        com.apple.developer.associated-domains:
+          - applinks:videos.stagecraft.media
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: media.stagecraft.stageview

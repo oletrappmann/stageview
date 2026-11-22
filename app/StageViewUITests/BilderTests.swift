@@ -32,50 +32,9 @@ final class BilderTests: XCTestCase {
         try? png.write(to: URL(fileURLWithPath: ordner).appendingPathComponent((hell ? "" : "dunkel-") + name + ".png"))
     }
 
+    /// Seiten, die gleich bleiben: Seite eines Links, Player, Neuer Link, Kunden (Startseite und Anmeldung: testKonzepte, testAnmeldung)
     func testBilder() {
-        // Anmeldung
-        var a = app("anmeldung")
-        bild("01-anmeldung")
-        a.buttons["zugang-tess"].tap()
-        bild("02-anmeldung-passwort")
-        a.terminate()
-
-        // Startseite, Menüs
-        a = app("liste")
-        bild("03-links", warten: 3)
-        a.swipeUp()
-        bild("04-links-weiter", warten: 1.5)
-        a.swipeDown(); a.swipeDown()
-        a.buttons["konto"].tap()
-        bild("05-menue-konto")
-        a.tap(); Thread.sleep(forTimeInterval: 0.6)
-        a.buttons["sortieren"].tap()
-        bild("06-menue-sortieren")
-        a.tap(); Thread.sleep(forTimeInterval: 0.6)
-        let karte = a.otherElements.matching(identifier: "link-zskz92").firstMatch
-        if karte.waitForExistence(timeout: 3) {
-            karte.press(forDuration: 1.0)
-            bild("07-menue-link")
-        }
-        a.terminate()
-
-        a = app("kunde:lukas-doberenz")
-        bild("08-kunde-gewaehlt", warten: 3)
-        a.terminate()
-
-        a = app("filter:kommentare")
-        bild("09-ansicht-kommentare", warten: 3)
-        a.terminate()
-
-        a = app("meldungen")
-        bild("10-meldungen", warten: 3)
-        a.terminate()
-
-        a = app("suche:penthouse")
-        a.buttons["suchen"].tap()
-        bild("11-suche", warten: 1.5)
-        a.terminate()
-
+        var a: XCUIApplication
         // Seite eines Links
         a = app("projekt:zskz92")
         bild("12-projekt", warten: 3)
@@ -203,5 +162,24 @@ final class BilderTests: XCTestCase {
             bild("a-\(look)-passwort", warten: 1.2)
             a.terminate()
         }
+    }
+
+    /// Links von außen: stageview://<code> öffnet den Link, stageview://<code>/<nr>?t=… den Player an der Stelle (gleich wie
+    /// videos.stagecraft.media/<code>/<nr>?t=… als Universal Link auf dem iPhone)
+    func testLinks() {
+        let a = app("liste", start: "eingang")
+        Thread.sleep(forTimeInterval: 2.5)
+        a.open(URL(string: "stageview://zskz92")!)
+        bild("l1-link-projekt", warten: 2.5)
+        a.open(URL(string: "stageview://8fykkr/1?t=30")!)
+        bild("l2-link-video-zeit", warten: 5)
+        a.terminate()
+    }
+
+    func testAlles() {
+        testAnmeldung()
+        testKonzepte()
+        testLinks()
+        testBilder()
     }
 }
