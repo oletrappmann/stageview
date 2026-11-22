@@ -53,6 +53,8 @@ targets:
         # Links auf videos.stagecraft.media öffnen die App (Datei auf dem Server: /.well-known/apple-app-site-association)
         com.apple.developer.associated-domains:
           - applinks:videos.stagecraft.media
+        # Mitteilungen bei neuen Kommentaren (22.11.2026). development für Builds über scripts/iphone.sh, TestFlight setzt production
+        aps-environment: development
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: media.stagecraft.stageview

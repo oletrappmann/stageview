@@ -109,6 +109,7 @@ final class Store {
             let who = try await API.signIn(access, password: password)
             remember(who)
             signedIn = true
+            Push.start()
             await refresh()
             return nil
         } catch {
@@ -121,6 +122,7 @@ final class Store {
         #if DEBUG
         if Demo.isOn { signedIn = false; return }
         #endif
+        await Push.stop()
         await API.signOut()
         signedIn = false
         overview = nil
@@ -185,7 +187,10 @@ final class Store {
     func open(_ url: URL) {
         let parts = (url.scheme == "stageview" ? [url.host ?? ""] + url.pathComponents : url.pathComponents)
             .filter { !$0.isEmpty && $0 != "/" }
-        let time = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "t" }?.value.flatMap(Double.init)
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let time = query.first { $0.name == "t" }?.value.flatMap(Double.init)
+        // ?k=<id>: von einer Mitteilung, der Player öffnet mit dem Kommentar
+        let comment = query.first { $0.name == "k" }?.value.flatMap(Int.init)
         guard signedIn, overview != nil else { pendingLink = url; return }
         playing = nil
         guard let first = parts.first, first != "admin" else { jump = []; return }
@@ -199,7 +204,7 @@ final class Store {
         if parts.count > 1, let nr = Int(parts[1]), let video = project.videos.first(where: { $0.nr == nr }) {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(450))
-                play(project, video, at: time, source: nil)
+                play(project, video, at: time, source: nil, comment: comment)
             }
         }
     }

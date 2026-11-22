@@ -99,6 +99,10 @@ enum API {
         let _: Empty = try await send(path, method: "DELETE", body: nil)
     }
 
+    static func delete(_ path: String, _ body: [String: Any]) async throws {
+        let _: Empty = try await send(path, method: "DELETE", body: body)
+    }
+
     struct Empty: Decodable {}
 
     private static func send<T: Decodable>(_ path: String, method: String, body: [String: Any]?) async throws -> T {

@@ -282,6 +282,16 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Link aus einer Mitteilung (22.11.2026): ?k= öffnet den Player mit dem Kommentar hervorgehoben
+    func testMitteilungsLink() {
+        let a = app("liste")
+        Thread.sleep(forTimeInterval: 3)
+        // Kommentar 10 im Vorführstand: Jonas bei 3:14
+        a.open(URL(string: "stageview://8fykkr/1?k=10&t=194")!)
+        bild("p-mitteilung-link", warten: 5)
+        a.terminate()
+    }
+
     /// Teilen Fenster wie im Web (22.11.2026): im Player mit „Ab 0:12 starten“, Kopiert, und in der Kundenansicht
     func testTeilen() {
         var a = app("player:8fykkr:1:12")

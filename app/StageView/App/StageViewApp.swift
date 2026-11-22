@@ -1,8 +1,19 @@
 import SwiftUI
+import UserNotifications
 
 /// Die App bleibt hochkant, nur Apples Vollbild Player darf sich drehen (Fullscreen)
 final class AppDelegate: NSObject, UIApplicationDelegate {
     static var orientations: UIInterfaceOrientationMask = .portrait
+    private let push = PushDelegate()
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        UNUserNotificationCenter.current().delegate = push
+        return true
+    }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        Task { @MainActor in Push.received(deviceToken) }
+    }
 
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         Self.orientations
@@ -62,7 +73,7 @@ struct RootView: View {
             if let url = activity.webpageURL { store.open(url) }
         }
         .onChange(of: phase, initial: true) { _, now in
-            if now == .active && store.signedIn { store.startPolling() } else if now != .active { store.stopPolling() }
+            if now == .active && store.signedIn { store.startPolling(); Push.start() } else if now != .active { store.stopPolling() }
             // App weggelegt: die Links gelten als gesehen, beim nächsten Öffnen leuchtet nur, was danach kam
             if now == .background && store.signedIn { Seen.shared.markLinks() }
         }
