@@ -58,6 +58,10 @@ extension Store {
 struct StartTopBar: View {
     @Binding var searching: Bool
     var customers: () -> Void
+    /// Entwurf D: Neuer Link als Glasknopf im Kopf (unten liegt die Tab Leiste)
+    var newLink: (() -> Void)?
+    /// Entwurf B: Umschalter Links, Kommentare, Kunden unter dem Kopf
+    var tabs: Binding<StartSection>?
     @State private var store = Store.shared
     @State private var confirmSignOut = false
     @FocusState private var focused: Bool
@@ -79,6 +83,15 @@ struct StartTopBar: View {
                             .buttonStyle(.plain)
                             .accessibilityLabel("Suchen")
                             .accessibilityIdentifier("suchen")
+                        if let newLink {
+                            Button {
+                                Haptics.press()
+                                newLink()
+                            } label: { GlassCircle(symbol: "plus", size: 44, symbolSize: 18, active: true) }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Neuer Link")
+                                .accessibilityIdentifier("neuer-link")
+                        }
                         account
                     }
                     .transition(.opacity)
@@ -86,6 +99,7 @@ struct StartTopBar: View {
             }
             .padding(.horizontal, 18)
             .frame(height: 56)
+            if let tabs { StartTabs(section: tabs).padding(.bottom, 6) }
             if !Connection.shared.online { OfflineCapsule().transition(.opacity) }
         }
         .background(alignment: .top) { TopEdge() }

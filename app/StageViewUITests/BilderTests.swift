@@ -85,49 +85,63 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
-    /// Vier Konzepte der Startseite und der Player mit Zahnrad und Vollbild (Runde 2, 22.11.2026)
-    func testKonzepte() {
-        var a = app("liste", start: "regal")
-        bild("k1-regal", warten: 3.5)
+    /// Startseite Runde 3 (22.11.2026): vier Entwürfe auf Basis von Konzept 2, neueste Links oben, keine großen Kacheln
+    func testStart() {
+        // A: nur Links
+        var a = app("liste", start: "liste")
+        bild("s-a-liste", warten: 3.5)
         a.swipeUp()
-        bild("k1-regal-weiter", warten: 1.5)
-        a.swipeUp()
-        bild("k1-regal-weiter2", warten: 1.5)
+        bild("s-a-liste-weiter", warten: 1.5)
+        a.swipeDown(); a.swipeDown()
+        Thread.sleep(forTimeInterval: 0.8)
+        a.buttons["filter-menue"].firstMatch.tap()
+        bild("s-a-filter")
         a.terminate()
 
-        a = app("liste", start: "eingang")
-        bild("k2-eingang", warten: 3.5)
-        a.swipeUp()
-        bild("k2-eingang-weiter", warten: 1.5)
-        a.swipeUp()
-        bild("k2-eingang-weiter2", warten: 1.5)
+        // B: Tabs oben
+        a = app("liste", start: "tabs")
+        bild("s-b-links", warten: 3.5)
+        a.buttons["tab-kommentare"].firstMatch.tap()
+        bild("s-b-kommentare", warten: 1.5)
+        a.buttons["tab-kunden"].firstMatch.tap()
+        bild("s-b-kunden", warten: 1.5)
         a.terminate()
 
-        a = app("liste", start: "kunden")
-        bild("k3-kunden", warten: 3.5)
-        a.swipeUp()
-        bild("k3-kunden-weiter", warten: 1.5)
+        // C: Kurzwege, jeder öffnet eine eigene Seite
+        a = app("liste", start: "kurzwege")
+        bild("s-c-kurzwege", warten: 3.5)
+        a.buttons["kurzweg-kommentare"].firstMatch.tap()
+        bild("s-c-kommentare", warten: 2)
         a.terminate()
-        a = app("kundenseite:lukas-doberenz", start: "kunden")
-        bild("k3-kundenseite", warten: 3.5)
+        a = app("liste", start: "kurzwege")
+        Thread.sleep(forTimeInterval: 3)
+        a.buttons["kurzweg-kunden"].firstMatch.tap()
+        bild("s-c-kunden", warten: 2)
         a.terminate()
-
-        a = app("liste", start: "videos")
-        bild("k4-videos", warten: 3.5)
-        a.swipeUp()
-        bild("k4-videos-weiter", warten: 1.5)
-        a.swipeUp(); a.swipeUp()
-        bild("k4-videos-weiter2", warten: 1.5)
-        a.swipeDown(); a.swipeDown(); a.swipeDown()
-        a.buttons["kunde-menue"].firstMatch.tap()
-        bild("k4-videos-kundenmenue")
+        a = app("liste", start: "kurzwege")
+        Thread.sleep(forTimeInterval: 3)
+        a.buttons["kurzweg-fertig"].firstMatch.tap()
+        bild("s-c-freigegeben", warten: 2)
         a.terminate()
 
-        a = app("liste", start: "regal")
-        a.buttons["konto"].firstMatch.tap()
-        bild("k0-kontomenue")
+        // D: Leiste unten
+        a = app("liste", start: "leiste")
+        bild("s-d-links", warten: 3.5)
+        a.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Kommentare'")).firstMatch.tap()
+        bild("s-d-kommentare", warten: 1.5)
+        a.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Kunden'")).firstMatch.tap()
+        bild("s-d-kunden", warten: 1.5)
         a.terminate()
 
+        // Seite eines Kunden, jetzt auch kompakt
+        a = app("kundenseite:lukas-doberenz", start: "liste")
+        bild("s-kundenseite", warten: 3.5)
+        a.terminate()
+    }
+
+    /// Player mit Zahnrad und Vollbild (Runde 2, 22.11.2026)
+    func testPlayer() {
+        var a: XCUIApplication
         a = app("player:8fykkr:1:12")
         bild("p1-player", warten: 5)
         a.buttons["vollbild"].firstMatch.tap()
@@ -149,25 +163,21 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
-    /// Vier Entwürfe der Anmeldung (Runde 2, 22.11.2026)
+    /// Anmeldung, gewählt: dunkle Bühne (Ole, 22.11.2026)
     func testAnmeldung() {
-        for look in ["mitte", "unten", "buehne", "band"] {
-            let a = XCUIApplication()
-            a.launchEnvironment["SV_DEMO"] = "anmeldung"
-            a.launchEnvironment["SV_ANMELDUNG"] = look
-            a.launchArguments += ["-sv.darstellung", hell ? "hell" : "dunkel"]
-            a.launch()
-            bild("a-\(look)", warten: 2)
-            a.buttons["zugang-tess"].tap()
-            bild("a-\(look)-passwort", warten: 1.2)
-            a.terminate()
-        }
+        let a = XCUIApplication()
+        a.launchEnvironment["SV_DEMO"] = "anmeldung"
+        a.launch()
+        bild("a-buehne", warten: 2)
+        a.buttons["zugang-tess"].tap()
+        bild("a-buehne-passwort", warten: 1.2)
+        a.terminate()
     }
 
     /// Links von außen: stageview://<code> öffnet den Link, stageview://<code>/<nr>?t=… den Player an der Stelle (gleich wie
     /// videos.stagecraft.media/<code>/<nr>?t=… als Universal Link auf dem iPhone)
     func testLinks() {
-        let a = app("liste", start: "eingang")
+        let a = app("liste", start: "liste")
         Thread.sleep(forTimeInterval: 2.5)
         a.open(URL(string: "stageview://zskz92")!)
         bild("l1-link-projekt", warten: 2.5)
@@ -178,7 +188,8 @@ final class BilderTests: XCTestCase {
 
     func testAlles() {
         testAnmeldung()
-        testKonzepte()
+        testStart()
+        testPlayer()
         testLinks()
         testBilder()
     }

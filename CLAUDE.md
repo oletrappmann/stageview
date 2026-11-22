@@ -2,13 +2,14 @@
 
 Das StageView Admin Dashboard (https://videos.stagecraft.media/admin) als eigene iPhone App für das Team, mit eigenem Player. Seit 22.11.2026 im Bau (Ole: „über die App alles verwalten“). Bundle `media.stagecraft.stageview`, Team 9ZM98AMD7M, iOS 26+, nur iPhone.
 
-**Stand 22.11.2026:** Entwürfe Runde 2 bei Ole zur Wahl (https://claude.ai/artifact/Se633A2p7WZionUBHrxnJi): vier Anmeldungen (`SV_ANMELDUNG` mitte, unten, buehne, band) und vier Startseiten (`SV_START` regal, eingang, kunden, videos). Abgenommen: Seite eines Links, Player mit Kommentaren, Neuer Link, Kunden. Nach Oles Wahl die übrigen Varianten löschen (auch `Views/LinksPage.swift` ist nur noch für `LinkCard`, `LinkMenuItems`, `DeleteText` da, Rest raus). Noch nicht getestet: echte Anmeldung gegen den Server, iPhone.
+**Stand 22.11.2026 (Runde 3):** Anmeldung gewählt: Entwurf 3 „Dunkle Bühne“ (die anderen sind raus). Startseite: Ole will Konzept 2 „Eingang“, aber die neuesten Links ganz oben und keine großen Kacheln (Widgets), „lieber direkt die Links sehen, vielleicht noch Tabs oder Kurzwege zu den anderen Seiten“. Vier Entwürfe bei Ole zur Wahl (https://claude.ai/artifact/Se633A2p7WZionUBHrxnJi, `SV_START` liste, tabs, kurzwege, leiste; `Views/StartConcepts.swift`, Listen in `Views/StartFeeds.swift`). Links nach Anlegedatum gruppiert (Heute, Gestern, Diese Woche, Letzte Woche, Monate). Abgenommen: Seite eines Links, Player mit Kommentaren, Neuer Link, Kunden. Nach Oles Wahl die übrigen Entwürfe löschen, dazu `FilterChips` und in `Views/LinksPage.swift` alles außer `LinkMenuItems`, `DeleteText`. Noch nicht getestet: echte Anmeldung gegen den Server, iPhone.
 
 ## Oles Vorgaben
 
 - **Designsprache wie die TESS App** (Glasknöpfe, Glas, Haptik, Schriften), **aber nie deren Anordnung und Struktur** (Ole, 22.11.2026: „die Startseite viel zu sehr wie die TESS App, das muss niemals“)
 - **Immer dunkel**, das ist das CI von StageView (Ole, 22.11.2026). Farben wie die Videoseite im Web (`Design/Palette.swift`: Grund #121211, Flächen #1E1E1C / #2A2A27, Text #F3F2EE). Keine Darstellungsauswahl
-- **Anmeldung:** nur die Profile, oben das Schriftlogo, ein grüner Verlauf, kein App Symbol in der Mitte
+- **Anmeldung:** nur die Profile, oben das Schriftlogo, ein grüner Verlauf, kein App Symbol in der Mitte. Gewählt: dunkle Bühne (Ole, 22.11.2026)
+- **Startseite:** die neuesten Links ganz oben, kompakte Zeilen wie Konzept 2, keine großen Kacheln (Ole, 22.11.2026)
 - **Player:** Steuerung wie im Web (Abspielen, Ton, Zeit, Zahnrad mit Tempo und Qualität, Vollbild). Vollbild ist Apples eigener Player (`Fullscreen` in `PlayerPool.swift`), auch beim Querdrehen, die App selbst bleibt hochkant (`AppDelegate.orientations`). Keine Extras, die das Web nicht hat
 - **Verknüpft mit StageView im Web** (22.11.2026): Universal Links für `/admin`, `/<code>`, `/<code>/<nr>?t=…` (nginx liefert `/.well-known/apple-app-site-association`, siehe Skill `stagecraft-stageview`, `references/technik.md`). Gleiche Form als `stageview://<code>/<nr>?t=…`. `Store.open(_:)` wartet bis nach der Anmeldung und bis die Übersicht da ist
 - „Made by Stagecraft“ unten auf den Seiten (Asset `MadeBy`, zugeschnitten wie in `02_Figma/Stagecraft/ci/ui-elements.md`)
@@ -37,7 +38,7 @@ app/
   StageViewUITests/      BilderTests (Screenshots aller Seiten)
   scripts/
     demo_daten.py        echter Datenstand aus den öffentlichen Videoseiten nach build/demo.json (nicht ins Paket)
-    bilder.sh            Screenshots auf dem eigenen Simulator „StageView Test“ (TEST=testAlles, testKonzepte, testAnmeldung, testLinks)
+    bilder.sh            Screenshots auf dem eigenen Simulator „StageView Test“ (TEST=testAlles, testStart, testPlayer, testAnmeldung, testLinks, DUNKEL=1)
     icon.js              App Symbol aus dem StageView Zeichen
 ```
 
