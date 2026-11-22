@@ -1,0 +1,77 @@
+# Xcode Projekt wird hieraus erzeugt: `xcodegen` im Ordner app/. Die .xcodeproj nie von Hand pflegen.
+name: StageView
+options:
+  bundleIdPrefix: media.stagecraft
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: de
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # Version der App, steht im Konto Menü. Bei jeder neuen Fassung hochzählen.
+    MARKETING_VERSION: "1"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  StageView:
+    type: application
+    platform: iOS
+    sources:
+      - path: StageView
+        excludes:
+          - Info.plist
+    info:
+      path: StageView/Info.plist
+      properties:
+        CFBundleDisplayName: StageView
+        # Deutsch, sonst stehen Systemknöpfe (Einfügen, Abbrechen) auf Englisch
+        CFBundleDevelopmentRegion: de
+        CFBundleLocalizations:
+          - de
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen:
+          UIColorName: ""
+        # Hochkant für alles, quer für den Player (Video groß, ohne Kommentare)
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        ITSAppUsesNonExemptEncryption: false
+        # Für später: Links von videos.stagecraft.media direkt in der App öffnen (noch nicht verdrahtet)
+        CFBundleURLTypes:
+          - CFBundleURLName: media.stagecraft.stageview
+            CFBundleURLSchemes:
+              - stageview
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: media.stagecraft.stageview
+        DEVELOPMENT_TEAM: 9ZM98AMD7M
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_PREVIEWS: YES
+  StageViewUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: StageViewUITests
+    dependencies:
+      - target: StageView
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: media.stagecraft.stageview.uitests
+        DEVELOPMENT_TEAM: 9ZM98AMD7M
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: StageView
+schemes:
+  StageView:
+    build:
+      targets:
+        StageView: all
+        StageViewUITests: [test]
+    test:
+      targets:
+        - StageViewUITests
