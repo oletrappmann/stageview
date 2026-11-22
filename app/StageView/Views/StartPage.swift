@@ -25,24 +25,6 @@ enum StartSection: String, CaseIterable, Identifiable, Hashable {
     var index: Int { Self.allCases.firstIndex(of: self) ?? 0 }
 }
 
-/// Wo das Plus für einen neuen Link sitzt (Ole, 22.11.2026: „entweder darüber oder oben rechts, oder andere Ideen“).
-/// Bis Ole wählt im Testbuild mit SV_PLUS umschaltbar.
-enum PlusPlace: String {
-    /// Runder grüner Knopf rechts neben der Leiste (wie die Suche neben der Tab Leiste in iOS 26)
-    case daneben
-    /// Im Kopf neben Suche und Konto
-    case oben
-    /// Schwebt rechts über der Leiste
-    case darueber
-
-    static var current: PlusPlace {
-        #if DEBUG
-        if let value = ProcessInfo.processInfo.environment["SV_PLUS"], let place = PlusPlace(rawValue: value) { return place }
-        #endif
-        return .daneben
-    }
-}
-
 /// Blätterstand: 0 Links, 1 Kommentare, 2 Kunden. Nur die Leiste liest ihn, so zeichnet beim Wischen nicht alles neu.
 @Observable
 final class PageSlide {
@@ -84,8 +66,7 @@ struct StartPage: View {
             if store.overview == nil { loading } else { pager }
         }
         .safeAreaBar(edge: .top) {
-            StartTopBar(searching: $searching, customers: { customersOpen = true },
-                        newLink: PlusPlace.current == .oben ? { startNewLink() } : nil)
+            StartTopBar(searching: $searching, customers: { customersOpen = true })
         }
         .safeAreaBar(edge: .bottom) { bottomBar }
         .background(Palette.canvas.ignoresSafeArea())
@@ -146,16 +127,12 @@ struct StartPage: View {
         }
     }
 
-    /// Leiste unten, je nach Entwurf mit dem Plus daneben oder darüber. Sitzt etwas tiefer als der sichere Bereich, wie Apples
-    /// Tab Leiste.
+    /// Leiste unten, rechts daneben das Plus für einen neuen Link (Ole, 22.11.2026: Vorschlag 1, wie die Suche neben Apples Tab
+    /// Leiste). Sitzt etwas tiefer als der sichere Bereich, wie Apples Tab Leiste.
     private var bottomBar: some View {
-        let place = PlusPlace.current
-        return VStack(alignment: .trailing, spacing: 14) {
-            if place == .darueber { PlusButton(size: 58, action: startNewLink) }
-            HStack(spacing: 10) {
-                StageTabBar(page: $page, slide: slide)
-                if place == .daneben { PlusButton(size: 60, action: startNewLink) }
-            }
+        HStack(spacing: 10) {
+            StageTabBar(page: $page, slide: slide)
+            PlusButton(size: 60, action: startNewLink)
         }
         .padding(.horizontal, 20)
         .offset(y: 10)

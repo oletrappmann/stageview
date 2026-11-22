@@ -40,8 +40,6 @@ extension Store {
 struct StartTopBar: View {
     @Binding var searching: Bool
     var customers: () -> Void
-    /// Plus im Kopf (Entwurf „oben“)
-    var newLink: (() -> Void)?
     @State private var store = Store.shared
     @State private var confirmSignOut = false
     @FocusState private var focused: Bool
@@ -63,15 +61,6 @@ struct StartTopBar: View {
                             .buttonStyle(.plain)
                             .accessibilityLabel("Suchen")
                             .accessibilityIdentifier("suchen")
-                        if let newLink {
-                            Button {
-                                Haptics.press()
-                                newLink()
-                            } label: { GlassCircle(symbol: "plus", size: 44, symbolSize: 18, active: true) }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Neuer Link")
-                                .accessibilityIdentifier("neuer-link")
-                        }
                         account
                     }
                     .transition(.opacity)
