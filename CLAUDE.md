@@ -33,7 +33,7 @@ app/
     App/                 Start, Navigation (Route), Haptik, AppDelegate (Drehen nur im Vollbild)
     Design/              Palette, Glas Bausteine (wie TESS), Logo, Bilder mit eigenem Speicher
     Model/               Daten (nachsichtig gelesen), API, Store (Übersicht, Filter, Aktionen, Links von außen), ReviewStore (Kommentare)
-    Views/               Anmeldung, Startseite (StartPage, StartParts, StartConcepts), Seite eines Links, Neuer Link, Fenster
+    Views/               Anmeldung, Startseite (StartPage mit Leiste und Blätterer, StartFeeds, StartParts), LinkMenu, Seite eines Links, Neuer Link, Fenster
     Player/              PlayerPool (aktuelles Video und Nachbarn vorgeladen), PlayerScreen, Zeitleiste mit Marken, Kommentare
     Demo/                Vorführung ohne Server (nur Testbuild)
   StageViewUITests/      BilderTests (Screenshots aller Seiten)
