@@ -74,7 +74,6 @@ final class Store {
     var customerID: String?
     var search = ""
     var dismissedJobs: [String] { didSet { UserDefaults.standard.set(Array(dismissedJobs.suffix(200)), forKey: "sv.meldungen.weg") } }
-    var jobsCollapsed: Bool { didSet { UserDefaults.standard.set(jobsCollapsed, forKey: "sv.meldungen.zu") } }
 
     private var poller: Task<Void, Never>?
     private var noticeTimer: Task<Void, Never>?
@@ -91,7 +90,6 @@ final class Store {
         #if DEBUG
         if Demo.isOn { dismissedJobs = [] }  // Vorführung startet immer mit allen Meldungen
         #endif
-        jobsCollapsed = d.bool(forKey: "sv.meldungen.zu")
         if let zugang = d.string(forKey: "sv.zugang"), let name = d.string(forKey: "sv.name") { me = Me(zugang: zugang, name: name) }
         signedIn = Keychain.token != nil
         #if DEBUG
@@ -293,9 +291,10 @@ final class Store {
 
     func links(of customer: Customer) -> Int { projects.filter { customer.owns($0) }.count }
 
-    /// Meldungen oben: laufende immer, fertige der letzten 2 Stunden, bis man sie wegtippt
+    /// Meldungen oben: laufende immer, fertige der letzten 24 Stunden, bis man sie wegwischt
     var visibleJobs: [Job] {
-        let limit = Date.now.addingTimeInterval(-2 * 3600)
+        // 24 Stunden wie der Server (seit 22.11.2026, Meldungen wie bei iOS: bleiben, bis man sie wegwischt)
+        let limit = Date.now.addingTimeInterval(-24 * 3600)
         return (overview?.jobs ?? []).filter { job in
             job.kind != "vorbereiten"
                 && (job.running || ((When.date(job.start) ?? .distantPast) > limit && !dismissedJobs.contains(job.id)))

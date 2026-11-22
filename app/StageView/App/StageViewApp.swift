@@ -109,6 +109,9 @@ struct MainView: View {
         .fullScreenCover(item: $store.playing) { request in
             PlayerScreen(request: request)
                 .zoomTransition(request.sourceID, zoom)
+                // Nur das Kreuz schließt (Ole, 22.11.2026): Wischen nach oben und unten gehört dem Blatt mit den Kommentaren,
+                // Apples Zoom Übergang würde den Player sonst beim kräftigen Wischen zumachen
+                .interactiveDismissDisabled()
         }
         .overlay {
             if let request = store.share, store.playing == nil {

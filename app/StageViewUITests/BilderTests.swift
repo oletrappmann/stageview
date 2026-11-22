@@ -282,40 +282,52 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
-    /// Entwürfe für die Meldungen oben (22.11.2026): bisher, Leiste, wie iOS, Karussell
-    func testMeldungsEntwuerfe() {
-        var a = app("meldungen", env: ["SV_MELDUNG": "karte"])
-        bild("e0-bisher", warten: 3.5)
+    /// Player geht nur übers Kreuz zu (22.11.2026, Ole): kräftig nach unten oder oben wischen bleibt im Player
+    func testPlayerNurKreuz() {
+        let a = app("projekt:zskz92")
+        Thread.sleep(forTimeInterval: 3)
+        a.swipeUp()
+        Thread.sleep(forTimeInterval: 0.8)
+        a.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'video-'")).firstMatch.tap()
+        bild("k1-player", warten: 2.5)
+        a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.22))
+            .press(forDuration: 0.02, thenDragTo: a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98)), withVelocity: .fast, thenHoldForDuration: 0)
+        bild("k2-nach-unten-gewischt", warten: 1.5)
+        a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12))
+            .press(forDuration: 0.02, thenDragTo: a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)), withVelocity: .fast, thenHoldForDuration: 0)
+        bild("k3-von-oben-gewischt", warten: 1.5)
+        a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+            .press(forDuration: 0.02, thenDragTo: a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.02)), withVelocity: .fast, thenHoldForDuration: 0)
+        bild("k4-nach-oben-gewischt", warten: 1.5)
+        a.buttons["player-schliessen"].firstMatch.tap()
+        bild("k5-kreuz", warten: 1.5)
         a.terminate()
-        a = app("meldungen", env: ["SV_MELDUNG": "leiste"])
-        bild("e1-leiste", warten: 3.5)
-        a.buttons["meldungen-leiste"].firstMatch.tap()
-        bild("e1b-leiste-offen", warten: 1.2)
-        a.terminate()
-        a = app("meldungen", env: ["SV_MELDUNG": "ios"])
-        bild("e2-ios-stapel", warten: 3.5)
+    }
+
+    /// Meldungen oben wie iOS Mitteilungen (22.11.2026, Ole wählte Entwurf 2): Stapel, auffächern (höchstens 5), Mehr anzeigen
+    /// (je 5 mehr), wischen zeigt Löschen, ganz durchwischen löscht
+    func testMeldungenIOS() {
+        let a = app("meldungen")
+        bild("i1-stapel", warten: 3.5)
         a.descendants(matching: .any)["ios-stapel"].firstMatch.tap()
-        bild("e2b-ios-offen", warten: 1.2)
-        // zweite Karte (Drive Abgleich) nach links ziehen, bis „Löschen“ steht
-        let karte = a.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Drive abgleichen'")).firstMatch
+        bild("i2-fuenf", warten: 1.2)
+        a.swipeUp()
+        bild("i3-mehr-knopf", warten: 1)
+        a.buttons["ios-mehr"].firstMatch.tap()
+        bild("i4-zehn", warten: 1.2)
+        a.swipeUp()
+        bild("i5-zehn-unten", warten: 1)
+        a.buttons["ios-mehr"].firstMatch.tap()
+        a.swipeUp()
+        bild("i6-alle", warten: 1.2)
+        a.swipeDown(); a.swipeDown(); a.swipeDown()
+        Thread.sleep(forTimeInterval: 0.8)
+        let karte = a.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Drive abgleichen: Content'")).firstMatch
         karte.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
             .press(forDuration: 0.05, thenDragTo: karte.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)), withVelocity: .slow, thenHoldForDuration: 0.1)
-        bild("e2c-ios-wischen", warten: 1)
-        a.buttons["ios-loeschen"].firstMatch.tap()
-        bild("e2d-ios-geloescht", warten: 1.2)
-        // ganz durchwischen löscht sofort (Neuer Link)
-        let neu = a.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Neuer Link: '")).firstMatch
-        neu.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5))
-            .press(forDuration: 0.02, thenDragTo: neu.coordinate(withNormalizedOffset: CGVector(dx: -0.3, dy: 0.5)), withVelocity: .fast, thenHoldForDuration: 0)
-        bild("e2e-ios-durchgewischt", warten: 1.4)
+        bild("i7-wischen", warten: 1)
         a.buttons["ios-weniger"].firstMatch.tap()
-        bild("e2f-ios-wieder-stapel", warten: 1.4)
-        a.terminate()
-        a = app("meldungen", env: ["SV_MELDUNG": "karussell"])
-        bild("e3-karussell", warten: 3.5)
-        let reihe = a.descendants(matching: .any)["meldungen-karussell"].firstMatch
-        reihe.swipeLeft()
-        bild("e3b-karussell-weiter", warten: 1.2)
+        bild("i8-wieder-stapel", warten: 1.2)
         a.terminate()
     }
 

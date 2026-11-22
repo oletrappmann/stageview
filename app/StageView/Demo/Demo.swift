@@ -91,7 +91,11 @@ enum Demo {
             job(#"{"id":"j4","art":"drive","titel":"Content Day Oktober","code":"edzwtd","start":"\#(vier)","laeuft":false,"ok":true,"zuletzt":"Drive geprüft: 2 neue Videos dazu","stand":{}}"#),
             job(#"{"id":"j2","art":"neu","titel":"Content Day Dezember","start":"\#(zwoelf)","laeuft":false,"ok":true,"zuletzt":"fertig","link":"https://videos.stagecraft.media/uuwvte","stand":{}}"#),
             job(#"{"id":"j3","art":"dazu","titel":"Vlog KW48","start":"\#(vierzig)","laeuft":false,"ok":false,"zuletzt":"FEHLER: Kein Zugriff auf den Drive Ordner","fehler":"Kein Zugriff auf den Drive Ordner","stand":{}}"#),
-        ]
+        ] + [("j5", "drive", "Penthouse an der Spree", 1.2), ("j6", "neu", "Clemens Contenttag", 2.5), ("j7", "dazu", "Content Day Oktober · v3", 3.4),
+             ("j8", "drive", "Samuel Bringmann · Contentday", 5), ("j9", "neu", "NESGO VLOG KW47J.V6", 7.5), ("j10", "dazu", "Immoscout Event", 9),
+             ("j11", "drive", "YouTube Videos", 13), ("j12", "neu", "Neonblau · BTS Video", 20)].map { id, art, titel, stunden in
+            job(#"{"id":"\#(id)","art":"\#(art)","titel":"\#(titel)","start":"\#(f.string(from: .now.addingTimeInterval(-stunden * 3600)))","laeuft":false,"ok":true,"zuletzt":"\#(art == "drive" ? "Drive geprüft: alles aktuell" : "fertig")","link":"https://videos.stagecraft.media/uuwvte","stand":{}}"#)
+        }
     }
 
     // MARK: Kleines Beispiel ohne Datei (Testlink Formate Test)
