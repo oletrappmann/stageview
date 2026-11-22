@@ -13,7 +13,7 @@ xcrun simctl bootstatus "$SIM" -b >/dev/null
 xcrun simctl status_bar "$SIM" override --time 9:41 --batteryLevel 100 --batteryState charged --cellularBars 4 --wifiBars 3 2>/dev/null || true
 TEST_RUNNER_BILDER_ORDNER="$OUT" TEST_RUNNER_DEMO_DATEI="${PWD}/build/demo.json" TEST_RUNNER_BILDER_DUNKEL="${DUNKEL:-0}" \
 xcodebuild test -project StageView.xcodeproj -scheme StageView -destination "platform=iOS Simulator,name=$SIM" \
-  -only-testing:StageViewUITests/BilderTests/testBilder \
+  -only-testing:StageViewUITests/BilderTests/${TEST:-testBilder} \
   -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO > build/bilder.log 2>&1 || {
   echo "Screenshots mit Fehlern, siehe build/bilder.log"; grep -E "error:|failed|Fehler" build/bilder.log | cut -c1-260 | head; }
 ls "$OUT" | wc -l

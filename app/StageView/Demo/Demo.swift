@@ -52,6 +52,7 @@ enum Demo {
     /// Seite, auf der die App starten soll
     @MainActor
     static var initialPath: [Route] {
+        if parts.first == "kundenseite", parts.count > 1 { return [.customer(parts[1])] }
         guard ["projekt", "bearbeiten"].contains(parts.first ?? ""), parts.count > 1, let project = Store.shared.project(code: parts[1]) else { return [] }
         return [.project(project.key)]
     }

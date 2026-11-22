@@ -21,7 +21,6 @@ struct PlayerScreen: View {
     @State private var pool = PlayerPool()
     @State private var currentID: String?
     @State private var started = false
-    @State private var bigStage = false
     @State private var scrubbing = false
     @State private var draft = ""
     @State private var attachTime = true
@@ -33,19 +32,17 @@ struct PlayerScreen: View {
     @State private var renaming: Video?
     @State private var renameText = ""
     @State private var removing: Video?
-    @State private var systemPlayer = false
+    @State private var fullscreen = false
     @State private var showDone = false
     @State private var sending = false
     @FocusState private var composing: Bool
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.verticalSizeClass) private var verticalSize
 
     private var project: Project? { store.project(request.projectKey) }
     private var videos: [Video] { project?.videos ?? [] }
     private var current: Video? { videos.first { $0.id == currentID } ?? videos.first }
     private var index: Int { videos.firstIndex { $0.id == current?.id } ?? 0 }
     private var review: ReviewStore? { project?.code.map(ReviewStore.of) }
-    private var landscape: Bool { verticalSize == .compact }
 
     var body: some View {
         GeometryReader { geo in
@@ -53,8 +50,6 @@ struct PlayerScreen: View {
                 Palette.stage.ignoresSafeArea()
                 if videos.isEmpty {
                     empty
-                } else if landscape, let current {
-                    LandscapeStage(video: current, pool: pool, close: close)
                 } else {
                     VStack(spacing: 0) {
                         header
@@ -64,14 +59,14 @@ struct PlayerScreen: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !landscape, current != nil, review != nil { composer }
+            if current != nil, review != nil { composer }
         }
         .environment(\.colorScheme, .dark)
         .preferredColorScheme(.dark)
-        .statusBarHidden(landscape)
-        .persistentSystemOverlays(landscape ? .hidden : .automatic)
         .onAppear(perform: start)
         .onDisappear {
+            // Apples Vollbild Player legt sich über die Seite, dann meldet SwiftUI sie als verschwunden: dabei nichts freigeben
+            guard !fullscreen else { return }
             pool.stopAll()
             review?.unwatch()
         }
@@ -81,8 +76,9 @@ struct PlayerScreen: View {
             replyTo = nil
             show(video, autoplay: true)
         }
-        .fullScreenCover(isPresented: $systemPlayer) {
-            if let player = pool.activePlayer { SystemPlayer(player: player).ignoresSafeArea() }
+        // iPhone quer gedreht: Apples Player im Vollbild (die App selbst bleibt hochkant)
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+            if UIDevice.current.orientation.isLandscape { openFullscreen() }
         }
         .alert("Titel ändern", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Titel", text: $renameText)
@@ -238,8 +234,8 @@ struct PlayerScreen: View {
     private func page(_ video: Video, height: CGFloat, width: CGFloat) -> some View {
         let active = video.id == current?.id
         let threads = review?.threads(for: video.id) ?? []
-        // Höchstens 46 % der Höhe (groß 72 %), aber nie höher als das Video selbst: Querformat ohne schwarzen Rand
-        let stageHeight = min(height * (bigStage ? 0.72 : 0.46), (width - 24) / video.aspect)
+        // Höchstens die halbe Höhe, aber nie höher als das Video selbst: Querformat ohne schwarzen Rand
+        let stageHeight = min(height * 0.5, (width - 24) / video.aspect)
         return VStack(spacing: 0) {
             Stage(video: video, active: active, pool: pool, height: stageHeight, next: next(after: video), go: go)
                 .padding(.horizontal, 12)
@@ -277,14 +273,16 @@ struct PlayerScreen: View {
                 }
                 .accessibilityLabel(active && pool.playing ? "Anhalten" : "Abspielen")
                 .accessibilityIdentifier("abspielen")
-                Button { Haptics.select(); pool.skip(-10) } label: {
-                    Image(systemName: "gobackward.10").font(.system(size: 18, weight: .medium)).frame(width: 40, height: 44)
+                Button {
+                    Haptics.select()
+                    pool.muted.toggle()
+                } label: {
+                    Image(systemName: pool.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .font(.system(size: 17, weight: .medium))
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 42, height: 44)
                 }
-                .accessibilityLabel("10 Sekunden zurück")
-                Button { Haptics.select(); pool.skip(10) } label: {
-                    Image(systemName: "goforward.10").font(.system(size: 18, weight: .medium)).frame(width: 40, height: 44)
-                }
-                .accessibilityLabel("10 Sekunden vor")
+                .accessibilityLabel(pool.muted ? "Ton an" : "Ton aus")
                 Text("\(Clock.text(time)) / \(Clock.text(duration))")
                     .font(.system(size: 13, weight: .medium).monospacedDigit())
                     .foregroundStyle(Color.white.opacity(0.7))
@@ -292,32 +290,17 @@ struct PlayerScreen: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 Spacer(minLength: 4)
-                speedMenu
+                settingsMenu(video)
                 Button {
                     Haptics.select()
-                    pool.muted.toggle()
+                    openFullscreen()
                 } label: {
-                    Image(systemName: pool.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        .font(.system(size: 16, weight: .medium))
-                        .contentTransition(.symbolEffect(.replace))
-                        .frame(width: 40, height: 44)
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 17, weight: .medium))
+                        .frame(width: 42, height: 44)
                 }
-                .accessibilityLabel(pool.muted ? "Ton an" : "Ton aus")
-                Button {
-                    Haptics.select()
-                    if video.portrait {
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) { bigStage.toggle() }
-                    } else {
-                        systemPlayer = true
-                    }
-                } label: {
-                    Image(systemName: video.portrait ? (bigStage ? "rectangle.compress.vertical" : "rectangle.expand.vertical")
-                          : "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 16, weight: .medium))
-                        .frame(width: 40, height: 44)
-                }
-                .accessibilityLabel(video.portrait ? (bigStage ? "Video kleiner" : "Video größer") : "Vollbild")
-                .accessibilityIdentifier("groesse")
+                .accessibilityLabel("Vollbild")
+                .accessibilityIdentifier("vollbild")
             }
             .foregroundStyle(.white)
             .buttonStyle(PressStyle(scale: 0.88))
@@ -328,23 +311,45 @@ struct PlayerScreen: View {
         .padding(.top, 10)
     }
 
-    private var speedMenu: some View {
+    /// Zahnrad wie auf der Videoseite: Tempo und Qualität (Auto zeigt die Stufe, die gerade läuft)
+    private func settingsMenu(_ video: Video) -> some View {
         Menu {
-            Picker("Tempo", selection: Binding(get: { pool.speed }, set: { pool.speed = $0; Haptics.select() })) {
-                ForEach([Float(0.75), 1, 1.25, 1.5, 2], id: \.self) { rate in
-                    Text(rate == 1 ? "Normal" : "\(rate.formatted(.number.precision(.fractionLength(0...2))))×").tag(rate)
+            Section("Tempo") {
+                Picker("Tempo", selection: Binding(get: { pool.speed }, set: { pool.speed = $0; Haptics.select() })) {
+                    ForEach(PlayerPool.speeds, id: \.self) { rate in Text(PlayerPool.speedText(rate)).tag(rate) }
+                }
+            }
+            Section("Qualität") {
+                Picker("Qualität", selection: Binding(get: { pool.quality }, set: { pool.quality = $0; Haptics.select() })) {
+                    Text(pool.currentHeight.map { "Auto · " + PlayerPool.qualityText($0) } ?? "Auto").tag(Int?.none)
+                    ForEach(pool.qualities(for: video), id: \.self) { height in Text(PlayerPool.qualityText(height)).tag(Int?.some(height)) }
                 }
             }
         } label: {
-            Text(pool.speed == 1 ? "1×" : "\(pool.speed.formatted(.number.precision(.fractionLength(0...2))))×")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(pool.speed == 1 ? Color.white.opacity(0.8) : Palette.approved)
-                .frame(minWidth: 40, minHeight: 30)
-                .padding(.horizontal, 4)
-                .background(Color.white.opacity(0.1), in: Capsule())
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 18, weight: .medium))
+                    .frame(width: 42, height: 44)
+                if pool.speed != 1 {
+                    Text(PlayerPool.speedText(pool.speed))
+                        .font(.system(size: 9, weight: .heavy))
+                        .foregroundStyle(Palette.stage)
+                        .padding(.horizontal, 3)
+                        .background(Palette.approved, in: Capsule())
+                        .offset(x: 2, y: 6)
+                }
+            }
         }
-        .accessibilityLabel("Tempo")
-        .accessibilityIdentifier("tempo")
+        .simultaneousGesture(TapGesture().onEnded { Haptics.select() })
+        .accessibilityLabel("Einstellungen")
+        .accessibilityIdentifier("einstellungen")
+    }
+
+    /// Vollbild über Apples eigenen Player (Ole, 22.11.2026), auch wenn man das iPhone quer dreht
+    private func openFullscreen() {
+        guard !fullscreen, let player = pool.activePlayer else { return }
+        fullscreen = true
+        Fullscreen.present(player) { fullscreen = false }
     }
 
     // MARK: Kommentare
@@ -575,13 +580,6 @@ private struct Stage: View {
                 pool.toggle()
                 flash(pool.playing ? "pause.fill" : "play.fill")
             }
-            .onLongPressGesture(minimumDuration: 0.35, maximumDistance: 14) {
-                guard active, pool.playing else { return }
-                Haptics.press()
-                withAnimation(.easeOut(duration: 0.15)) { pool.boost = true }
-            } onPressingChanged: { pressing in
-                if !pressing, pool.boost { withAnimation(.easeOut(duration: 0.15)) { pool.boost = false } }
-            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(height: height)
@@ -606,18 +604,6 @@ private struct Stage: View {
                 .glassEffect(.regular, in: .circle)
                 .transition(.opacity.combined(with: .scale(scale: 1.2)))
                 .allowsHitTesting(false)
-        }
-        if pool.boost {
-            Label("2×", systemImage: "forward.fill")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .frame(height: 30)
-                .glassEffect(.regular, in: .capsule)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .padding(.top, 12)
-                .allowsHitTesting(false)
-                .transition(.opacity)
         }
         if pool.ended, let next {
             Button {
@@ -653,77 +639,6 @@ private struct Stage: View {
         Task {
             try? await Task.sleep(for: .milliseconds(450))
             withAnimation(.easeOut(duration: 0.3)) { flash = nil }
-        }
-    }
-}
-
-// MARK: Quer
-
-/// Quer gehalten: nur das Video, groß. Tippen zeigt oder versteckt Zeitleiste und Knöpfe, beim Abspielen verschwinden sie nach 3 s.
-private struct LandscapeStage: View {
-    let video: Video
-    let pool: PlayerPool
-    let close: () -> Void
-
-    @State private var chrome = true
-    @State private var scrubbing = false
-    @State private var hide: Task<Void, Never>?
-
-    var body: some View {
-        ZStack {
-            VideoSurface(player: pool.players[video.id])
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.easeOut(duration: 0.2)) { chrome.toggle() }
-                    autoHide()
-                }
-            if chrome {
-                VStack {
-                    HStack {
-                        Button(action: close) { GlassCircle(symbol: "xmark", size: 42, symbolSize: 16, tint: .white) }.buttonStyle(.plain)
-                        Text(video.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
-                        Spacer()
-                    }
-                    Spacer()
-                    HStack(spacing: 14) {
-                        Button {
-                            Haptics.select()
-                            pool.toggle()
-                            autoHide()
-                        } label: {
-                            Image(systemName: pool.playing ? "pause.fill" : "play.fill")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 48, height: 48)
-                                .glassEffect(.regular.interactive(), in: .circle)
-                        }
-                        .buttonStyle(.plain)
-                        Scrubber(time: pool.time, duration: pool.duration > 0 ? pool.duration : video.duration, markers: [], video: video,
-                                 seek: { t, exact in pool.seek(to: t, exact: exact) }, scrubbing: $scrubbing)
-                        Text("\(Clock.text(pool.time)) / \(Clock.text(pool.duration))")
-                            .font(.system(size: 13, weight: .medium).monospacedDigit())
-                            .foregroundStyle(.white.opacity(0.8))
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .glassEffect(.regular, in: .capsule)
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .transition(.opacity)
-            }
-        }
-        .onAppear(perform: autoHide)
-        .onChange(of: scrubbing) { _, now in if !now { autoHide() } }
-    }
-
-    private func autoHide() {
-        hide?.cancel()
-        hide = Task {
-            try? await Task.sleep(for: .seconds(3))
-            guard !Task.isCancelled, pool.playing, !scrubbing else { return }
-            withAnimation(.easeOut(duration: 0.35)) { chrome = false }
         }
     }
 }

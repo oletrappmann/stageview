@@ -16,9 +16,10 @@ final class BilderTests: XCTestCase {
         continueAfterFailure = true
     }
 
-    private func app(_ mode: String) -> XCUIApplication {
+    private func app(_ mode: String, start: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["SV_DEMO"] = mode
+        if let start { app.launchEnvironment["SV_START"] = start }
         app.launchEnvironment["SV_DEMO_DATEI"] = daten
         app.launchArguments += ["-sv.darstellung", hell ? "hell" : "dunkel", "-sv.ansicht", "alle", "-sv.sortierung", "aktiv"]
         app.launch()
@@ -123,5 +124,84 @@ final class BilderTests: XCTestCase {
         a = app("kunden")
         bild("26-kunden", warten: 2)
         a.terminate()
+    }
+
+    /// Vier Konzepte der Startseite und der Player mit Zahnrad und Vollbild (Runde 2, 22.11.2026)
+    func testKonzepte() {
+        var a = app("liste", start: "regal")
+        bild("k1-regal", warten: 3.5)
+        a.swipeUp()
+        bild("k1-regal-weiter", warten: 1.5)
+        a.swipeUp()
+        bild("k1-regal-weiter2", warten: 1.5)
+        a.terminate()
+
+        a = app("liste", start: "eingang")
+        bild("k2-eingang", warten: 3.5)
+        a.swipeUp()
+        bild("k2-eingang-weiter", warten: 1.5)
+        a.swipeUp()
+        bild("k2-eingang-weiter2", warten: 1.5)
+        a.terminate()
+
+        a = app("liste", start: "kunden")
+        bild("k3-kunden", warten: 3.5)
+        a.swipeUp()
+        bild("k3-kunden-weiter", warten: 1.5)
+        a.terminate()
+        a = app("kundenseite:lukas-doberenz", start: "kunden")
+        bild("k3-kundenseite", warten: 3.5)
+        a.terminate()
+
+        a = app("liste", start: "videos")
+        bild("k4-videos", warten: 3.5)
+        a.swipeUp()
+        bild("k4-videos-weiter", warten: 1.5)
+        a.swipeUp(); a.swipeUp()
+        bild("k4-videos-weiter2", warten: 1.5)
+        a.swipeDown(); a.swipeDown(); a.swipeDown()
+        a.buttons["kunde-menue"].firstMatch.tap()
+        bild("k4-videos-kundenmenue")
+        a.terminate()
+
+        a = app("liste", start: "regal")
+        a.buttons["konto"].firstMatch.tap()
+        bild("k0-kontomenue")
+        a.terminate()
+
+        a = app("player:8fykkr:1:12")
+        bild("p1-player", warten: 5)
+        a.buttons["vollbild"].firstMatch.tap()
+        bild("p3-vollbild", warten: 4)
+        XCUIDevice.shared.orientation = .landscapeLeft
+        bild("p4-vollbild-quer", warten: 3)
+        XCUIDevice.shared.orientation = .portrait
+        Thread.sleep(forTimeInterval: 1)
+        a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        Thread.sleep(forTimeInterval: 0.6)
+        let zu = a.buttons.matching(NSPredicate(format: "label IN %@", ["Schließen", "Close", "Fertig", "Done"])).firstMatch
+        if zu.waitForExistence(timeout: 3) { zu.tap() }
+        bild("p5-nach-vollbild", warten: 2)
+        a.terminate()
+        a = app("player:8fykkr:1:70")
+        Thread.sleep(forTimeInterval: 4)
+        a.buttons["einstellungen"].firstMatch.tap()
+        bild("p2-zahnrad")
+        a.terminate()
+    }
+
+    /// Vier Entwürfe der Anmeldung (Runde 2, 22.11.2026)
+    func testAnmeldung() {
+        for look in ["mitte", "unten", "buehne", "band"] {
+            let a = XCUIApplication()
+            a.launchEnvironment["SV_DEMO"] = "anmeldung"
+            a.launchEnvironment["SV_ANMELDUNG"] = look
+            a.launchArguments += ["-sv.darstellung", hell ? "hell" : "dunkel"]
+            a.launch()
+            bild("a-\(look)", warten: 2)
+            a.buttons["zugang-tess"].tap()
+            bild("a-\(look)-passwort", warten: 1.2)
+            a.terminate()
+        }
     }
 }

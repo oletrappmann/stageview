@@ -1,7 +1,17 @@
 import SwiftUI
 
+/// Die App bleibt hochkant, nur Apples Vollbild Player darf sich drehen (Fullscreen)
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    static var orientations: UIInterfaceOrientationMask = .portrait
+
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        Self.orientations
+    }
+}
+
 @main
 struct StageViewApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @AppStorage("sv.darstellung") private var appearance = "auto"
 
     init() {
@@ -21,6 +31,7 @@ struct StageViewApp: App {
 /// Wohin die Navigation geht
 enum Route: Hashable {
     case project(String)
+    case customer(String)
 }
 
 /// Neuer Link, auf Wunsch schon mit Kunde
@@ -60,10 +71,11 @@ struct MainView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            LinksPage(path: $path)
+            StartPage(path: $path)
                 .navigationDestination(for: Route.self) { route in
                     switch route {
                     case .project(let key): ProjectPage(key: key, path: $path)
+                    case .customer(let id): CustomerPage(id: id, path: $path)
                     }
                 }
         }

@@ -19,8 +19,17 @@ final class PlayerPool {
     var ended = false
     var speed: Float = 1 { didSet { applySpeed() } }
     var muted = false { didSet { players.values.forEach { $0.isMuted = muted } } }
-    /// Gedrückt halten: doppelt so schnell, solange der Finger liegt
-    var boost = false { didSet { applySpeed() } }
+    /// Qualität wie im Zahnrad der Videoseite: nil = Auto, sonst höchstens diese Stufe (kurze Seite in Pixeln, 1080 = 1080p)
+    var quality: Int? { didSet { applyQuality() } }
+    /// Stufe, die bei Auto gerade läuft (für „Auto · 1080p“)
+    var currentHeight: Int?
+    /// Stufen pro Video aus der HLS Liste von Mux
+    private var renditions: [String: [Int]] = [:]
+    private var videosByID: [String: Video] = [:]
+
+    static let speeds: [Float] = [0.75, 1, 1.25, 1.5, 2]
+    static func speedText(_ rate: Float) -> String { rate == 1 ? "Normal" : rate.formatted(.number.precision(.fractionLength(0...2))) + "×" }
+    static func qualityText(_ height: Int) -> String { height >= 2160 ? "4K" : height >= 1440 ? "1440p" : "\(height)p" }
 
     /// Letzte Stelle pro Video, damit man beim Zurückwischen dort weiterschaut
     private var positions: [String: Double] = [:]
@@ -39,6 +48,9 @@ final class PlayerPool {
         guard let url = video.hlsURL else { return nil }
         let item = AVPlayerItem(url: url)
         item.preferredForwardBufferDuration = 6
+        videosByID[video.id] = video
+        limit(item, aspect: video.aspect)
+        if renditions[video.id] == nil { Task { await loadRenditions(video) } }
         let player = AVPlayer(playerItem: item)
         player.isMuted = muted
         player.automaticallyWaitsToMinimizeStalling = true
@@ -106,7 +118,30 @@ final class PlayerPool {
 
     var activePlayer: AVPlayer? { activeID.flatMap { players[$0] } }
 
-    private var currentRate: Float { boost ? max(2, speed) : speed }
+    private var currentRate: Float { speed }
+
+    /// Stufen fürs Zahnrad (höchstens vier, ab 360p, wie auf der Videoseite)
+    func qualities(for video: Video) -> [Int] { Array((renditions[video.id] ?? []).filter { $0 >= 360 }.prefix(4)) }
+
+    private func loadRenditions(_ video: Video) async {
+        guard let url = video.hlsURL, let (data, _) = try? await URLSession.shared.data(from: url), let text = String(data: data, encoding: .utf8) else { return }
+        let sizes = text.matches(of: /RESOLUTION=(\d+)x(\d+)/).compactMap { m -> Int? in
+            guard let w = Int(m.1), let h = Int(m.2) else { return nil }
+            return min(w, h)
+        }
+        renditions[video.id] = Array(Set(sizes)).sorted(by: >)
+    }
+
+    private func applyQuality() {
+        for (id, player) in players { if let item = player.currentItem { limit(item, aspect: videosByID[id]?.aspect ?? 0.5625) } }
+    }
+
+    /// Obergrenze der Auflösung: kurze Seite höchstens `quality` (Auto ohne Grenze)
+    private func limit(_ item: AVPlayerItem, aspect: Double) {
+        guard let q = quality else { item.preferredMaximumResolution = .zero; return }
+        let short = CGFloat(q) + 1
+        item.preferredMaximumResolution = aspect >= 1 ? CGSize(width: short * aspect + 1, height: short) : CGSize(width: short, height: short / aspect + 1)
+    }
 
     private func applySpeed() {
         guard let player = activePlayer else { return }
@@ -125,6 +160,7 @@ final class PlayerPool {
                 guard let self, self.observed === player else { return }
                 if t.seconds.isFinite { self.time = t.seconds }
                 if let d = player.currentItem?.duration.seconds, d.isFinite, d > 0 { self.duration = d }
+                if let size = player.currentItem?.presentationSize, size.width > 0 { self.currentHeight = Int(min(size.width, size.height)) }
             }
         }
         observations = [
@@ -197,19 +233,41 @@ struct VideoSurface: UIViewRepresentable {
     }
 }
 
-/// Apples eigener Vollbild Player für denselben AVPlayer (Querformat Videos groß, AirPlay, Bild in Bild)
-struct SystemPlayer: UIViewControllerRepresentable {
-    let player: AVPlayer
-
-    func makeUIViewController(context: Context) -> AVPlayerViewController {
-        let controller = AVPlayerViewController()
+/// Vollbild über Apples eigenen Player (Ole, 22.11.2026: „beim Vollbild einfach den normalen Apple Player“). Derselbe AVPlayer,
+/// es läuft an derselben Stelle weiter. Nur solange er offen ist, darf sich die App drehen, danach wieder hochkant.
+@MainActor
+enum Fullscreen {
+    static func present(_ player: AVPlayer, closed: @escaping () -> Void) {
+        guard let top = topController() else { return closed() }
+        AppDelegate.orientations = .allButUpsideDown
+        let controller = ClosingPlayerController()
         controller.player = player
+        controller.closed = closed
         controller.allowsPictureInPicturePlayback = true
-        controller.canStartPictureInPictureAutomaticallyFromInline = true
-        return controller
+        controller.modalPresentationStyle = .fullScreen
+        top.present(controller, animated: true) { player.play() }
     }
 
-    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
-        if controller.player !== player { controller.player = player }
+    static func topController() -> UIViewController? {
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first { $0.activationState == .foregroundActive }
+            ?? UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        var top = scene?.windows.first { $0.isKeyWindow }?.rootViewController
+        while let next = top?.presentedViewController { top = next }
+        return top
+    }
+}
+
+final class ClosingPlayerController: AVPlayerViewController {
+    var closed: () -> Void = {}
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        guard presentingViewController == nil || isBeingDismissed else { return }
+        AppDelegate.orientations = .portrait
+        if let scene = Fullscreen.topController()?.view.window?.windowScene {
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+            Fullscreen.topController()?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        }
+        closed()
     }
 }
