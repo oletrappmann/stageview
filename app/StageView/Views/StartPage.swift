@@ -71,7 +71,11 @@ struct StartPage: View {
             StartTopBar(searching: $searching, customers: { customersOpen = true })
         }
         .safeAreaBar(edge: .bottom) { bottomBar }
-        .background(Palette.canvas.ignoresSafeArea())
+        .background {
+            Palette.canvas
+                .overlay(alignment: .top) { StartGlow() }
+                .ignoresSafeArea()
+        }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .toolbar(.hidden, for: .navigationBar)
         .linkDeletion($deleting)

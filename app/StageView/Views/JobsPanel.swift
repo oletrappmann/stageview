@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Meldungen oben auf der Startseite (laufende Aufträge mit Fortschritt, fertige mit dem neuen Link, Fehler mit Grund), wie die
 /// Mitteilungen von iOS (Ole, 22.11.2026: aus drei Entwürfen Nummer 2 gewählt). Glas Karten mit App Symbol, Titel, Zeit rechts und
-/// einem Satz. Mehrere liegen als Stapel übereinander, Tipp fächert sie auf, oben „Weniger anzeigen“ und × für alle fertigen.
+/// einem Satz. Mehrere liegen als Stapel übereinander, Tipp fächert sie auf. Darüber immer „Meldungen“ mit „Alle gelesen“,
+/// aufgefächert dazu „Weniger anzeigen“.
 /// Aufgefächert höchstens 5, „Mehr anzeigen“ holt jeweils 5 weitere (Ole). Nach links wischen zeigt „Löschen“, ganz durchwischen
 /// löscht sofort. Tipp auf eine Karte öffnet den Link. Laufende lassen sich nicht wegwischen.
 struct JobsPanel: View {
@@ -18,9 +19,9 @@ struct JobsPanel: View {
         let jobs = store.visibleJobs
         if !jobs.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                if jobs.count > 1 && expanded {
-                    header(jobs)
-                }
+                // Kopfzeile immer da, mit „Alle gelesen“ (Ole, 22.11.2026: „über den Notifications direkt so einen Alle gelesen
+                // Button, der auch immer angezeigt wird“)
+                header(jobs)
                 if jobs.count == 1 || expanded {
                     ForEach(jobs.prefix(limit)) { job in
                         SwipeAway(enabled: !job.running, dismiss: { store.dismiss(job) }) {
@@ -46,37 +47,50 @@ struct JobsPanel: View {
     private func header(_ jobs: [Job]) -> some View {
         HStack(spacing: 8) {
             Text("Meldungen").font(.system(size: 20, weight: .bold)).foregroundStyle(Palette.text)
-            Spacer()
-            Button {
-                Haptics.select()
-                withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
-                    expanded = false
-                    limit = Self.page
-                }
-            } label: {
-                Text("Weniger anzeigen").font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Palette.text)
-                    .padding(.horizontal, 12).frame(height: 32)
-            }
-            .buttonStyle(.plain)
-            .glassEffect(.regular.interactive(), in: Capsule())
-            .accessibilityIdentifier("ios-weniger")
-            if jobs.contains(where: { !$0.running }) {
+                .lineLimit(1)
+                .layoutPriority(-1)
+            Spacer(minLength: 0)
+            if expanded && jobs.count > 1 {
+                // Kurz „Weniger“ mit Pfeil, „Weniger anzeigen“ und „Alle gelesen“ passten nebeneinander nicht ganz
                 Button {
                     Haptics.select()
                     withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
-                        store.dismissFinishedJobs()
                         expanded = false
                         limit = Self.page
                     }
                 } label: {
-                    Image(systemName: "xmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Palette.text)
-                        .frame(width: 32, height: 32)
+                    Label("Weniger", systemImage: "chevron.up")
+                        .font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Palette.text)
+                        .padding(.horizontal, 12).frame(height: 32)
+                        .fixedSize()
                 }
                 .buttonStyle(.plain)
-                .glassEffect(.regular.interactive(), in: Circle())
-                .accessibilityLabel("Alle fertigen ausblenden")
-                .accessibilityIdentifier("alle-gelesen")
+                .glassEffect(.regular.interactive(), in: Capsule())
+                .accessibilityLabel("Weniger anzeigen")
+                .accessibilityIdentifier("ios-weniger")
+                .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
+            let finished = jobs.contains { !$0.running }
+            Button {
+                Haptics.select()
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
+                    store.dismissFinishedJobs()
+                    expanded = false
+                    limit = Self.page
+                }
+            } label: {
+                Label("Alle gelesen", systemImage: "checkmark")
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .foregroundStyle(Palette.text)
+                    .padding(.horizontal, 12).frame(height: 32)
+                    .fixedSize()
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: Capsule())
+            .disabled(!finished)
+            .opacity(finished ? 1 : 0.45)
+            .accessibilityHint(finished ? "Blendet alle fertigen Meldungen aus" : "Nur laufende Aufträge, die bleiben stehen")
+            .accessibilityIdentifier("alle-gelesen")
         }
         .padding(.horizontal, 4)
         .transition(.opacity)

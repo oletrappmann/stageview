@@ -36,6 +36,22 @@ extension Store {
 
 // MARK: Kopf
 
+/// Grüner Verlauf oben wie in der Kundenansicht und auf der Webseite (Ole, 22.11.2026: „ein grüner Ambient Farbverlauf“, dann
+/// „weiter nach unten, ohne Unterbrechung von der Nav Bar, ein bisschen mehr reinstrahlen bei den Meldungen oder der Überschrift“).
+/// Fest am oberen Bildschirmrand hinter der ganzen Startseite und noch einmal gleich im Kopf, so gibt es keine Kante
+struct StartGlow: View {
+    static let height: CGFloat = 560
+
+    var body: some View {
+        HeroGlow()
+            .frame(height: Self.height)
+            .offset(y: -30)
+            .opacity(0.95)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
 /// Kopf der Startseite: StageView links, rechts Suche und das eigene Gesicht (Konto Menü). Beim Suchen wird daraus ein Glasfeld.
 struct StartTopBar: View {
     @Binding var searching: Bool
@@ -71,19 +87,15 @@ struct StartTopBar: View {
             if !Connection.shared.online { OfflineCapsule().transition(.opacity) }
         }
         .background(alignment: .top) {
-            // Grüner Verlauf oben wie in der Kundenansicht und auf der Webseite (Ole, 22.11.2026: „ein grüner Ambient Farbverlauf,
-            // der Sinn macht“): hinter Logo und Überschrift, bleibt stehen, läuft weich in die Seite aus
-            // Nur im Kopf und nach unten weich auslaufend, so liegt nichts über der Liste
-            TopEdge()
-                .overlay {
-                    HeroGlow()
-                        .frame(height: 340)
-                        .offset(y: -60)
-                        .opacity(0.9)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.62),
-                                                     .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
+            // Kopf zeigt denselben Grund wie die Seite (Dunkel plus StartGlow an derselben Stelle), nur nach unten weich
+            // auslaufend: Inhalt darunter verschwindet sanft, der grüne Verlauf läuft ohne Kante weiter
+            // Der Kopf behält seine Höhe, der Grund liegt als Überhang darin und wird von der weichen Kante beschnitten
+            Color.clear
+                .overlay(alignment: .top) {
+                    Palette.canvas.frame(height: StartGlow.height).overlay(alignment: .top) { StartGlow() }
                 }
+                .ignoresSafeArea(edges: .top)
+                .mask { TopEdge(color: .black) }
                 .allowsHitTesting(false)
         }
         .centerConfirm("Abmelden?", isPresented: $confirmSignOut, action: "Abmelden", symbol: "rectangle.portrait.and.arrow.right",

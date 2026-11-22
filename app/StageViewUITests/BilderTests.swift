@@ -282,6 +282,24 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Grüner Verlauf ohne Kante an der Kopfleiste, „Alle gelesen“ immer über den Meldungen (23.11.2026)
+    func testVerlauf() {
+        var a = app("meldungen")
+        bild("g1-meldungen", warten: 3.5)
+        a.descendants(matching: .any)["ios-stapel"].firstMatch.tap()
+        bild("g2-aufgefaechert", warten: 1.2)
+        a.swipeUp()
+        bild("g3-gescrollt", warten: 1.2)
+        a.buttons["alle-gelesen"].firstMatch.tap()
+        bild("g4-alle-gelesen", warten: 1.5)
+        a.terminate()
+        a = app("liste")
+        bild("g5-ohne-meldungen", warten: 3.5)
+        a.swipeUp()
+        bild("g6-ohne-gescrollt", warten: 1.2)
+        a.terminate()
+    }
+
     /// Player geht nur übers Kreuz zu (22.11.2026, Ole): kräftig nach unten oder oben wischen bleibt im Player
     func testPlayerNurKreuz() {
         let a = app("projekt:zskz92")
