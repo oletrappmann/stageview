@@ -30,7 +30,6 @@ struct PlayerScreen: View {
     @State private var scrubbing = false
     @State private var draft = ""
     @State private var attachTime = true
-    @State private var draftTime: Double = 0
     @State private var replyTo: Comment?
     @State private var editing: Comment?
     @State private var deleting: Comment?
@@ -147,12 +146,12 @@ struct PlayerScreen: View {
             show(video, autoplay: true)
         }
         .onChange(of: composing) { _, now in
-            // Beim Schreiben hält das Video an, die Zeit bleibt die, an der man angefangen hat. Danach steht das Blatt offen
+            // Beim Schreiben hält das Video an. Die Zeitmarke folgt immer der Abspielposition (Spulen, ein Bild vor oder zurück, Abspielen),
+            // gespeichert wird die Stelle beim Senden (Ole, 23.11.2026). Danach steht das Blatt offen
             if now {
                 // Anhalten und genau auf das Bild der Zeitmarke springen: was man sieht, ist die Stelle des Kommentars
                 pool.pause()
-                draftTime = Timecode.snap(pool.time, fps: current?.fps)
-                pool.seek(to: draftTime, exact: true)
+                pool.seek(to: Timecode.snap(pool.time, fps: current?.fps), exact: true)
                 stopAfterWriting = .offen
             } else if let after = stopAfterWriting {
                 stopAfterWriting = nil
@@ -770,7 +769,8 @@ struct PlayerScreen: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "timer").font(.system(size: 12, weight: .semibold))
-                Text(Timecode.display(composing ? draftTime : pool.time, fps: current?.fps, on: timecode))
+                // Folgt immer der Abspielposition, auch beim Spulen mit offenem Feld (Ole, 23.11.2026)
+                Text(Timecode.display(pool.time, fps: current?.fps, on: timecode))
                     .font(.system(size: 13, weight: .semibold).monospacedDigit())
             }
             .foregroundStyle(attachTime ? Palette.stage : Color.white.opacity(0.6))
@@ -814,9 +814,8 @@ struct PlayerScreen: View {
 
     private func stepFrame(_ n: Int, _ fps: Double) {
         let end = pool.duration > 0 ? pool.duration : (current?.duration ?? 0)
-        let t = Timecode.step(draftTime, by: n, fps: fps)
-        draftTime = end > 0 ? min(t, max(0, end - 1 / fps)) : t
-        pool.seek(to: draftTime, exact: true)
+        let t = Timecode.step(pool.time, by: n, fps: fps)
+        pool.seek(to: end > 0 ? min(t, max(0, end - 1 / fps)) : t, exact: true)
     }
 
     private var sendButton: some View {
@@ -855,7 +854,7 @@ struct PlayerScreen: View {
             return
         }
         Task {
-            let ok = await review.add(video: video.id, text: text, time: attachTime ? draftTime : nil, replyTo: replyTo?.id, fps: video.fps)
+            let ok = await review.add(video: video.id, text: text, time: attachTime ? pool.time : nil, replyTo: replyTo?.id, fps: video.fps)
             sending = false
             if ok {
                 Haptics.sent()

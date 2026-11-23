@@ -306,6 +306,21 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Zeitmarke im offenen Kommentarfeld folgt der Abspielposition beim Spulen (23.11.2026)
+    func testZeitFolgt() {
+        let a = app("player:8fykkr:1:42")
+        Thread.sleep(forTimeInterval: 4)
+        a.textFields["kommentar-feld"].firstMatch.tap()
+        bild("z1-feld-offen", warten: 1.5)
+        let leiste = a.descendants(matching: .any)["zeitleiste"].firstMatch
+        leiste.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: leiste.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5)), withVelocity: .slow, thenHoldForDuration: 0.2)
+        bild("z2-gespult", warten: 1.2)
+        a.buttons["bild-zurueck"].firstMatch.tap()
+        bild("z3-ein-bild-zurueck", warten: 0.8)
+        a.terminate()
+    }
+
     /// Freigabe pro Video und „Alle freigeben“ auf der Seite eines Links (23.11.2026)
     func testFreigabe() {
         let a = app("projekt:u9kd8m")
