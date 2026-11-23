@@ -12,12 +12,26 @@ struct ThreadView: View {
     let edit: (Comment) -> Void
     let delete: (Comment) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Zählt jedes Antippen, löst den kurzen Leuchtrand aus
+    @State private var flash = 0
+
+    /// Grün und Salbei wie der Leuchtrand der TESS App (ListeningEdge) und der grüne Verlauf der Anmeldung
+    private static let sage = Color(UIColor(hex: 0x93AA98))
+    private static let glowColors: [Color] = [0xA9C1AE, 0x5F8068, 0x93AA98, 0xD9E6DB, 0x6A7B6D, 0xA9C1AE].map { Color(UIColor(hex: $0)) }
+
+    /// Angetippt: an die Stelle springen und einmal kurz aufleuchten
+    private func tapped(_ time: Double) {
+        flash += 1
+        jump(time)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CommentRow(comment: thread.root, reply: false, highlighted: highlighted, fps: fps, jump: jump, toggleDone: toggleDone)
+            CommentRow(comment: thread.root, reply: false, highlighted: highlighted, fps: fps, jump: tapped, toggleDone: toggleDone)
                 .contextMenu { menu(thread.root) }
             ForEach(thread.replies) { answer in
-                CommentRow(comment: answer, reply: true, highlighted: false, fps: fps, jump: jump, toggleDone: toggleDone)
+                CommentRow(comment: answer, reply: true, highlighted: false, fps: fps, jump: tapped, toggleDone: toggleDone)
                     .padding(.leading, 38)
                     .contextMenu { menu(answer) }
             }
@@ -39,8 +53,15 @@ struct ThreadView: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
-        .background(highlighted ? Color.white.opacity(0.07) : .clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        // Läuft das Video an seiner Stelle (oder wurde er angetippt): grüner Rand wie auf der Videoseite (.km.aktiv, --akzent)
+        .background(highlighted ? Color.white.opacity(0.05) : .clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Self.sage, lineWidth: 1)
+                .opacity(highlighted ? 1 : 0)
+        }
         .animation(.easeOut(duration: 0.25), value: highlighted)
+        .modifier(TapGlow(trigger: flash, colors: Self.glowColors, glow: Self.sage, enabled: !reduceMotion))
         .opacity(thread.root.done ? 0.55 : 1)
     }
 
@@ -57,6 +78,67 @@ struct ThreadView: View {
         if comment.canDelete {
             Divider()
             Button(role: .destructive) { delete(comment) } label: { Label("Löschen", systemImage: "trash") }
+        }
+    }
+}
+
+/// Kurzer Leuchtrand beim Antippen (Ole, 23.11.2026: „wie der Glow Rahmen in der TESS App, deutlich schlichter, kleiner und
+/// schneller“): ein drehender Verlauf in Grün und Salbei läuft einmal um die Karte, wird kurz breit und hell und legt sich in
+/// gut einer halben Sekunde auf den ruhigen grünen Rand. Die Karte gibt dabei ganz leicht nach. Nur die Karte, kein Weichzeichner
+/// über den Bildschirm. Bei „Bewegung reduzieren“ nur der Rand
+private struct TapGlow: ViewModifier {
+    let trigger: Int
+    let colors: [Color]
+    let glow: Color
+    let enabled: Bool
+
+    struct State {
+        var opacity = 0.0
+        var width: CGFloat = 1
+        var blur: CGFloat = 0
+        var turn = 0.0
+        var scale: CGFloat = 1
+    }
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.keyframeAnimator(initialValue: State(), trigger: trigger) { view, g in
+                view
+                    // Ein Hauch Grün auf der Karte, solange es leuchtet
+                    .background(glow.opacity(0.1 * g.opacity), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(AngularGradient(colors: colors, center: .center, angle: .degrees(g.turn)), lineWidth: g.width)
+                            .shadow(color: glow.opacity(0.9 * g.opacity), radius: g.blur)
+                            .opacity(g.opacity)
+                            .allowsHitTesting(false)
+                    }
+                    .scaleEffect(g.scale)
+            } keyframes: { _ in
+                KeyframeTrack(\.opacity) {
+                    CubicKeyframe(1, duration: 0.1)
+                    LinearKeyframe(1, duration: 0.22)
+                    CubicKeyframe(0, duration: 0.33)
+                }
+                KeyframeTrack(\.width) {
+                    CubicKeyframe(3.2, duration: 0.16)
+                    CubicKeyframe(1, duration: 0.49)
+                }
+                KeyframeTrack(\.blur) {
+                    CubicKeyframe(14, duration: 0.16)
+                    CubicKeyframe(0, duration: 0.49)
+                }
+                KeyframeTrack(\.turn) {
+                    LinearKeyframe(0, duration: 0.001)
+                    CubicKeyframe(160, duration: 0.65)
+                }
+                KeyframeTrack(\.scale) {
+                    CubicKeyframe(0.985, duration: 0.08)
+                    SpringKeyframe(1, duration: 0.42, spring: .snappy)
+                }
+            }
+        } else {
+            content
         }
     }
 }
