@@ -329,6 +329,45 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Alle offenen Kommentare eines Links auf einmal abhaken (23.11.2026)
+    func testAlleErledigt() {
+        let a = app("projekt:8fykkr")
+        Thread.sleep(forTimeInterval: 3)
+        let knopf = a.buttons["alle-erledigt"].firstMatch
+        var n = 0
+        while !knopf.isHittable && n < 8 { a.swipeUp(); n += 1; Thread.sleep(forTimeInterval: 0.4) }
+        bild("e1-knopf", warten: 0.6)
+        knopf.tap()
+        bild("e2-rueckfrage", warten: 0.8)
+        a.buttons["Alle abhaken"].firstMatch.tap()
+        bild("e3-erledigt", warten: 1.2)
+        print("ERLEDIGT Knopf noch da:", a.buttons["alle-erledigt"].exists)
+        a.terminate()
+    }
+
+    /// Langes Drücken auf einen Kommentar öffnet das Menü (Antworten, Erledigt, Bearbeiten, Kopieren, Löschen), überall auf der Karte
+    func testKommentarMenue() {
+        let a = app("player:8fykkr:1:5", env: ["SV_BLATT": "offen"])
+        Thread.sleep(forTimeInterval: 4)
+        a.buttons["abspielen"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 1)
+        let reihe = a.descendants(matching: .any)["kommentar-1"].firstMatch.exists
+            ? a.descendants(matching: .any)["kommentar-1"].firstMatch
+            : a.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'kommentar-' AND identifier != 'kommentar-feld'")).element(boundBy: 0)
+        let f = reihe.frame
+        let ursprung = a.coordinate(withNormalizedOffset: .zero)
+        for (name, punkt) in [("Zeile rechts leer", CGVector(dx: f.maxX - 70, dy: f.maxY - 6)), ("Text", CGVector(dx: f.minX + 90, dy: f.midY + 8)),
+                              ("unter der Zeile", CGVector(dx: f.maxX - 60, dy: f.maxY + 22))] {
+            ursprung.withOffset(punkt).press(forDuration: 1.2)
+            Thread.sleep(forTimeInterval: 0.7)
+            print("MENUE", name, Int(punkt.dx), Int(punkt.dy), "Menü:", a.buttons["Text kopieren"].exists)
+            bild("m-\(name)", warten: 0.2)
+            if a.buttons["Text kopieren"].exists { ursprung.withOffset(CGVector(dx: 200, dy: 40)).tap(); Thread.sleep(forTimeInterval: 1.5) }
+        }
+        print("MENUE Zeile", Int(f.minX), Int(f.minY), Int(f.width), Int(f.height))
+        a.terminate()
+    }
+
     /// Gedrückt halten spielt doppelt so schnell (23.11.2026): laufend und pausiert
     func testHalten() {
         let a = app("player:8fykkr:1:20")

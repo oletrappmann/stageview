@@ -15,6 +15,8 @@ Endpunkte (projekt = Ordnername unter /var/www/videos, seit 13.11.2026 nur der C
   GET    /api/<projekt>/                      alle Kommentare und Status des Projekts
   POST   /api/<projekt>/kommentare            {video, zeit, text, name, antwort_auf}
   POST   /api/<projekt>/kommentare/<id>/erledigt   {erledigt, name}  gilt für den ganzen Verlauf, Kommentar samt Antworten (seit 13.11.2026)
+  POST   /api/<projekt>/kommentare/alle-erledigt  {name}  nur Team: alle offenen Kommentare des Links samt Antworten auf einmal
+                                                   abhaken, ein Eintrag im Verlauf → {erledigt: Anzahl, ids} (seit 23.11.2026)
   POST   /api/<projekt>/kommentare/<id>/text   {text}  eigenen Kommentar ändern (seit 16.11.2026), Team auch Stagecraft Kommentare,
                                               der alte Text bleibt im Verlauf
   DELETE /api/<projekt>/kommentare/<id>
@@ -859,6 +861,8 @@ class Api(BaseHTTPRequestHandler):
             self.schreib_pruefung(team)
             if methode == "POST" and rest == ["kommentare"]:
                 return self.antwort(201, self.neuer_kommentar(projekt, ids, self.koerper(), autor, team))
+            if methode == "POST" and rest == ["kommentare", "alle-erledigt"]:
+                return self.antwort(200, self.alle_erledigt(projekt, self.koerper(), team))
             if methode == "POST" and len(rest) == 3 and rest[0] == "kommentare" and rest[2] == "erledigt":
                 return self.antwort(200, self.erledigt(projekt, rest[1], self.koerper(), autor, team))
             if methode == "POST" and len(rest) == 3 and rest[0] == "kommentare" and rest[2] == "text":
@@ -1133,6 +1137,23 @@ class Api(BaseHTTPRequestHandler):
                         (jetzt(), projekt, r["video"], "erledigt" if wert else "wieder offen", name, json.dumps({"id": r["id"]})))
             r = con.execute("SELECT * FROM kommentare WHERE id=?", (r["id"],)).fetchone()
         return als_dict(r, autor, team)
+
+    def alle_erledigt(self, projekt, d, team):
+        """Alle offenen Kommentare eines Links auf einmal abhaken (Ole, 23.11.2026: „ein Button, der alle Kommentare auf abgehakt
+        setzt, und wenn neue kommen, sind die wieder offen“). Nur das Team. Antworten gehen mit wie beim einzelnen Haken."""
+        if not team:
+            raise Fehler(403, "nicht erlaubt")
+        name = sauber(d.get("name"), MAX_NAME) or None
+        with db() as con:
+            ids = [r["id"] for r in con.execute("SELECT id FROM kommentare WHERE projekt=? AND geloescht=0 AND erledigt=0 "
+                                                "AND antwort_auf IS NULL ORDER BY id", (projekt,))]
+            if ids:
+                am, platz = jetzt(), ",".join("?" * len(ids))
+                con.execute(f"UPDATE kommentare SET erledigt=1, erledigt_von=?, erledigt_am=? WHERE projekt=? AND geloescht=0 "
+                            f"AND (id IN ({platz}) OR antwort_auf IN ({platz}))", (name, am, projekt, *ids, *ids))
+                con.execute("INSERT INTO verlauf (am, projekt, video, art, von, daten) VALUES (?,?,?,?,?,?)",
+                            (am, projekt, None, "alle erledigt", name, json.dumps({"ids": ids})))
+        return {"erledigt": len(ids), "ids": ids}
 
     def bearbeiten(self, projekt, kid, d, autor, team):
         text = sauber(d.get("text"), MAX_TEXT)

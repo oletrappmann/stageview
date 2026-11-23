@@ -378,6 +378,31 @@ final class Store {
         }
     }
 
+    /// Alle offenen Kommentare eines Links auf einmal abhaken (Ole, 23.11.2026), ein Schritt auf dem Server
+    /// (`POST /api/<code>/kommentare/alle-erledigt`). Neue Kommentare kommen danach wieder offen dazu
+    func markAllDone(_ project: Project) async {
+        guard let code = project.code else { return }
+        #if DEBUG
+        if Demo.isOn {
+            if var o = overview, let i = o.projects.firstIndex(where: { $0.key == project.key }) {
+                o.projects[i].openComments = []
+                for v in o.projects[i].videos.indices { o.projects[i].videos[v].open = 0 }
+                overview = o
+            }
+            show("Alle Kommentare erledigt")
+            return
+        }
+        #endif
+        struct Answer: Decodable { var erledigt: Int }
+        do {
+            let answer: Answer = try await API.post("\(code)/kommentare/alle-erledigt", ["name": me?.name ?? ""])
+            show(answer.erledigt == 1 ? "1 Kommentar erledigt" : "\(answer.erledigt) Kommentare erledigt")
+            await refresh()
+        } catch {
+            show(error.localizedDescription, error: true)
+        }
+    }
+
     func deleteLink(_ project: Project) async -> Bool {
         guard let code = project.code else { return false }
         if !runningJobs(for: code).isEmpty {
