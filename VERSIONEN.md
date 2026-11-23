@@ -28,3 +28,4 @@ Eine Zeile pro Version, neueste unten. Ordner in `versionen/`, Wiederherstellen 
 | 2026-11-23_1230 | Code, App (Endlosschleife im Zahnrad, Standard aus) |
 | 2026-11-23_1236 | App (Tipp auf einen Kommentar: weiter abspielen, grüner Rand wie im Web, kurzer Leuc) |
 | 2026-11-23_1242 | Code, App (Kommentar Tipp: ganze Karte als Tippfläche, Pause bleibt) |
+| 2026-11-23_1247 | Daten, Code, App (Pausiert auf Kommentar gesprungen: kein großer Play Knopf) |

@@ -1025,6 +1025,8 @@ struct PlayerScreen: View {
                    // unbedingt nicht den Video Player stoppen“, „davor schon in Pause, dann unbedingt die Pause auch beibehalten“)
                    jump: { time in
                        tappedThread = thread.id
+                       // Pausiert gesprungen: kein großer Play Knopf, wie bei Videoplayern üblich (Ole, 23.11.2026)
+                       if !pool.playing { withAnimation(.easeOut(duration: 0.2)) { pool.quietPause = true } }
                        pool.seek(to: time)
                    },
                    reply: { comment in replyTo = comment; composing = true },
@@ -1093,7 +1095,7 @@ private struct Stage: View {
 
     @ViewBuilder
     private var overlays: some View {
-        if !pool.playing && !pool.ended && ready {
+        if !pool.playing && !pool.ended && !pool.quietPause && ready {
             PlayDisc(size: 56).allowsHitTesting(false).transition(.opacity.combined(with: .scale(scale: 0.85)))
         }
         if pool.buffering && pool.playing {

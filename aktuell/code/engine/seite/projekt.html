@@ -259,6 +259,8 @@
   .mitte:active { transform: scale(.94); }
   @container app (max-width: 899px) { .mitte { --media-control-padding: 13px; } .mitte svg.i { --s: 28px; } }
   .viewer:not(.pausiert) .mitte, .viewer.spult .mitte { opacity: 0; pointer-events: none; transform: scale(1.18); }
+  /* Pausiert auf einen Kommentar gesprungen: kein großer Play Knopf (Ole, 23.11.2026), bis wieder abgespielt wird */
+  .viewer.still-gesprungen .mitte { opacity: 0; pointer-events: none; }
   /* Play und Pause in der Leiste springen beim Wechsel kurz auf */
   @keyframes knopf-auf { from { transform: scale(.6); opacity: .3; } to { transform: none; opacity: 1; } }
   .reihe media-play-button svg { animation: knopf-auf .26s cubic-bezier(.34,1.42,.5,1); }
@@ -1172,7 +1174,7 @@
     else neu.addEventListener('play', () => setTimeout(() => { if (!geladen && !document.hidden) umschalten('nach Play 15 s nichts geladen'); }, 15000), { once: true });
     $('poster').setAttribute('src', bild(v, 720));
     $('video-box').style.setProperty('--ar', v.seitenverhaeltnis || .5625);
-    const zustand = () => { viewer.classList.toggle('pausiert', mv.paused); if (!mv.paused) $('weiter').hidden = true; wach(); };
+    const zustand = () => { viewer.classList.toggle('pausiert', mv.paused); if (!mv.paused) { $('weiter').hidden = true; viewer.classList.remove('still-gesprungen'); } wach(); };
     ['play', 'pause', 'seeking'].forEach(ev => mv.addEventListener(ev, zustand));
     // Hinter der Übersicht spielt nie ein Video (egal von wo der Start kam: später Ladeversuch, Wechsel auf nativ, Qualität)
     const nieVersteckt = () => { if ($('videoseite').hidden && !document.pictureInPictureElement) neu.pause(); };
@@ -1186,7 +1188,7 @@
     if (LAYOUT === 'licht') { mv.addEventListener('seeked', () => lichtMalen(mv.currentTime, true)); lichtLaden(v); }
     const t = opt.t ?? +new URLSearchParams(location.search).get('t');
     if (t > 0) { mv.addEventListener('loadedmetadata', () => { mv.currentTime = t; }, { once: true }); if (location.search) history.replaceState(history.state, '', location.pathname); }
-    viewer.classList.add('pausiert'); $('weiter').hidden = true;
+    viewer.classList.add('pausiert'); viewer.classList.remove('still-gesprungen'); $('weiter').hidden = true;
     $('zeit-chip').classList.add('an'); $('zeit-chip-text').textContent = zeit(t || 0);
   }
   function videoKopf(v) {
@@ -1408,7 +1410,9 @@
   // solange das Video in ihrem Fenster ist, auch wenn ein Kommentar direkt daneben liegt, und leuchtet einmal kurz auf
   let ANGETIPPT = null;
   function springen(t, id) {
-    if (!mv) return; ANGETIPPT = id; mv.currentTime = t;
+    if (!mv) return; ANGETIPPT = id;
+    if (mv.paused) viewer.classList.add('still-gesprungen');  // pausiert bleibt pausiert, ohne großen Play Knopf
+    mv.currentTime = t;
     const el = document.querySelector(`.km[data-id="${id}"]`);
     if (el) { el.classList.remove('leuchtet'); void el.offsetWidth; el.classList.add('leuchtet'); setTimeout(() => el.classList.remove('leuchtet'), 700); }
     karteZeigen(el); zeitLaeuft();

@@ -17,6 +17,9 @@ final class PlayerPool {
     var time: Double = 0
     var duration: Double = 0
     var ended = false
+    /// Pausiert auf einen Kommentar gesprungen: großen Play Knopf nicht zeigen (Ole, 23.11.2026), bis wieder abgespielt oder
+    /// selbst angehalten wird oder ein anderes Video kommt
+    var quietPause = false
     /// Endlosschleife (Ole, 23.11.2026: „bei Einstellungen eine Endlosschleife, standardmäßig nicht aktiviert“): am Ende von vorn,
     /// pro Gerät gemerkt, gilt für jedes Video und auch im Vollbild
     static let loopKey = "sv.schleife"
@@ -86,6 +89,7 @@ final class PlayerPool {
             activeID = video.id
             duration = video.duration
             ended = false
+            quietPause = false
             if let start { seek(to: start) } else if let saved = positions[video.id], saved > 1, saved < video.duration - 1 { seek(to: saved) }
         } else if let start {
             seek(to: start)
@@ -94,6 +98,7 @@ final class PlayerPool {
     }
 
     func play() {
+        quietPause = false
         guard let player = activePlayer else { return }
         if ended || (duration > 0 && time >= duration - 0.25) { player.seek(to: .zero); ended = false }
         player.defaultRate = currentRate
@@ -106,6 +111,7 @@ final class PlayerPool {
     /// Anhalten genau auf einem ganzen Bild (Ole, 23.11.2026: „genauer, wenn man Pause drückt“): die Zeit ist dann genau das Bild,
     /// das man sieht, und so landet auch der Kommentar
     func pause() {
+        quietPause = false
         guard let player = activePlayer else { return }
         player.pause()
         // Läuft gerade ein genauer Sprung (Tipp auf einen Kommentar, Spulen), liegt sein Ziel schon auf einem ganzen Bild. Dann nicht
@@ -218,6 +224,7 @@ final class PlayerPool {
                 Task { @MainActor in
                     guard let self, self.observed === p else { return }
                     self.playing = p.timeControlStatus != .paused
+                    if self.playing { self.quietPause = false }
                     self.buffering = p.timeControlStatus == .waitingToPlayAtSpecifiedRate
                 }
             },
