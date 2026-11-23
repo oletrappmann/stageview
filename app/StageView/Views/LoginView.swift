@@ -41,8 +41,8 @@ struct LoginView: View {
 
     // MARK: Dunkle Bühne
 
-    /// Dunkel wie der Player: oben STAGEVIEW in Weiß, in der Mitte ein bewegter grüner Schein (Mesh), die Profile davor, unten klein
-    /// STAGE CRAFT
+    /// Dunkel wie der Player: oben STAGEVIEW in Weiß, in der Mitte ein bewegter grüner Schein (Mesh), die Profile davor, unten
+    /// „Made by Stagecraft“ (seit 23.11.2026, vorher das kleine Logo)
     private var stage: some View {
         VStack(spacing: 0) {
             wordmark(height: 24, color: .white).padding(.top, 26)
@@ -51,9 +51,9 @@ struct LoginView: View {
                 .background { GreenMesh().frame(width: 520, height: 420).blur(radius: 40).opacity(0.9) }
             Spacer()
             form.padding(.horizontal, 20).padding(.bottom, 18)
-            Image("StagecraftLogo").resizable().renderingMode(.template).scaledToFit().frame(height: 10)
-                .foregroundStyle(Color.white.opacity(0.45))
-                .padding(.bottom, 8)
+            // Unten „Made by Stagecraft“ statt des kleinen Logos, etwas größer als sonst (Ole, 23.11.2026)
+            MadeByStagecraft(width: 136)
+                .padding(.bottom, 6)
         }
         .frame(maxWidth: .infinity)
         .background(Palette.stage.ignoresSafeArea())

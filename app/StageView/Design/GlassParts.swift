@@ -248,12 +248,15 @@ struct CapsuleButtonLabel: View {
 
 /// „Made by Stagecraft“ unten mittig (Oles Schriftzug, ci/logos/made-by-stagecraft.svg, 110 × 25, 50 %)
 struct MadeByStagecraft: View {
+    /// Breite, die Höhe folgt dem Schriftzug (393 × 90). Standard 110, auf der Anmeldung etwas größer
+    var width: CGFloat = 110
+
     var body: some View {
         Image("MadeBy")
             .resizable()
             .renderingMode(.template)
             .scaledToFit()
-            .frame(width: 110, height: 25)
+            .frame(width: width, height: width * 90 / 393)
             .foregroundStyle(Palette.text)
             .opacity(0.5)
             .frame(maxWidth: .infinity)
