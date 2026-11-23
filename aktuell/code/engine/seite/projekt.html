@@ -869,6 +869,16 @@
   const SEITLICH_WISCHEN = true;
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const zeit = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  // Timecode wie bei Frame.io (seit 23.11.2026): Kommentare bildgenau mit der Bildrate des Videos (projekt.json fps), ohne
+  // Bildrate auf Tausendstel. Anzeige als Timecode nur für das angemeldete Team (Zahnrad), Kunden sehen immer 0:42
+  const bildrate = () => { const f = Number(AKT && AKT.fps); return f >= 1 && f <= 240 ? f : 0; };
+  // Das sichtbare Bild (ein Bild läuft von seinem Anfang bis kurz vor dem nächsten), gespeichert wird seine Mitte
+  const bildNr = (t, f) => Math.max(0, Math.floor((t || 0) * f + 0.001));
+  const zeitRund = t => { const f = bildrate(); return f ? Math.round((bildNr(t, f) + 0.5) / f * 10000) / 10000 : Math.round(t * 1000) / 1000; };
+  const tcText = (s, f) => { const n = Math.max(1, Math.round(f)), b = bildNr(s, f), z = x => String(x).padStart(2, '0');
+    return `${z(Math.floor(b / (3600 * n)))}:${z(Math.floor(b / (60 * n)) % 60)}:${z(Math.floor(b / n) % 60)}:${z(b % n)}`; };
+  const tcAn = () => istTeam() && lies('sc-zeit-tc') === '1' && bildrate() > 0;
+  const zeitK = s => tcAn() ? tcText(s, bildrate()) : zeit(s);
   const lies = k => { try { return localStorage.getItem(k); } catch { return null; } };
   const merke = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
   function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('zeigen'); clearTimeout(toast.u); toast.u = setTimeout(() => el.classList.remove('zeigen'), 2400); }
@@ -1143,6 +1153,10 @@
     neu.addEventListener('play', nieVersteckt); neu.addEventListener('playing', nieVersteckt);
     mv.addEventListener('ended', () => { zustand(); const n = naechstes(1); if (n !== AKT) { $('weiter-titel').textContent = n.titel; $('weiter').hidden = false; } });
     mv.addEventListener('timeupdate', zeitLaeuft);
+    // Anhalten genau auf einem ganzen Bild (Ole, 23.11.2026: „genauer, wenn man Pause drückt“), die Zeitmarke ist dann dieses Bild
+    mv.addEventListener('pause', () => { if (!bildrate() || mv.ended || mv.seeking) return; const s = zeitRund(mv.currentTime); if (Math.abs(s - mv.currentTime) > 0.0005) mv.currentTime = s; });
+    // Zeitmarke im Kommentarfeld folgt auch beim Spulen sofort (Ole, 23.11.2026: „geht auf jeden Fall der Timestamp mit und aktualisiert sich dauerhaft“)
+    ['seeking', 'seeked'].forEach(ev => mv.addEventListener(ev, () => { if ($('zeit-chip').classList.contains('an')) $('zeit-chip-text').textContent = zeitK(mv.currentTime); }));
     if (LAYOUT === 'licht') { mv.addEventListener('seeked', () => lichtMalen(mv.currentTime, true)); lichtLaden(v); }
     const t = opt.t ?? +new URLSearchParams(location.search).get('t');
     if (t > 0) { mv.addEventListener('loadedmetadata', () => { mv.currentTime = t; }, { once: true }); if (location.search) history.replaceState(history.state, '', location.pathname); }
@@ -1325,7 +1339,7 @@
     const antw = antworten.map(a => `<div class="antwort" data-id="${a.id}">${kopfzeile(a, false)}${textBlock(a)}
       ${(a.darf_bearbeiten || a.darf_loeschen) && bearbeitet !== a.id ? `<div class="km-fuss">${a.darf_bearbeiten ? `<button data-bearbeiten="${a.id}">Bearbeiten</button>` : ''}${a.darf_loeschen ? `<button class="weg" data-weg="${a.id}">Löschen</button>` : ''}</div>` : ''}</div>`).join('');
     return `<article class="km${k.zeit != null ? ' springbar' : ''}${k.erledigt ? ' erledigt' : ''}${k.id === neuId ? ' neu' : ''}" data-id="${k.id}">${kopfzeile(k, true)}
-      ${textBlock(k, k.zeit != null ? `<button class="zeit-knopf" data-t="${k.zeit}">${icon('play')}${zeit(k.zeit)}</button>` : '')}
+      ${textBlock(k, k.zeit != null ? `<button class="zeit-knopf" data-t="${k.zeit}">${icon('play')}${zeitK(k.zeit)}</button>` : '')}
       <div class="km-fuss"><button data-antworten>Antworten</button>${k.darf_bearbeiten && bearbeitet !== k.id ? `<button data-bearbeiten="${k.id}">Bearbeiten</button>` : ''}${k.darf_loeschen ? `<button class="weg" data-weg="${k.id}">Löschen</button>` : ''}
         ${k.erledigt && k.erledigt_von ? `<span class="erl">Erledigt von ${esc(k.erledigt_von.split(' ')[0])}</span>` : ''}</div>
       ${antw}${antwortAuf === k.id ? `<form class="antwort-form" data-antwort-form><input placeholder="Antworten …" maxlength="2000" enterkeyhint="send"><button class="senden" aria-label="Antwort senden">${icon('send')}</button></form>` : ''}</article>`;
@@ -1356,8 +1370,8 @@
       const [c, ct] = farbe(k), m = document.createElement('button'), p = Math.min(100, k.zeit / dauer * 100);
       m.className = 'marker' + (k.erledigt ? ' erledigt' : '') + (p < 15 ? ' links' : p > 85 ? ' rechts' : '');
       m.dataset.id = k.id; m.style.left = p + '%'; m.style.setProperty('--c', c); m.style.setProperty('--ct', ct);
-      m.setAttribute('aria-label', `Kommentar bei ${zeit(k.zeit)} von ${k.name}`);
-      m.innerHTML = esc(kuerzel(k.name)[0]) + `<span class="blase"><b>${esc(k.name)}</b> · ${zeit(k.zeit)}<br>${esc(k.text.length > 120 ? k.text.slice(0, 118) + ' …' : k.text)}</span>`;
+      m.setAttribute('aria-label', `Kommentar bei ${zeitK(k.zeit)} von ${k.name}`);
+      m.innerHTML = esc(kuerzel(k.name)[0]) + `<span class="blase"><b>${esc(k.name)}</b> · ${zeitK(k.zeit)}<br>${esc(k.text.length > 120 ? k.text.slice(0, 118) + ' …' : k.text)}</span>`;
       m.addEventListener('click', () => springen(k.zeit, k.id));
       leiste.appendChild(m);
     });
@@ -1377,7 +1391,7 @@
   }
   function zeitLaeuft() {
     if (LAYOUT === 'licht') lichtMalen(mv.currentTime);
-    if ($('zeit-chip').classList.contains('an')) $('zeit-chip-text').textContent = zeit(mv.currentTime);
+    if ($('zeit-chip').classList.contains('an')) $('zeit-chip-text').textContent = zeitK(mv.currentTime);
     const t = mv.currentTime, j = K.kommentare.find(k => k.video === AKT.id && !k.antwort_auf && k.zeit != null && t >= k.zeit && t < k.zeit + 3);
     document.querySelectorAll('.km').forEach(el => el.classList.toggle('aktiv', !!j && +el.dataset.id === j.id));
     document.querySelectorAll('.marker').forEach(el => el.classList.toggle('an', !!j && +el.dataset.id === j.id));
@@ -1505,7 +1519,7 @@
   $('eingabe').addEventListener('focusout', () => setTimeout(feldKlein, 120));
   $('feld').addEventListener('mousedown', e => { if (e.target.closest('button') && document.activeElement === eingabe) e.preventDefault(); });
   $('zeit-chip').addEventListener('click', () => { const c = $('zeit-chip'); c.classList.toggle('an');
-    $('zeit-chip-text').textContent = c.classList.contains('an') ? zeit(mv ? mv.currentTime : 0) : 'Ohne Zeit'; });
+    $('zeit-chip-text').textContent = c.classList.contains('an') ? zeitK(mv ? mv.currentTime : 0) : 'Ohne Zeit'; });
   $('eingabe').addEventListener('submit', async e => {
     e.preventDefault(); const text = eingabe.value.trim(); if (!text) return;
     if (!KOK) return toast('Kommentare sind gerade nicht erreichbar');
@@ -1513,7 +1527,7 @@
     const mitZeit = $('zeit-chip').classList.contains('an');
     $('senden').disabled = true;
     try {
-      const k = await api('kommentare', { method: 'POST', body: { video: AKT.id, zeit: mitZeit && mv ? Math.round(mv.currentTime * 10) / 10 : null, text, name } });
+      const k = await api('kommentare', { method: 'POST', body: { video: AKT.id, zeit: mitZeit && mv ? zeitRund(mv.currentTime) : null, text, name } });
       K.kommentare.push(k); neuId = k.id; eingabe.value = ''; feldHoehe(); $('feld').classList.remove('voll');
       if (filter === 'erledigt') { filter = 'alle'; $('filter').querySelectorAll('button').forEach(x => x.classList.toggle('an', x.dataset.f === 'alle')); }
       zeichnen(); uebersichtSpaeter(); toast('Kommentar gespeichert');
@@ -1832,17 +1846,25 @@
     const zusatz = o => o.zusatz ? `<span class="zusatz">${o.zusatz}</span>` : '';
     const wahl = o => `<button type="button" class="e-wahl${o.an ? ' an' : ''}" role="menuitemradio" aria-checked="${o.an}" ${o.daten}><span>${o.text}</span>${zusatz(o)}<span class="e-haken">${o.an ? icon('check', klassisch ? 20 : 16) : ''}</span></button>`;
     const liste = l => l.length ? l.map(wahl).join('') : '<div class="auto-info">Automatisch, passend zur Verbindung</div>';
+    // Zeit: Normal oder Timecode, nur für das angemeldete Team (seit 23.11.2026)
+    const f = bildrate(), tcBsp = f ? tcText(42 + Math.min(12, Math.round(f) - 1) / f, f) : '';
+    const zeitWahl = [{ an: !tcAn(), daten: 'data-zeit="normal"', text: 'Normal', zusatz: '0:42' },
+                      { an: tcAn(), daten: 'data-zeit="tc"', text: 'Timecode', zusatz: f ? tcBsp : 'Bildrate unbekannt' }];
+    const SEITEN = { tempo: 'Tempo', quali: 'Qualität', zeit: 'Zeit' };
     if (!klassisch) {
       einstellMenue.innerHTML = `<div class="e-gruppe" role="group" aria-label="Tempo"><div class="e-titel">${icon('timer', 15)}Tempo</div>${liste(w.tempo)}</div>
         <div class="e-strich" aria-hidden="true"></div>
-        <div class="e-gruppe" role="group" aria-label="Qualität"><div class="e-titel">${HD(16)}Qualität</div>${liste(w.quali)}</div>`;
+        <div class="e-gruppe" role="group" aria-label="Qualität"><div class="e-titel">${HD(16)}Qualität</div>${liste(w.quali)}</div>
+        ${istTeam() ? `<div class="e-strich" style="grid-column:1/-1;height:1px;margin:4px 0" aria-hidden="true"></div>
+        <div class="e-gruppe" style="grid-column:1/-1" role="group" aria-label="Zeit"><div class="e-titel">${icon('timer', 15)}Zeit (nur für Stagecraft)</div>${zeitWahl.map(wahl).join('')}</div>` : ''}`;
     } else if (EINST_SEITE === 'haupt') {
       einstellMenue.innerHTML = `<div class="${richtung}">
         <button type="button" class="e-zeile" role="menuitem" data-seite="tempo">${icon('timer', 22)}<span>Tempo</span><span class="wert">${w.tempoWert}</span><span class="pfeil">${icon('chevron-right')}</span></button>
-        <button type="button" class="e-zeile" role="menuitem" data-seite="quali">${HD(22)}<span>Qualität</span><span class="wert">${w.qualiWert}</span><span class="pfeil">${icon('chevron-right')}</span></button></div>`;
+        <button type="button" class="e-zeile" role="menuitem" data-seite="quali">${HD(22)}<span>Qualität</span><span class="wert">${w.qualiWert}</span><span class="pfeil">${icon('chevron-right')}</span></button>
+        ${istTeam() ? `<button type="button" class="e-zeile" role="menuitem" data-seite="zeit">${icon('timer', 22)}<span>Zeit</span><span class="wert">${tcAn() ? 'Timecode' : 'Normal'}</span><span class="pfeil">${icon('chevron-right')}</span></button>` : ''}</div>`;
     } else {
-      einstellMenue.innerHTML = `<div class="${richtung}"><button type="button" class="e-zurueck" data-seite="haupt">${icon('chevron-left')}<span>${EINST_SEITE === 'tempo' ? 'Tempo' : 'Qualität'}</span></button>
-        <div class="e-trenn" aria-hidden="true"></div>${liste(EINST_SEITE === 'tempo' ? w.tempo : w.quali)}</div>`;
+      einstellMenue.innerHTML = `<div class="${richtung}"><button type="button" class="e-zurueck" data-seite="haupt">${icon('chevron-left')}<span>${SEITEN[EINST_SEITE] || 'Tempo'}</span></button>
+        <div class="e-trenn" aria-hidden="true"></div>${EINST_SEITE === 'zeit' ? zeitWahl.map(wahl).join('') : liste(EINST_SEITE === 'tempo' ? w.tempo : w.quali)}</div>`;
     }
   }
   zahnrad.addEventListener('click', e => {
@@ -1857,6 +1879,13 @@
     if (seite) { EINST_SEITE = seite.dataset.seite; return einstellZeichnen(EINST_SEITE === 'haupt' ? 'zurueck' : 'rein'); }
     const t = e.target.closest('[data-tempo]'), s = e.target.closest('[data-stufe]'), n = e.target.closest('[data-nativ]');
     const zurueck = einstKlassisch();  // am Handy nach der Wahl zurück zur Hauptliste, dort steht dann der neue Wert
+    const zw = e.target.closest('[data-zeit]');
+    if (zw) {  // Zeitanzeige fürs Team: Kommentare und Marker gleich neu zeichnen
+      merke('sc-zeit-tc', zw.dataset.zeit === 'tc' ? '1' : null);
+      zeichnen();
+      if (zurueck) EINST_SEITE = 'haupt';
+      return einstellZeichnen(zurueck ? 'zurueck' : '');
+    }
     if (n && mv && AKT) {  // iPhone: Video mit der gewählten Stufe an derselben Stelle neu laden, Abspielen und Tempo bleiben
       if (zurueck) EINST_SEITE = 'haupt';
       if (n.dataset.nativ !== QUALI) {

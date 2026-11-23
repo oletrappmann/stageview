@@ -138,7 +138,7 @@
 
   /* Liste: eine Zeile pro Link. Tipp auf die Zeile öffnet Bearbeiten, Kopieren und Öffnen gehen direkt */
   .tabelle { display: flex; flex-direction: column; gap: 6px; }
-  .t-kopf, .zeile { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(130px, 1fr) 112px 104px 254px; gap: 16px; align-items: center; }
+  .t-kopf, .zeile { display: grid; grid-template-columns: minmax(0, 2.4fr) 96px 112px 254px; gap: 16px; align-items: center; }
   .t-kopf { padding: 0 14px 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
   .t-kopf button { color: inherit; font-weight: 600; display: inline-flex; align-items: center; gap: 3px; --s: 14px; width: fit-content; }
   .t-kopf button:hover, .t-kopf button.an { color: var(--text); }
@@ -156,10 +156,19 @@
   .z-link { font-size: 12.5px; display: flex; align-items: center; gap: 5px; margin-top: 2px; --s: 13px; }
   .z-link .dom { min-width: 0; overflow: hidden; text-overflow: ellipsis; margin-right: -5px; }
   .z-link .code { flex: none; }  /* der Code ist das Wichtige, abgeschnitten wird nur die Domain */
-  .z-balken { display: flex; gap: 2px; }
-  .z-balken span { height: 5px; border-radius: 3px; background: var(--c); }
   .z-klein { font-size: 12.5px; margin-top: 6px; }
   .z-aktiv { font-size: 13.5px; color: rgba(243,242,238,.75); }
+  /* Feedback wie in der App (Ole, 23.11.2026: „entweder kein Feedback oder 5 offen, nicht mit dieser langen Prozess Bar“):
+     Zahl der offenen Kommentare groß in Kupfer, sonst Haken „erledigt“ oder Sprechblase „kein Feedback“ */
+  .z-marke { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 84px; min-height: 46px;
+    text-align: center; line-height: 1.15; border-radius: 12px; color: var(--leise); }
+  .z-marke b { font-size: 21px; font-weight: 650; color: var(--aenderung); font-variant-numeric: tabular-nums; }
+  .z-marke small { font-size: 11.5px; font-weight: 500; color: var(--muted); }
+  .z-marke.ohne small { color: var(--leise); }
+  .z-marke .i { --s: 20px; }
+  .z-marke.fertig .i { color: var(--frei); }
+  button.z-marke { cursor: pointer; }
+  button.z-marke:hover { background: var(--panel-2); }
   .keine { font-size: 13.5px; color: var(--leise); }
   /* Kopieren, Öffnen, Drive, Löschen, ⋯ (⋯ immer ganz hinten, Ole 22.11.2026) groß mit eigener Fläche (Ole, 14.11.2026: „bitte größer, wir haben genug Platz“) */
   .z-knoepfe { display: flex; gap: 6px; justify-content: flex-end; }
@@ -179,9 +188,9 @@
     .zeile { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 6px; padding: 12px; }
     /* oben das Projekt über die volle Breite, darunter das Feedback, darunter die fünf Knöpfe als eigene Reihe über die ganze Breite
        (seit 22.11.2026 mit Drive abgleichen, neben dem Feedback war es zu eng) */
-    .z-projekt { grid-column: 1 / -1; grid-row: 1; }
-    .z-freigabe { grid-column: 1 / -1; grid-row: 2; align-self: center; min-width: 0; }
-    .z-knoepfe { grid-column: 1 / -1; grid-row: 3; }
+    .z-projekt { grid-column: 1; grid-row: 1; }
+    .z-marke { grid-column: 2; grid-row: 1; width: 70px; }
+    .z-knoepfe { grid-column: 1 / -1; grid-row: 2; }
     .z-knoepfe .rund { flex: 1 1 0; width: auto; height: 44px; border-radius: 14px; }
     .z-klein { white-space: normal; }
     .z-komm, .z-aktiv { display: none; }
@@ -231,7 +240,22 @@
   .anmeldung { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 16px 64px; }
   .anmelde-karte { width: 100%; max-width: 400px; text-align: center; }
   .anmelde-karte h1 { font-size: clamp(32px, 5.2vw, 46px); font-weight: 500; letter-spacing: -1px; margin: 0 0 30px; line-height: 1.06; }
-  .agenten { display: flex; justify-content: center; gap: 4px; margin-bottom: 26px; }
+  /* Konten wie bei StageHub (23.11.2026, Ole: „Anordnung, kleiner Fade am Rand, Profilbilder“): je vier pro Seite, weitere
+     hinten zum Wischen, darunter Punkte pro Seite, Ränder weich ausgeblendet, sobald es etwas zu wischen gibt. Bis vier eine
+     Zeile ohne Punkte. Vorlage TESS_APP/web/aufgaben/stil.css (Abschnitt Anmeldung) und app.js (anmeldeSeiten) */
+  .agenten { display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
+    scrollbar-width: none; margin: -6px 0 20px; }
+  .agenten::-webkit-scrollbar { display: none; }
+  .agenten.mit-punkten { margin: -6px -16px 4px;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 22px, #000 calc(100% - 22px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 22px, #000 calc(100% - 22px), transparent); }
+  .agenten-seite { flex: 0 0 100%; display: flex; justify-content: center; gap: 4px; padding: 6px 0; scroll-snap-align: start; scroll-snap-stop: always; }
+  .agenten-punkte { display: flex; justify-content: center; margin-bottom: 16px; }
+  .agenten-punkte[hidden] { display: none; }
+  .agenten-punkte button { width: 22px; height: 22px; border: 0; padding: 0; background: none; display: grid; place-items: center; cursor: pointer; }
+  .agenten-punkte button::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--text); opacity: .2; transition: opacity .2s; }
+  .agenten-punkte button[aria-current="true"]::before { opacity: .75; }
+  .agent .ava.buchstabe { display: grid; place-items: center; font-size: 28px; font-weight: 600; color: #F6F6F3; background: var(--c, #48514A); }
   .agent { display: flex; flex-direction: column; align-items: center; gap: 9px; width: 84px; font-size: 15px; font-weight: 500; color: var(--muted); }
   .agent .ava { width: 68px; height: 68px; border-radius: 50%; overflow: hidden; background: var(--panel-2); display: block; transition: transform .15s, box-shadow .2s; }
   .agent .ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -368,6 +392,24 @@
   .v-titel input.speichert { opacity: .5; }
   .v-meta { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .v-meta .offen { color: var(--offen); font-weight: 600; }
+  /* Freigabe pro Video direkt in der Zeile ändern und „Alle freigeben“ (Ole, 23.11.2026) */
+  .v-status { appearance: none; -webkit-appearance: none; border: 0; border-radius: 999px; height: 24px; padding: 0 22px 0 9px; font: inherit; font-size: 12.5px;
+    font-weight: 600; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M10 13l6 6 6-6' fill='none' stroke='%23F3F2EE' stroke-opacity='.7' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 5px center / 15px;
+    cursor: pointer; flex: none; field-sizing: content; }
+  .v-status:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+  .v-status option { color: #F3F2EE; background: #2A2A27; }
+  /* Schalter „Alle freigegeben“ (Ole, 23.11.2026: „ein On/Off Schalter“) */
+  .d-inhalt h4 .schalter { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .d-inhalt h4 .schalter.an { color: var(--frei); }
+  .schalter input { appearance: none; -webkit-appearance: none; position: relative; flex: none; width: 46px; height: 28px; margin: 0; border-radius: 999px;
+    background: var(--panel-3); cursor: pointer; transition: background .2s; }
+  .schalter input::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.35); transition: transform .24s cubic-bezier(.3,.7,.3,1); }
+  .schalter input:checked { background: var(--frei); }
+  .schalter input:checked::after { transform: translateX(18px); }
+  .schalter input:disabled { opacity: .6; cursor: default; }
+  .schalter input:focus-visible { outline: 2px solid var(--frei); outline-offset: 2px; }
+  .frage-dialog .knoepfe .gut { background: var(--text); color: var(--bg); }
   .v-knoepfe { display: flex; gap: 4px; flex: none; }
   .v-knoepfe .rund { background: transparent; color: var(--muted); }
   .v-knoepfe .rund:hover { background: var(--panel-3); color: var(--text); }
@@ -433,12 +475,14 @@
   <section class="anmeldung" id="anmeldung" hidden>
     <form id="anmelde-form" class="anmelde-karte" autocomplete="on" novalidate>
       <h1>Wer bist du?</h1>
+      <!-- Nur Rückfall: die Konten kommen aus /api/admin/profile (Liste von StageHub, seit 23.11.2026) -->
       <div class="agenten" role="radiogroup" aria-label="Name">
         <button type="button" class="agent" data-zugang="tess" role="radio" aria-checked="false"><span class="ava" aria-hidden="true"><img data-bild="tess" alt=""></span><span>Ole</span></button>
         <button type="button" class="agent" data-zugang="alfred" role="radio" aria-checked="false"><span class="ava" aria-hidden="true"><img data-bild="alfred" alt=""></span><span>Jonas</span></button>
         <button type="button" class="agent" data-zugang="caspar" role="radio" aria-checked="false"><span class="ava" aria-hidden="true"><img data-bild="caspar" alt=""></span><span>Caspar</span></button>
         <button type="button" class="agent" data-zugang="niklas" role="radio" aria-checked="false"><span class="ava" aria-hidden="true"><img data-bild="niklas" alt=""></span><span>Niklas</span></button>
       </div>
+      <div id="agenten-punkte" class="agenten-punkte" hidden></div>
       <!-- Für den Passwort Speicher des Browsers: ein Eintrag pro Name -->
       <input id="anmelde-name" class="unsichtbar" type="text" name="username" autocomplete="username" value="" tabindex="-1" aria-hidden="true">
       <div id="anmelde-feld" class="anmelde-feld" hidden>
@@ -550,6 +594,7 @@
     ICONS['oeffnen'] = `<path d="M14 8.5H10.5C9.4 8.5 8.5 9.4 8.5 10.5V21.5C8.5 22.6 9.4 23.5 10.5 23.5H21.5C22.6 23.5 23.5 22.6 23.5 21.5V18M18.5 8.5H23.5V13.5M23.2 8.8L15.5 16.5" ${l}/>`;
     ICONS['kopieren'] = `<rect x="11.5" y="11.5" width="13" height="13" rx="3" ${l}/><path d="M20.5 8.5V8.3C20.5 7.3 19.7 6.5 18.7 6.5H9.3C8.3 6.5 7.5 7.3 7.5 8.3V17.7C7.5 18.7 8.3 19.5 9.3 19.5H9.5" ${l}/>`;
     ICONS['drive'] = `<path d="M23.5 12.5A8 8 0 0 0 9.2 10.8M8.5 19.5A8 8 0 0 0 22.8 21.2" ${l}/><path d="M9 6.8V11H13.2M23 25.2V21H18.8" ${l}/>`;
+    ICONS['flagge'] = `<path d="M9.5 26V6.5M9.5 7.5H22L19.5 12L22 16.5H9.5" ${l}/>`;
     ICONS['muell'] = `<path d="M8 10H24M13.5 10V8.5C13.5 7.7 14.2 7 15 7H17C17.8 7 18.5 7.7 18.5 8.5V10M10 10L11 23.2C11.1 24.2 11.9 25 12.9 25H19.1C20.1 25 20.9 24.2 21 23.2L22 10" ${l}/>`;
   })();
   const icon = (n, s) => `<svg class="i" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"${s ? ` style="--s:${s}px"` : ''}>${ICONS[n] || ''}</svg>`;
@@ -612,8 +657,9 @@
       if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close();
     });
   });
-  function frage(titel, text, ja) {
+  function frage(titel, text, ja, gut = false) {
     const d = $('frage-dialog'); $('f-titel').textContent = titel; $('f-text').textContent = text; $('f-ja').textContent = ja;
+    $('f-ja').classList.toggle('gefahr', !gut); $('f-ja').classList.toggle('gut', gut);
     return new Promise(fertig => {
       const klick = e => { const b = e.target.closest('[data-antwort]'); if (!b) return; d.removeEventListener('click', klick); d.close(); fertig(b.dataset.antwort === 'ja'); };
       d.addEventListener('click', klick); d.addEventListener('close', () => { d.removeEventListener('click', klick); fertig(false); }, { once: true });
@@ -669,6 +715,7 @@
     clearTimeout(ladeUhr);
     try {
       D = await api('uebersicht');
+      freigabeDrueber();
       zeigen('dashboard'); zeichnen(); kontoZeichnen();
       if (OFFEN && $('projekt-dialog').open && !dialogBeschaeftigt()) projektZeichnen();
     } catch (e) {
@@ -689,9 +736,49 @@
   }
 
   // ---------- Anmeldung wie beim Aufgaben Dashboard (app.js dort: agentWaehlen, anmelden, geraetName)
-  // Seit 17.11.2026 auch Caspar und Niklas (Ole), gleiche Namen und Passwörter wie im Aufgaben Dashboard
-  const PERSON = { tess: 'Ole', alfred: 'Jonas', caspar: 'Caspar', niklas: 'Niklas' };
+  // Konten aus der Liste von StageHub (Ole, 23.11.2026: „immer, wenn ein neues Profil angelegt wird, auch direkt in StageView
+  // drin“): /api/admin/profile, im Browser gemerkt, damit die Anmeldung sofort steht. Die vier Knöpfe im HTML sind nur der Rückfall
+  let PERSON = { tess: 'Ole', alfred: 'Jonas', caspar: 'Caspar', niklas: 'Niklas' }, PROFILBILD = {};
   let WAHL = null;
+  const PRO_SEITE = 4, TOENE = ['#48514A', '#6E7A70', '#A3AFA5', '#3A403B'];
+  const bildVon = z => PROFILBILD[z] || BILDER[z] || '';
+  function profileZeigen(liste) {
+    if (!Array.isArray(liste) || !liste.length) return;
+    PERSON = Object.fromEntries(liste.map(p => [p.zugang, p.name]));
+    PROFILBILD = Object.fromEntries(liste.filter(p => p.bild).map(p => [p.zugang, p.bild]));
+    const leiste = document.querySelector('.agenten'), punkte = $('agenten-punkte');
+    const knoepfe = liste.map((p, i) => {
+      const k = document.createElement('button');
+      k.type = 'button'; k.className = 'agent' + (p.zugang === WAHL ? ' an' : ''); k.dataset.zugang = p.zugang;
+      k.setAttribute('role', 'radio'); k.setAttribute('aria-checked', String(p.zugang === WAHL));
+      const bild = bildVon(p.zugang);
+      k.innerHTML = bild ? `<span class="ava" aria-hidden="true"><img src="${esc(bild)}" alt=""></span><span>${esc(p.name)}</span>`
+        : `<span class="ava buchstabe" aria-hidden="true" style="--c:${TOENE[i % 4]}${i % 4 === 2 ? ';color:#2B312C' : ''}">${esc(p.name[0] || '?')}</span><span>${esc(p.name)}</span>`;
+      return k;
+    });
+    const seiten = [];
+    for (let i = 0; i < knoepfe.length; i += PRO_SEITE) {
+      const seite = document.createElement('div'); seite.className = 'agenten-seite'; seite.append(...knoepfe.slice(i, i + PRO_SEITE)); seiten.push(seite);
+    }
+    leiste.replaceChildren(...seiten);
+    const mehr = seiten.length > 1;
+    leiste.classList.toggle('mit-punkten', mehr); punkte.hidden = !mehr;
+    punkte.innerHTML = mehr ? seiten.map((_, i) => `<button type="button" data-seite="${i}" aria-label="Seite ${i + 1} von ${seiten.length}"></button>`).join('') : '';
+    seitePunkte();
+    if (WAHL) zugangWaehlen(WAHL, true);
+  }
+  function seitePunkte() {
+    const leiste = document.querySelector('.agenten'), jetzt = Math.round(leiste.scrollLeft / Math.max(leiste.clientWidth, 1));
+    $('agenten-punkte').querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-current', String(i === jetzt)));
+  }
+  async function profileLaden() {
+    try { const alt = JSON.parse(lies('sc-admin-profile') || 'null'); if (alt) profileZeigen(alt); } catch {}
+    try {
+      const r = await fetch('/api/admin/profile', { cache: 'no-store' });
+      const d = r.ok ? await r.json() : null;
+      if (d && Array.isArray(d.profile) && d.profile.length) { merke('sc-admin-profile', JSON.stringify(d.profile)); profileZeigen(d.profile); }
+    } catch {}
+  }
   function geraetName() {
     const ua = navigator.userAgent;
     const system = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'iPad'
@@ -699,14 +786,27 @@
     const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : '';
     return `${system}${browser ? ' ' + browser : ''}`;
   }
-  function zugangWaehlen(z) {
+  function zugangWaehlen(z, still) {
     if (!PERSON[z]) return;
     WAHL = z;
     document.querySelectorAll('.agent').forEach(k => { const an = k.dataset.zugang === z; k.classList.toggle('an', an); k.setAttribute('aria-checked', String(an)); });
+    // Gewählt, aber auf einer anderen Seite (gemerkte Wahl): dorthin springen
+    const leiste = document.querySelector('.agenten'), seite = document.querySelector(`.agent[data-zugang="${z}"]`)?.closest('.agenten-seite');
+    if (seite) { const ziel = [...leiste.children].indexOf(seite) * leiste.clientWidth; if (Math.abs(leiste.scrollLeft - ziel) > 2) leiste.scrollLeft = ziel; }
     $('anmelde-feld').hidden = false; $('anmelde-name').value = PERSON[z];
-    setTimeout(() => $('passwort').focus(), 50);
+    if (!still) setTimeout(() => $('passwort').focus(), 50);
   }
-  document.querySelectorAll('.agent').forEach(k => k.addEventListener('click', () => { zugangWaehlen(k.dataset.zugang); $('anmelde-fehler').textContent = ''; }));
+  // Ein Hörer für alle Knöpfe, die Liste wird neu gezeichnet, wenn neue Konten kommen
+  document.querySelector('.agenten').addEventListener('click', e => {
+    const k = e.target.closest('.agent'); if (!k) return;
+    zugangWaehlen(k.dataset.zugang); $('anmelde-fehler').textContent = '';
+  });
+  document.querySelector('.agenten').addEventListener('scroll', seitePunkte, { passive: true });
+  $('agenten-punkte').addEventListener('click', e => {
+    const b = e.target.closest('[data-seite]'), leiste = document.querySelector('.agenten');
+    if (b) leiste.scrollTo({ left: Number(b.dataset.seite) * leiste.clientWidth, behavior: 'smooth' });
+  });
+  profileLaden();
   $('passwort').addEventListener('input', () => { $('anmelde-knopf').disabled = !$('passwort').value; });
   $('anmelde-form').addEventListener('submit', async e => {
     e.preventDefault();
@@ -745,7 +845,7 @@
   }
   function kontoZeichnen() {
     const z = D && D.ich ? D.ich.zugang : '';
-    $('konto-knopf').innerHTML = BILDER[z] ? `<img src="${BILDER[z]}" alt="">` : `<span style="font-weight:600">${esc((D && D.ich ? D.ich.name : '?')[0])}</span>`;
+    $('konto-knopf').innerHTML = bildVon(z) ? `<img src="${esc(bildVon(z))}" alt="">` : `<span style="font-weight:600">${esc((D && D.ich ? D.ich.name : '?')[0])}</span>`;
     $('konto-knopf').title = D && D.ich ? 'Angemeldet als ' + D.ich.name : '';
   }
 
@@ -771,7 +871,7 @@
         return `<button type="button" class="sl-punkt${an ? ' an' : ''}${k.links ? '' : ' ohne'}" data-kunde="${esc(k.id)}"${an ? ' aria-current="page"' : ''}><span class="kunde-ava" style="--c:${c};--t:${t}">${esc(kuerzel(k.name))}</span><span class="name">${esc(k.name)}</span><span class="n">${k.links}</span></button>`;
       }).join('') + `<button type="button" class="sl-punkt sl-neu-kunde" data-kunde-neu>${icon('plus', 16)}Neuer Kunde</button>`;
     const ich = D.ich || {};
-    $('sl-konto').innerHTML = `<span class="bild">${BILDER[ich.zugang] ? `<img src="${BILDER[ich.zugang]}" alt="">` : esc((ich.name || '?')[0])}</span><b>${esc(ich.name || '')}</b><button type="button" data-abmelden>Abmelden</button>`;
+    $('sl-konto').innerHTML = `<span class="bild">${bildVon(ich.zugang) ? `<img src="${esc(bildVon(ich.zugang))}" alt="">` : esc((ich.name || '?')[0])}</span><b>${esc(ich.name || '')}</b><button type="button" data-abmelden>Abmelden</button>`;
     const liste = sichtbar(), vids = liste.flatMap(p => p.videos), offenAlle = vids.reduce((s, v) => s + (v.offen || 0), 0);
     const gewaehlt = KUNDE && kundeMit(KUNDE);
     $('h-titel').textContent = gewaehlt ? gewaehlt.name : ANSICHTEN[ANSICHT].t;
@@ -781,7 +881,7 @@
     auftraegeZeichnen();
     const kopf = (k, t) => `<button type="button" data-sort="${k}" class="${SORT === k ? 'an' : ''}"${SORT === k ? ' aria-pressed="true"' : ''}>${t}${SORT === k ? icon('chevron-down', 14) : ''}</button>`;
     $('liste').innerHTML = liste.length
-      ? `<div class="t-kopf">${kopf('name', 'Projekt')}<span>Feedback</span><span>Kommentare</span>${kopf('aktiv', 'Aktivität')}<span></span></div>` + liste.map(zeile).join('')
+      ? `<div class="t-kopf">${kopf('name', 'Projekt')}<span>Feedback</span>${kopf('aktiv', 'Aktivität')}<span></span></div>` + liste.map(zeile).join('')
       : `<div class="nichts">${!P.length ? 'Noch keine Links. „Neuer Link“ legt den ersten an.' : SUCHE ? 'Nichts gefunden.' : 'Hier ist gerade nichts.'}</div>`;
     symbole($('liste'));
   }
@@ -793,19 +893,15 @@
       : quer ? `<img class="quer" src="${bild(p.videos[0], 200)}" alt="" loading="lazy">`
       : p.videos.slice(0, 3).map(v => `<img src="${bild(v, 120)}" alt="" loading="lazy">`).join('');
     const wer = [kundeVon(p), p.firma, n ? mehrzahl(n, 'Video', 'Videos') : p.wartend ? `${p.wartend} bei Mux` : ''].filter(Boolean).join(' · ');
-    // Feedback statt Freigabe (Ole, 22.11.2026: „die Zahl, wie viele Videos freigegeben sind, entfernen, etwas Brauchbares hin“):
-    // hat der Kunde schon reagiert, und wie viele Kommentare sind erledigt. Balken: erledigt Salbei, offen Beige
-    const gesamt = p.videos.reduce((s, v) => s + (v.kommentare || 0), 0), erledigt = Math.max(0, gesamt - z.kommentare);
-    const teile = [['var(--frei)', erledigt], ['var(--offen)', z.kommentare]].filter(([, k]) => k);
-    const balken = n && gesamt ? `<div class="z-balken" aria-hidden="true">${teile.map(([c, k]) => `<span style="flex:${k};--c:${c}"></span>`).join('')}</div>` : '';
-    const freiText = !n ? (p.wartend ? 'Mux bereitet die Videos vor' : '') : !gesamt ? 'Noch kein Feedback'
-      : !z.kommentare ? `Alles erledigt · ${mehrzahl(gesamt, 'Kommentar', 'Kommentare')}` : `${erledigt} von ${gesamt} erledigt`;
-    const schmal = (z.kommentare ? ` · <b style="color:var(--offen);font-weight:600">${mehrzahl(z.kommentare, 'offener Kommentar', 'offene Kommentare')}</b>` : '') + (p.letzte ? ' · ' + wann(p.letzte) : '');
-    const komm = z.kommentare ? `<button type="button" class="chip" style="--c:var(--offen)" data-bearbeiten="${esc(p.schluessel)}" data-ziel="kommentare">${z.kommentare} offen</button>` : '<span class="keine">keine</span>';
+    // Feedback statt Freigabe (Ole, 22.11.2026), seit 23.11.2026 wie in der App als Marke statt Balken: offen, erledigt, kein Feedback
+    const gesamt = p.videos.reduce((s, v) => s + (v.kommentare || 0), 0);
+    const marke = !n ? `<div class="z-marke ohne"><small>${p.wartend ? 'bei Mux' : ''}</small></div>`
+      : z.kommentare ? `<button type="button" class="z-marke" data-bearbeiten="${esc(p.schluessel)}" data-ziel="kommentare" title="Offene Kommentare ansehen"><b>${z.kommentare}</b><small>offen</small></button>`
+      : gesamt ? `<div class="z-marke fertig"><span data-i="check"></span><small>erledigt</small></div>`
+      : `<div class="z-marke ohne"><span data-i="comment"></span><small>kein Feedback</small></div>`;
     return `<article class="zeile" data-zeile="${esc(p.schluessel)}">
-      <div class="z-projekt"><div class="z-bilder">${bilder}</div><div class="z-text"><button type="button" class="z-titel" data-bearbeiten="${esc(p.schluessel)}">${esc(p.titel)}</button><div class="z-wer">${esc(wer)}</div>${p.code ? `<div class="z-link">${icon('link', 13)}<span class="dom">videos.stagecraft.media/</span><span class="code">${esc(p.code)}</span></div>` : ''}</div></div>
-      <div class="z-freigabe">${balken}<div class="z-klein">${freiText}<span class="nur-schmal">${schmal}</span></div></div>
-      <div class="z-komm">${komm}</div>
+      <div class="z-projekt"><div class="z-bilder">${bilder}</div><div class="z-text"><button type="button" class="z-titel" data-bearbeiten="${esc(p.schluessel)}">${esc(p.titel)}</button><div class="z-wer">${esc(wer)}${p.letzte ? `<span class="nur-schmal"> · ${wann(p.letzte)}</span>` : ''}</div>${p.code ? `<div class="z-link">${icon('link', 13)}<span class="dom">videos.stagecraft.media/</span><span class="code">${esc(p.code)}</span></div>` : ''}</div></div>
+      ${marke}
       <div class="z-aktiv">${p.letzte ? wann(p.letzte) : 'noch keine'}</div>
       <div class="z-knoepfe">${p.link ? `<button type="button" class="rund" data-kopieren="${esc(p.link)}" data-i="kopieren" title="Link kopieren" aria-label="Link kopieren"></button><a class="rund nur-breit" href="${esc(p.link)}" target="_blank" rel="noopener" data-i="oeffnen" title="Öffnen" aria-label="Öffnen"></a>` : ''}${p.code ? (D.auftraege.some(a => a.laeuft && a.art === 'drive' && a.code === p.code)
         ? `<button type="button" class="rund dreht" disabled data-i="drive" title="Drive wird abgeglichen" aria-label="${esc(p.titel)}: Drive wird abgeglichen"></button>`
@@ -902,15 +998,17 @@
       </form>
       ${p.link ? `<h4>Link</h4><div class="d-link"><div class="k-link"><span>${esc(kurz(p.link))}</span><button type="button" data-kopieren="${esc(p.link)}" data-i="kopieren">Kopieren</button></div>
         <a class="rund" href="${esc(p.link)}" target="_blank" rel="noopener" data-i="oeffnen" title="Öffnen" aria-label="Öffnen"></a></div>` : ''}
-      <h4>Videos <span class="n">${p.videos.length}</span></h4>
+      <h4>Videos <span class="n">${p.videos.length}</span>${p.code && p.videos.length > 1 ? (() => { const an = p.videos.every(v => v.status === 'freigegeben');
+        return `<label class="schalter${an ? ' an' : ''}">Alle freigegeben<input type="checkbox" role="switch" data-alle-schalter${an ? ' checked' : ''}></label>`; })() : ''}</h4>
       ${p.videos.length ? `<ul class="v-liste">${p.videos.map(v => `
         <li class="v-zeile">
           <a class="v-bild${v.seitenverhaeltnis >= 1 ? ' quer' : ''}" href="${esc(linkVideo(v))}" target="_blank" rel="noopener" aria-label="Video ${v.nr} öffnen"><img src="${bild(v, 160)}" alt="" loading="lazy"></a>
           <div class="v-mitte">
             <div class="v-titel"><span class="nr">${v.nr}</span><input value="${esc(v.titel)}" data-nr="${v.nr}" data-alt="${esc(v.titel)}" maxlength="120" aria-label="Titel von Video ${v.nr}" enterkeyhint="done"></div>
-            <div class="v-meta"><span class="punkt" style="--c:${STATUS[v.status].c}"></span>${STATUS[v.status].t} · ${zeit(v.dauer)}${v.offen ? ` · <span class="offen">${mehrzahl(v.offen, 'offener Kommentar', 'offene Kommentare')}</span>` : ''}</div>
+            <div class="v-meta">${p.code ? `<select class="v-status" data-status-video="${esc(v.id)}" style="--c:${STATUS[v.status].c}" aria-label="Freigabe von Video ${v.nr}">${Object.entries(STATUS).map(([k, s]) => `<option value="${k}"${k === v.status ? ' selected' : ''}>${k === 'aenderung' ? 'Änderung' : s.t}</option>`).join('')}</select>` : `<span class="punkt" style="--c:${STATUS[v.status].c}"></span>${STATUS[v.status].t}`} · ${zeit(v.dauer)}${v.offen ? ` · <span class="offen">${mehrzahl(v.offen, 'offener Kommentar', 'offene Kommentare')}</span>` : ''}</div>
           </div>
           <div class="v-knoepfe">
+            ${v.kommentare ? `<a class="rund klein" href="/api/admin/projekt/${esc(p.code)}/video/${v.nr}/marker?format=edl" download data-i="flagge" title="Kommentare als Marker für DaVinci (.edl): Timeline > Import > Timeline Markers from EDL" aria-label="Marker für DaVinci herunterladen"></a>` : ''}
             <button type="button" class="rund klein" data-kopieren="${esc(linkVideo(v))}" data-i="kopieren" title="Link zum Video kopieren" aria-label="Link zum Video kopieren"></button>
             <a class="rund klein nur-gross" href="${esc(linkVideo(v))}" target="_blank" rel="noopener" data-i="oeffnen" title="Video öffnen" aria-label="Video öffnen"></a>
             <button type="button" class="rund klein" data-entfernen="${v.nr}" data-i="muell" title="Von der Seite nehmen" aria-label="Von der Seite nehmen"></button>
@@ -1016,6 +1114,66 @@
   $('liste').addEventListener('click', e => {
     const b = e.target.closest('[data-zeile-loeschen]'); if (!b || b.disabled) return;
     linkLoeschen(projekt(b.dataset.zeileLoeschen), b);
+  });
+  // Freigabe pro Video und Schalter „Alle freigegeben“ (Ole, 23.11.2026), über denselben Weg wie die Kundenseite (als Stagecraft
+  // angemeldet). „So viel rumdrücken, wie man möchte, es wird trotzdem gespeichert“: sofort sichtbar, kurz gesammelt, eine Anfrage
+  // für alles, bei schnellem Hin und Her zählt der letzte Stand, bei Fehlern von selbst nochmal (1, 2, 4 … höchstens 20 s)
+  const FREIGABE = {};  // Code → { wartet, unterwegs, laeuft, fehler, uhr }
+  function freigabeMerken(p, aenderungen) {
+    for (const v of p.videos) if (aenderungen[v.id]) v.status = aenderungen[v.id];
+    const q = FREIGABE[p.code] ||= { wartet: {}, unterwegs: {}, laeuft: false, fehler: 0, uhr: 0 };
+    Object.assign(q.wartet, aenderungen);
+    projektZeichnen();
+    if (!q.laeuft && !q.uhr) q.uhr = setTimeout(() => freigabeSenden(p.code), 350);
+  }
+  async function freigabeSenden(code) {
+    const q = FREIGABE[code]; q.uhr = 0; q.laeuft = true;
+    while (Object.keys(q.wartet).length) {
+      const stapel = q.wartet; q.wartet = {}; q.unterwegs = stapel;
+      try {
+        const r = await fetch(`/api/${code}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', cache: 'no-store',
+          body: JSON.stringify({ eintraege: Object.entries(stapel).map(([video, status]) => ({ video, status })), name: (D.ich && D.ich.name) || 'Stagecraft' }) });
+        if (r.status === 400) toast('Eine Freigabe passte nicht mehr zu den Videos des Links', true);  // nicht wiederholen
+        else if (!r.ok) throw new Error('nochmal');
+        if (q.fehler >= 2) toast('Freigabe gespeichert');
+        q.fehler = 0; q.unterwegs = {};
+      } catch {
+        q.unterwegs = {};
+        for (const [k, w] of Object.entries(stapel)) if (!(k in q.wartet)) q.wartet[k] = w;  // Neueres gewinnt
+        q.fehler++;
+        if (q.fehler === 2) toast('Freigabe wird gespeichert, sobald es wieder geht');
+        await new Promise(f => setTimeout(f, Math.min(20000, 1000 * 2 ** (q.fehler - 1))));
+      }
+    }
+    q.laeuft = false;
+    await laden(true);
+    if (OFFEN && $('projekt-dialog').open) projektZeichnen();
+  }
+  // Was noch nicht beim Server ist, über frisch geladene Daten legen (laden() alle 30 s)
+  function freigabeDrueber() {
+    for (const [code, q] of Object.entries(FREIGABE)) {
+      const offen = { ...q.unterwegs, ...q.wartet }, p = D && D.projekte.find(x => x.code === code);
+      if (p) for (const v of p.videos) if (offen[v.id]) v.status = offen[v.id];
+    }
+  }
+  $('p-inhalt').addEventListener('change', e => {
+    const s = e.target.closest('[data-status-video]'); if (!s) return;
+    freigabeMerken(projekt(OFFEN), { [s.dataset.statusVideo]: s.value });
+  });
+  // Schalter: an = alle freigegeben, die Stände davor gemerkt; aus = die gemerkten zurück, sonst alle Zur Freigabe
+  const VORHER = {};
+  $('p-inhalt').addEventListener('change', e => {
+    const s = e.target.closest('[data-alle-schalter]'); if (!s) return;
+    const p = projekt(OFFEN), aenderungen = {};
+    if (s.checked) {
+      VORHER[p.code] = Object.fromEntries(p.videos.filter(v => v.status !== 'freigegeben').map(v => [v.id, v.status]));
+      for (const v of p.videos) if (v.status !== 'freigegeben') aenderungen[v.id] = 'freigegeben';
+    } else {
+      const zurueck = VORHER[p.code]; delete VORHER[p.code];
+      if (zurueck && Object.keys(zurueck).length) Object.assign(aenderungen, zurueck);
+      else for (const v of p.videos) aenderungen[v.id] = 'zur-freigabe';
+    }
+    freigabeMerken(p, aenderungen);
   });
   // Drive abgleichen direkt aus der Liste (Ole, 22.11.2026), Ergebnis kommt oben als Meldung
   $('liste').addEventListener('click', async e => {

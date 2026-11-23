@@ -9,6 +9,10 @@ Die Quelle für Änderungen bleibt Stagecraft OS (`plugins/stagecraft-team/skill
 - `versionen/<Datum_Uhrzeit>/` eine Version pro Änderung: `daten.tar.gz.age` (verschlüsselt), `code.tar.gz` (Code und Server
   zum Stand dieser Version), `stand.txt` (Fingerabdrücke). Eine neue Version entsteht nur, wenn sich Daten oder Code ändern
 - `VERSIONEN.md` Liste aller Versionen
+- `aktuell/app/` die StageView iPhone App (Quelltext, xcodegen Projekt `app/project.yml`), in jeder Version als `app.tar.gz`.
+  Der volle Verlauf mit jedem Commit und den hochgeladenen Builds (`testflight-<Build>`) liegt im Zweig `app`.
+  Quelle ist Oles Mac (`~/Documents/CLAUDE_CODE_PROJECTS/STAGECRAFT_STAGEVIEW_APP`), gespiegelt bei jedem TestFlight Upload und
+  jeder Installation per Kabel
 
 Nicht hier, mit Absicht: die Schlüssel (Mux, Team Schlüssel) und die Kommentar Datenbank (nur lokale Sicherung auf VPS 2).
 
@@ -23,3 +27,6 @@ Entschlüsseln geht nur mit dem privaten Schlüssel aus dem Mac Schlüsselbund (
 Für den neuesten Stand `aktuell/daten/stageview-daten.tar.gz.age`. Dann `stageview` mit `engine/installieren.sh` aus
 Stagecraft OS einspielen, die Daten nach `~/.hermes/data/stageview/` legen, Schlüssel neu eintragen
 (`~/.hermes/stageview.env`, `~/.hermes/videos-api.env`) und `stageview bauen`.
+
+App zurückholen: `git clone -b app <dieses Repo> stageview-app` (voller Verlauf), oder `tar -xzf versionen/<Version>/app.tar.gz`.
+Dann im Ordner `app/`: `xcodegen`, bauen mit `scripts/iphone.sh` oder `scripts/testflight.sh` (Schlüssel aus dem Mac Schlüsselbund).

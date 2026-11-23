@@ -33,6 +33,7 @@ import tempfile
 import time
 import unicodedata
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -768,6 +769,25 @@ def seitenverhaeltnis(text):
         return 0.5625
 
 
+# Übliche Bildraten: Mux meldet manchmal krumme Werte (29,98 statt 29,97), die auf die Norm gerundet werden
+FPS_NORM = (23.976, 24, 25, 29.97, 30, 47.952, 48, 50, 59.94, 60, 100, 119.88, 120)
+
+
+def bildrate(asset):
+    """Bildrate eines Mux Assets (seit 23.11.2026 für bildgenaue Kommentare und Marker), auf die Norm gerundet. None, wenn unbekannt.
+    Jedes Video hat seine eigene, ein Link darf 25, 30 und 60 Bilder gemischt enthalten."""
+    werte = [asset.get("max_stored_frame_rate")] + [t.get("max_frame_rate") for t in asset.get("tracks") or [] if t.get("type") == "video"]
+    for w in werte:
+        try:
+            f = float(w)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= f <= 240:
+            norm = min(FPS_NORM, key=lambda s: abs(s - f))
+            return norm if abs(norm - f) < 0.3 else round(f, 3)
+    return None
+
+
 def projekt_bauen(schluessel, projekt, assets, seite, version, stand):
     """Schreibt /var/www/videos/<code>/: projekt.json, index.html (Projekt) und <nr>/index.html pro Video."""
     code = code_fuer(schluessel)
@@ -800,7 +820,7 @@ def projekt_bauen(schluessel, projekt, assets, seite, version, stand):
                 except Exception:
                     pass
             schl = v["drive"]
-            daten = {"playback_id": pid, "dauer": round(a.get("duration") or 0, 1),
+            daten = {"playback_id": pid, "dauer": round(a.get("duration") or 0, 1), "fps": bildrate(a),
                      "seitenverhaeltnis": seitenverhaeltnis(a.get("aspect_ratio", "9:16")), "groesse": v.get("groesse"),
                      "download": DRIVE_DL.format(v["drive"]), "drive": f"https://drive.google.com/file/d/{v['drive']}/view"}
         else:  # feste Videos ohne Drive (z.B. öffentliche Mux Beispielvideos auf Vorschau Seiten), eigene id hält Kommentare fest
@@ -1664,6 +1684,24 @@ def abgleich_text(r):
     return ", ".join(teile)
 
 
+def b_marker(a):
+    """Kommentare eines Videos als Marker für DaVinci Resolve (seit 23.11.2026): EDL zum Importieren (Timeline > Import > Timeline
+    Markers from EDL) oder JSON für den direkten Weg über Resolve (Bild ab Timeline Anfang, Farbe, Text)."""
+    s = schluessel_fuer(a.projekt)
+    code = code_fuer(s, False) or fehler("Link hat noch keinen Code")
+    team = env_datei(HAUS / "videos-api.env").get("VIDEOS_TEAM_KEY", "")
+    url = f"{API}/admin/projekt/{code}/video/{a.nr}/marker?format={a.format}&start={urllib.parse.quote(a.start)}"
+    try:
+        inhalt = urllib.request.urlopen(urllib.request.Request(url, headers={"X-Team": team}), timeout=20).read().decode()
+    except urllib.error.HTTPError as e:
+        fehler(f"Marker: {e.code} {e.read().decode()[:200]}")
+    if a.datei:
+        Path(a.datei).write_text(inhalt, encoding="utf-8")
+        print(f"Marker gespeichert: {a.datei}")
+    else:
+        print(inhalt)
+
+
 def b_drive_abgleich(a):
     if a.alle:
         liste = [s for s in alle_projekte() if code_fuer(s, False)]
@@ -2250,6 +2288,10 @@ def main():
 
     p = sub.add_parser("dazu", help="Videos zu einem Projekt hinzufügen"); p.add_argument("projekt"); p.add_argument("--titel")
     quellen(p); p.set_defaults(f=b_dazu)
+    p = sub.add_parser("marker", help="Kommentare eines Videos als Marker für DaVinci (EDL zum Importieren oder JSON)")
+    p.add_argument("projekt"); p.add_argument("nr"); p.add_argument("--format", choices=("edl", "json"), default="edl")
+    p.add_argument("--start", default="01:00:00:00", help="Start Timecode der Timeline (Resolve Standard 01:00:00:00)")
+    p.add_argument("--datei", help="in eine Datei statt auf den Bildschirm"); p.set_defaults(f=b_marker)
     p = sub.add_parser("drive-abgleich", help="Link mit dem Drive abgleichen: nicht mehr da = ausblenden, wieder da = zurück, --neue holt neue Videos")
     p.add_argument("projekt", nargs="?"); p.add_argument("--alle", action="store_true", help="alle Links (Cron, nur ausblenden und zurückholen)")
     p.add_argument("--neue", action="store_true", help="auch neue Videos aus dem Ordner dazu (wie der Knopf Drive abgleichen)")

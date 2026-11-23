@@ -7,6 +7,10 @@
 #   aktuell/                 der neueste Stand. code/ und server/ lesbar, daten/ nur verschlüsselt
 #   versionen/<Datum_Zeit>/  eine Version pro Änderung: daten.tar.gz.age (verschlüsselt) und code.tar.gz (Code und Server)
 #   VERSIONEN.md             Liste aller Versionen, was sich geändert hat
+#   aktuell/app/             seit 23.11.2026 die StageView iPhone App, lesbar (Ole: „Spiegel mit verschiedenen Backups wie bei der
+#                            Web Version“). Quelle ist Oles Mac (STAGECRAFT_STAGEVIEW_APP), app/scripts/sichern.sh schiebt sie ins
+#                            nackte Repo ~/.hermes/data/stageview-app.git und ruft dieses Skript sofort auf. Dazu Zweig app mit dem
+#                            vollen Verlauf und den Tags testflight-<Build>
 # Eine neue Version entsteht nur, wenn sich Daten oder Code wirklich geändert haben (Fingerabdruck), nicht jede Nacht.
 #
 # Verschlüsselt mit age (derselbe Schlüssel wie das TESS Backup, privat nur im Mac Schlüsselbund TESS_BACKUP_AGE_SCHLUESSEL):
@@ -39,6 +43,16 @@ trap 'rm -rf "$TMP"' EXIT
 # Alte Ablage vor den Versionen (16.11.2026 mittags) lag direkt im Hauptordner
 rm -rf code server daten
 
+# ---- App: lesbar nach aktuell/app/ (nur was in Git steht, in der App steckt kein Schlüssel)
+APP_GIT="$H/.hermes/data/stageview-app.git"
+APP=""
+if [ -d "$APP_GIT" ] && git --git-dir="$APP_GIT" rev-parse -q --verify refs/heads/main >/dev/null; then
+  APP=$(git --git-dir="$APP_GIT" rev-parse refs/heads/main)
+  rm -rf aktuell/app
+  mkdir -p aktuell/app
+  git --git-dir="$APP_GIT" archive refs/heads/main | tar -x -C aktuell/app
+fi
+
 # ---- aktuell: Code und Server, lesbar
 rm -rf aktuell/code aktuell/server
 mkdir -p aktuell/code aktuell/server aktuell/daten versionen
@@ -64,11 +78,11 @@ for datei in "$H/.hermes/stageview.env" "$H/.hermes/videos-api.env"; do
   [ -f "$datei" ] || continue
   sed -n 's/^[A-Z_]*=//p' "$datei" | tr -d '"'"'" | while read -r wert; do
     [ ${#wert} -ge 12 ] || continue
-    if grep -rqF -- "$wert" aktuell/code aktuell/server 2>/dev/null; then echo GEFUNDEN; fi
+    if grep -rqF -- "$wert" aktuell/code aktuell/server aktuell/app 2>/dev/null; then echo GEFUNDEN; fi
   done
 done | grep -q GEFUNDEN && fehler "Schlüssel im lesbaren Teil gefunden, nichts gepusht"
 # Muster zerteilt, damit dieses Skript (liegt selbst im Spiegel) sich nicht selbst findet
-grep -rqE "BEGIN (OPENSSH|RSA|EC) PRIVATE"" KEY|AGE-SECRET-""KEY-1" aktuell/code aktuell/server 2>/dev/null && fehler "privater Schlüssel im lesbaren Teil, nichts gepusht"
+grep -rqE "BEGIN (OPENSSH|RSA|EC) PRIVATE"" KEY|AGE-SECRET-""KEY-1" aktuell/code aktuell/server aktuell/app 2>/dev/null && fehler "privater Schlüssel im lesbaren Teil, nichts gepusht"
 find aktuell -name 'kommentare.db*' | grep -q . && fehler "Kommentar Datenbank im Spiegel, nichts gepusht"
 
 # ---- Version: nur wenn sich Daten oder Code seit der letzten Version geändert haben
@@ -76,16 +90,21 @@ packen "$TMP/code.tar" -C aktuell code server
 CODE=$(sha256sum "$TMP/code.tar" | cut -d' ' -f1)
 LETZTE_DATEN=$(sed -n 's/^daten=//p' versionen/letzte.txt 2>/dev/null || true)
 LETZTE_CODE=$(sed -n 's/^code=//p' versionen/letzte.txt 2>/dev/null || true)
+LETZTE_APP=$(sed -n 's/^app=//p' versionen/letzte.txt 2>/dev/null || true)
 WAS=""
 [ "$DATEN" != "$LETZTE_DATEN" ] && WAS="Daten"
-[ "$CODE" != "$LETZTE_CODE" ] && WAS="${WAS:+$WAS und }Code"
+[ "$CODE" != "$LETZTE_CODE" ] && WAS="${WAS:+$WAS, }Code"
+if [ -n "$APP" ] && [ "$APP" != "$LETZTE_APP" ]; then
+  WAS="${WAS:+$WAS, }App ($(git --git-dir="$APP_GIT" log -1 --format=%s refs/heads/main | cut -c1-80 | tr '|' '/'))"
+fi
 if [ -n "$WAS" ]; then
   STEMPEL=$(date '+%Y-%m-%d_%H%M')
   V="versionen/$STEMPEL"
   mkdir -p "$V"
   cp aktuell/daten/stageview-daten.tar.gz.age "$V/daten.tar.gz.age"
   gzip -n -c "$TMP/code.tar" > "$V/code.tar.gz"
-  printf 'daten=%s\ncode=%s\n' "$DATEN" "$CODE" > "$V/stand.txt"
+  [ -n "$APP" ] && git --git-dir="$APP_GIT" archive --format=tar.gz -o "$V/app.tar.gz" refs/heads/main
+  printf 'daten=%s\ncode=%s\napp=%s\n' "$DATEN" "$CODE" "$APP" > "$V/stand.txt"
   cp "$V/stand.txt" versionen/letzte.txt
   [ -n "$LETZTE_CODE" ] || WAS="erster Stand"
   if [ ! -f VERSIONEN.md ]; then
@@ -107,6 +126,10 @@ Die Quelle für Änderungen bleibt Stagecraft OS (`plugins/stagecraft-team/skill
 - `versionen/<Datum_Uhrzeit>/` eine Version pro Änderung: `daten.tar.gz.age` (verschlüsselt), `code.tar.gz` (Code und Server
   zum Stand dieser Version), `stand.txt` (Fingerabdrücke). Eine neue Version entsteht nur, wenn sich Daten oder Code ändern
 - `VERSIONEN.md` Liste aller Versionen
+- `aktuell/app/` die StageView iPhone App (Quelltext, xcodegen Projekt `app/project.yml`), in jeder Version als `app.tar.gz`.
+  Der volle Verlauf mit jedem Commit und den hochgeladenen Builds (`testflight-<Build>`) liegt im Zweig `app`.
+  Quelle ist Oles Mac (`~/Documents/CLAUDE_CODE_PROJECTS/STAGECRAFT_STAGEVIEW_APP`), gespiegelt bei jedem TestFlight Upload und
+  jeder Installation per Kabel
 
 Nicht hier, mit Absicht: die Schlüssel (Mux, Team Schlüssel) und die Kommentar Datenbank (nur lokale Sicherung auf VPS 2).
 
@@ -121,7 +144,20 @@ Entschlüsseln geht nur mit dem privaten Schlüssel aus dem Mac Schlüsselbund (
 Für den neuesten Stand `aktuell/daten/stageview-daten.tar.gz.age`. Dann `stageview` mit `engine/installieren.sh` aus
 Stagecraft OS einspielen, die Daten nach `~/.hermes/data/stageview/` legen, Schlüssel neu eintragen
 (`~/.hermes/stageview.env`, `~/.hermes/videos-api.env`) und `stageview bauen`.
+
+App zurückholen: `git clone -b app <dieses Repo> stageview-app` (voller Verlauf), oder `tar -xzf versionen/<Version>/app.tar.gz`.
+Dann im Ordner `app/`: `xcodegen`, bauen mit `scripts/iphone.sh` oder `scripts/testflight.sh` (Schlüssel aus dem Mac Schlüsselbund).
 TEXT
+
+# ---- App: voller Verlauf als Zweig app (eigener Verlauf neben main) und die Tags testflight-<Build>
+if [ -n "$APP" ]; then
+  git fetch -q "$APP_GIT" "+refs/heads/main:refs/app/main" "+refs/tags/*:refs/app-tags/*" 2>>"$LOG" || fehler "App Repo nicht lesbar"
+  if [ "$(git ls-remote origin refs/heads/app 2>/dev/null | cut -f1)" != "$APP" ]; then
+    git push -q origin "+refs/app/main:refs/heads/app" 2>>"$LOG" || fehler "Push des App Zweigs fehlgeschlagen"
+    log "App Zweig $(echo "$APP" | cut -c1-7)"
+  fi
+  git push -q origin "refs/app-tags/*:refs/tags/*" 2>>"$LOG" || log "App Tags nicht alle gepusht"
+fi
 
 git add -A
 if git diff --cached --quiet; then

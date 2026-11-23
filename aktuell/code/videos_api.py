@@ -18,7 +18,8 @@ Endpunkte (projekt = Ordnername unter /var/www/videos, seit 13.11.2026 nur der C
   POST   /api/<projekt>/kommentare/<id>/text   {text}  eigenen Kommentar ändern (seit 16.11.2026), Team auch Stagecraft Kommentare,
                                               der alte Text bleibt im Verlauf
   DELETE /api/<projekt>/kommentare/<id>
-  POST   /api/<projekt>/status                {video, status, name}
+  POST   /api/<projekt>/status                {video, status, name} oder seit 23.11.2026 {eintraege: [{video, status}], name}: mehrere
+                                              Videos in einer Anfrage (App und Dashboard, „Alle freigegeben“), alles oder nichts
   POST   /api/<projekt>/fehler                {art, video, weg, geraet}  Abspielfehler vom Handy (seit 13.11.2026),
                                               nur Gerätetyp und Fehlercode, keine Adresse. Ansehen: Tabelle fehler
 
@@ -27,11 +28,14 @@ Aufgaben Dashboard (Ole, 14.11.2026: „derselbe Login Screen, dieselben Benutze
 geprüft von der Brücke der TESS App (127.0.0.1:8651, /login und /me). Die Brücke legt dafür ein Gerät „Browser StageView …“
 an (nur Aufgaben Rechte, Telegram Hinweis an Ole), dessen Token als HttpOnly Cookie sv_sitzung (Pfad /api/) im Browser liegt.
 Passwort ändern oder Gerät sperren in der TESS App gilt damit sofort auch hier. Zugang haben die Admins (Ole, Jonas) und seit
-17.11.2026 auch das Team (Caspar, Niklas, Rolle team in der Brücke; Ole: „als Nutzer Caspar und Niklas hinzufügen“).
+17.11.2026 auch das Team (Caspar, Niklas, Rolle team in der Brücke; Ole: „als Nutzer Caspar und Niklas hinzufügen“), seit
+23.11.2026 jedes Konto der Brücke (Liste /profile, neue Konten sind sofort drin).
 Wer angemeldet ist, ist auch auf allen Kundenseiten als Stagecraft unterwegs (gleiches Cookie). X-Team geht weiter (Befehl
 stageview, Team Link). Änderungen laufen über den Befehl `stageview` (derselbe Weg wie bei TESS und Alfred), lange
 Aufträge (neuer Link, Videos dazu) als eigener systemd Dienst.
-  POST   /api/admin/anmelden                  {zugang: tess|alfred|caspar|niklas, passwort, geraet} → Cookie, {name}
+  GET    /api/admin/profile                   alle Konten für die Anmeldung (seit 23.11.2026, aus /profile der Brücke): {profile:
+                                               [{zugang, name, rolle, reihe, bild}]}, ohne Anmeldung
+  POST   /api/admin/anmelden                  {zugang: jedes Konto aus /profile, passwort, geraet} → Cookie, {name}
   POST   /api/admin/abmelden                  meldet das Gerät bei der Brücke ab, löscht das Cookie
   GET    /api/admin/uebersicht                alle Projekte mit Videos, Freigabe, offenen Kommentaren, Kunden, Aufträgen
   POST   /api/admin/projekt/<code>            {titel, kunde, firma, hinweis, darstellung}
@@ -39,6 +43,8 @@ Aufträge (neuer Link, Videos dazu) als eigener systemd Dienst.
   POST   /api/admin/projekt/<code>/loeschen   Link löschen (seit 17.11.2026, Ole): stageview offline, Daten ins Archiv, Seite weg.
                                               Nicht, solange ein Auftrag für den Link läuft. Zurück mit stageview wiederherstellen
   POST   /api/admin/projekt/<code>/video/<nr>/entfernen
+  GET    /api/admin/projekt/<code>/video/<nr>/marker?format=edl|json&start=01:00:00:00   Kommentare als Marker für DaVinci
+                                              (seit 23.11.2026): bildgenau mit der Bildrate des Videos, offen rot, erledigt grün
   POST   /api/admin/projekt/<code>/dazu       {quellen, titel}      Auftrag
   POST   /api/admin/projekt/<code>/drive      Auftrag (seit 22.11.2026, Knopf „Drive abgleichen“): neue Videos aus dem Ordner dazu,
                                               nicht mehr vorhandene aus (das läuft sonst alle 5 Minuten von selbst, stageview
@@ -74,6 +80,7 @@ import sqlite3
 import subprocess
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 import time
 from collections import defaultdict, deque
@@ -87,11 +94,16 @@ PORT = int(os.environ.get("VIDEOS_PORT", "8652"))
 TEAM_KEY = os.environ.get("VIDEOS_TEAM_KEY", "")
 HERKUNFT = {h.strip() for h in os.environ.get("VIDEOS_ORIGIN", "https://videos.stagecraft.media").split(",") if h.strip()}
 BRUECKE = os.environ.get("TESS_BRUECKE", "http://127.0.0.1:8651")  # Brücke der TESS App, prüft Namen und Passwörter
-# Zugänge der Brücke, die hier rein dürfen, mit Namen und der Rolle, die die Brücke für sie meldet (seit 17.11.2026 auch das Team)
-ADMIN_ZUGAENGE = {"tess": "Ole", "alfred": "Jonas", "caspar": "Caspar", "niklas": "Niklas"}
-ZUGANG_ROLLE = {"tess": "admin", "alfred": "admin", "caspar": "team", "niklas": "team"}
+# Zugänge: jedes Konto der Brücke darf rein, mit Namen, Rolle und Bild aus ihrer Liste /profile (Ole, 23.11.2026: „immer, wenn
+# ein neues Profil angelegt wird, auch direkt in StageView drin“). Bis dahin fest Ole, Jonas, Caspar, Niklas, die bleiben der
+# letzte Rückfall, falls die Brücke weg ist und noch keine Liste gespeichert ist
+PROFILE_RUECKFALL = [{"zugang": "tess", "name": "Ole", "rolle": "admin", "reihe": 0, "bild": None},
+                     {"zugang": "alfred", "name": "Jonas", "rolle": "admin", "reihe": 1, "bild": None},
+                     {"zugang": "caspar", "name": "Caspar", "rolle": "team", "reihe": 2, "bild": None},
+                     {"zugang": "niklas", "name": "Niklas", "rolle": "team", "reihe": 3, "bild": None}]
 COOKIE = "sv_sitzung"
 DATEN = Path(os.environ.get("STAGEVIEW_DATEN", str(Path.home() / ".hermes/data/stageview")))
+PROFILE_DATEI = DATEN / "profile.json"  # letzte Liste der Brücke, damit die Anmeldung auch ohne sie und nach einem Neustart geht
 BEFEHL = os.environ.get("STAGEVIEW_BEFEHL", str(Path.home() / ".local/bin/stageview"))
 OS_PFAD = Path(os.environ.get("STAGEVIEW_OS", str(Path.home() / "workspace/stagecraft-os")))
 BASIS_URL = "https://videos.stagecraft.media"
@@ -109,6 +121,9 @@ STATUS = ("zur-freigabe", "aenderung", "freigegeben")
 PROJEKT_RE = re.compile(r"^(?:[a-z0-9-]+-)?[a-z0-9]{6}$")  # seit 13.11.2026 meist nur der Code
 MAX_TEXT, MAX_NAME, MAX_BODY = 2000, 60, 16_000
 SCHREIBEN_PRO_10_MIN = 60
+# Angemeldetes Team (App, Dashboard, Befehl stageview): eigene, viel höhere Grenze, nur gegen Endlosschleifen (Ole, 23.11.2026:
+# „so viel rumdrücken, wie man möchte, und es wird trotzdem gespeichert“). Kunden behalten die 60
+SCHREIBEN_TEAM_PRO_10_MIN = 3000
 
 _sperre = threading.Lock()
 _projekte = {}  # projekt -> (mtime, set(video ids))
@@ -195,14 +210,14 @@ def autor_hash(schluessel):
     return hashlib.sha256(("videos:" + schluessel).encode()).hexdigest()
 
 
-def bremse(ip):
-    """True, wenn diese Adresse gerade zu viel schreibt."""
+def bremse(ip, team=False):
+    """True, wenn diese Adresse gerade zu viel schreibt. Das Team zählt getrennt mit eigener Grenze."""
     grenze = time.time() - 600
     with _sperre:
-        q = _schreiben[ip]
+        q = _schreiben[("team:" if team else "") + ip]
         while q and q[0] < grenze:
             q.popleft()
-        if len(q) >= SCHREIBEN_PRO_10_MIN:
+        if len(q) >= (SCHREIBEN_TEAM_PRO_10_MIN if team else SCHREIBEN_PRO_10_MIN):
             return True
         q.append(time.time())
     return False
@@ -224,7 +239,7 @@ def anmelden_fehlgeschlagen(ip):
         _fehlversuche_alle.append(time.time())
 
 
-def bruecke(pfad, methode="GET", daten=None, token=None, ip=None):
+def bruecke(pfad, methode="GET", daten=None, token=None, ip=None, warten=15):
     """Anfrage an die Brücke der TESS App. Gibt (status, json) zurück, status 0 = nicht erreichbar."""
     kopf = {"Content-Type": "application/json"}
     if token:
@@ -234,7 +249,7 @@ def bruecke(pfad, methode="GET", daten=None, token=None, ip=None):
     req = urllib.request.Request(BRUECKE + pfad, method=methode, headers=kopf,
                                  data=json.dumps(daten).encode() if daten is not None else None)
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with urllib.request.urlopen(req, timeout=warten) as r:
             return r.status, json.loads(r.read() or b"{}")
     except urllib.error.HTTPError as e:
         try:
@@ -245,9 +260,56 @@ def bruecke(pfad, methode="GET", daten=None, token=None, ip=None):
         return 0, {}
 
 
+_profile = [0.0, None]
+
+
+def profil_gueltig(p):
+    return (isinstance(p, dict) and re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", str(p.get("zugang") or ""))
+            and isinstance(p.get("name"), str) and p["name"].strip() and p.get("rolle") in ("admin", "team"))
+
+
+def profile():
+    """Alle Konten der Brücke in ihrer Reihenfolge (/profile), 60 s gemerkt. Ist die Brücke weg, gilt die zuletzt gespeicherte
+    Liste, sonst die feste von vorher. Bilder sind öffentliche Adressen auf os.stagecraft.media."""
+    t = time.time()
+    with _sperre:
+        if _profile[1] and t - _profile[0] < 60:
+            return _profile[1]
+    status, d = bruecke("/profile", warten=4)
+    liste = [{"zugang": p["zugang"], "name": p["name"].strip()[:40], "rolle": p["rolle"], "reihe": i,
+              "bild": p["bild"] if isinstance(p.get("bild"), str) and p["bild"].startswith("https://") else None}
+             for i, p in enumerate(d.get("profile") or []) if profil_gueltig(p)] if status == 200 else []
+    if liste:
+        neu = json.dumps(liste, ensure_ascii=False)
+        try:
+            if not PROFILE_DATEI.exists() or PROFILE_DATEI.read_text() != neu:
+                PROFILE_DATEI.parent.mkdir(parents=True, exist_ok=True)
+                tmp = PROFILE_DATEI.with_suffix(".tmp")
+                tmp.write_text(neu)
+                os.replace(tmp, PROFILE_DATEI)
+        except OSError:
+            pass
+    else:
+        with _sperre:
+            liste = _profile[1]
+        if not liste:
+            try:
+                liste = [p for p in json.loads(PROFILE_DATEI.read_text()) if profil_gueltig(p)]
+            except (OSError, ValueError, TypeError):
+                liste = []
+        liste = liste or PROFILE_RUECKFALL
+    with _sperre:
+        _profile[0], _profile[1] = t, liste
+    return liste
+
+
+def zugaenge():
+    return {p["zugang"]: p for p in profile()}
+
+
 def sitzung_pruefen(token):
-    """Wer steckt hinter dem Cookie? Fragt die Brücke (/me) und merkt sich die Antwort 60 s. Nur die Zugänge aus ADMIN_ZUGAENGE
-    mit passender Rolle zählen.
+    """Wer steckt hinter dem Cookie? Fragt die Brücke (/me) und merkt sich die Antwort 60 s. Nur Konten aus profile() mit
+    passender Rolle zählen.
     Ist die Brücke kurz nicht erreichbar, gilt eine bekannte Sitzung noch bis zu 15 Minuten."""
     if not token or len(token) > 200:
         return None
@@ -259,8 +321,8 @@ def sitzung_pruefen(token):
     status, d = bruecke("/me", token=token)
     if status == 0 and alt and alt[1] and t - alt[0] < 900:
         return alt[1]
-    wer = {"zugang": d["agent"], "name": ADMIN_ZUGAENGE[d["agent"]]} if (
-        status == 200 and d.get("agent") in ADMIN_ZUGAENGE and d.get("rolle") == ZUGANG_ROLLE[d["agent"]]) else None
+    konto = zugaenge().get(d.get("agent")) if status == 200 else None
+    wer = {"zugang": d["agent"], "name": konto["name"]} if konto and d.get("rolle") == konto["rolle"] else None
     with _sperre:
         _sitzungen[k] = (t, wer)
         if len(_sitzungen) > 500:
@@ -399,7 +461,7 @@ def uebersicht():
         d, code = lies_json(datei, {}), codes.get(datei.stem)
         definitionen.append(d)
         pj = lies_json(WEB / code / "projekt.json", None) if code and CODE_RE.match(code) else None
-        videos = [{"nr": v["nr"], "id": v["id"], "titel": v.get("titel"), "playback_id": v.get("playback_id"), "dauer": v.get("dauer"),
+        videos = [{"nr": v["nr"], "id": v["id"], "titel": v.get("titel"), "playback_id": v.get("playback_id"), "dauer": v.get("dauer"), "fps": v.get("fps"),
                    "seitenverhaeltnis": v.get("seitenverhaeltnis"), "posting": v.get("posting"), "format": v.get("format"),
                    "status": status.get((code, v["id"]), "zur-freigabe"), "offen": offen.get((code, v["id"]), 0),
                    "kommentare": gesamt.get((code, v["id"]), 0)} for v in (pj or {}).get("videos", [])]
@@ -414,6 +476,79 @@ def uebersicht():
             "drive_hinweis": d.get("drive_hinweis"),
             "kommentare": [{**k, "nr": nr.get(k["video"])} for k in neueste.get(code, []) if k["video"] in nr]})
     return {"projekte": projekte, "kunden": kundenliste(definitionen), "auftraege": auftraege(), "jetzt": jetzt()}
+
+
+# ---------- Timecode und Marker für DaVinci (seit 23.11.2026, Ole: „wie bei Frame.io ein richtiger Timecode“)
+# Jedes Video rechnet mit seiner eigenen Bildrate (projekt.json „fps“ aus Mux). Timecode ohne Drop Frame wie Resolve Standard:
+# 29,97 zählt mit 30 Bildern pro Sekunde, 23,976 mit 24. Fehlt die Bildrate, gilt 25 (EDL braucht eine), im Kopf vermerkt.
+
+def tc_basis(fps):
+    return max(1, round(fps))
+
+
+def tc_text(bilder, fps):
+    n = tc_basis(fps)
+    bilder = max(0, int(bilder))
+    return f"{bilder // (3600 * n):02d}:{bilder // (60 * n) % 60:02d}:{bilder // n % 60:02d}:{bilder % n:02d}"
+
+
+def tc_bilder(text, fps):
+    """„01:00:00:00“ → Bilder (ohne Drop Frame). Ungültig → Fehler."""
+    m = re.fullmatch(r"(\d{1,2})[:;](\d{2})[:;](\d{2})[:;](\d{2})", str(text or "").strip())
+    if not m:
+        raise Fehler(400, "Start Timecode bitte als 01:00:00:00")
+    h, mi, s, f = map(int, m.groups())
+    n = tc_basis(fps)
+    if mi > 59 or s > 59 or f >= n:
+        raise Fehler(400, "Start Timecode ungültig")
+    return ((h * 60 + mi) * 60 + s) * n + f
+
+
+def marker_daten(code, nr, start_text):
+    pj = lies_json(WEB / code / "projekt.json", None) if CODE_RE.match(code) else None
+    v = next((x for x in (pj or {}).get("videos", []) if str(x.get("nr")) == str(nr)), None)
+    if not v:
+        raise Fehler(404, "Video unbekannt")
+    fps = v.get("fps")
+    try:
+        fps = float(fps) if fps else None
+    except (TypeError, ValueError):
+        fps = None
+    rate = fps if fps and 1 <= fps <= 240 else 25.0
+    start = tc_bilder(start_text, rate)
+    with db() as con:
+        ks = con.execute("SELECT id, zeit, text, name, rolle, erledigt FROM kommentare WHERE projekt=? AND video=? AND geloescht=0 "
+                         "AND antwort_auf IS NULL AND zeit IS NOT NULL ORDER BY zeit, id", (code, v["id"])).fetchall()
+        antworten = defaultdict(int)
+        for r in con.execute("SELECT antwort_auf FROM kommentare WHERE projekt=? AND video=? AND geloescht=0 AND antwort_auf IS NOT NULL",
+                             (code, v["id"])):
+            antworten[r["antwort_auf"]] += 1
+    marker = []
+    for k in ks:
+        bild = int(float(k["zeit"]) * rate + 0.001)  # das sichtbare Bild (gespeichert wird seit 23.11.2026 die Bildmitte)
+        text = " ".join(str(k["text"]).split())
+        marker.append({"id": k["id"], "bild": bild, "timecode": tc_text(start + bild, rate), "sekunden": round(float(k["zeit"]), 3),
+                       "farbe": "Green" if k["erledigt"] else "Red", "erledigt": bool(k["erledigt"]),
+                       "name": f"{k['name']}: {text}", "antworten": antworten.get(k["id"], 0)})
+    return {"video": v.get("titel") or f"Video {nr}", "nr": v.get("nr"), "fps": fps, "rechnet_mit": rate, "basis": tc_basis(rate),
+            "start": tc_text(start, rate), "marker": marker}
+
+
+def marker_edl(d):
+    """EDL, wie Resolve sie selbst für Timeline Marker schreibt (|C: Farbe |M: Name |D: Dauer). Import: Timeline > Import >
+    Timeline Markers from EDL, die Timeline muss dieselbe Bildrate haben."""
+    rate, n = d["rechnet_mit"], d["basis"]
+    start = tc_bilder(d["start"], rate)
+    zeilen = [f"TITLE: {d['video']} Marker", "FCM: NON-DROP FRAME", ""]
+    if not d["fps"]:
+        zeilen.insert(2, "* Bildrate des Videos unbekannt, 25 angenommen")
+    for i, m in enumerate(d["marker"], 1):
+        a, b = tc_text(start + m["bild"], rate), tc_text(start + m["bild"] + 1, rate)
+        name = m["name"].replace("|", "/")[:200] + (f" (+{m['antworten']} Antworten)" if m["antworten"] else "")
+        zeilen.append(f"{i:03d}  001      V     C        {a} {b} {a} {b}  ")
+        zeilen.append(f" |C:ResolveColor{m['farbe']} |M:{name} |D:1")
+        zeilen.append("")
+    return "\n".join(zeilen) + "\n"
 
 
 def stageview(*args, zeit=90):
@@ -577,7 +712,7 @@ def push_runde(jetzt_s):
                            "ORDER BY id", (tiefste,)).fetchall()
     infos, gemacht, gesendet = {}, [], 0
     for g in geraete:
-        person = ADMIN_ZUGAENGE.get(g["zugang"], "").lower()
+        person = zugaenge().get(g["zugang"], {}).get("name", "").lower()
         nach_projekt = {}
         for k in neue:
             if k["id"] > max(g["ab"], stand.get((k["projekt"], g["token"]), 0)):
@@ -704,11 +839,11 @@ class Api(BaseHTTPRequestHandler):
             raise Fehler(404, "Projekt unbekannt")
         return projekt, ids, teile[2:]
 
-    def schreib_pruefung(self):
+    def schreib_pruefung(self, team=False):
         herkunft = self.headers.get("Origin")
         if herkunft and herkunft not in HERKUNFT:
             raise Fehler(403, "fremde Seite")
-        if bremse(self.ip()):
+        if bremse(self.ip(), team):
             raise Fehler(429, "zu viele Änderungen, bitte kurz warten")
 
     def verarbeiten(self, methode):
@@ -721,7 +856,7 @@ class Api(BaseHTTPRequestHandler):
             team, autor = self.ist_team(), self.autor()
             if methode == "GET" and rest == []:
                 return self.antwort(200, self.alles(projekt, autor, team))
-            self.schreib_pruefung()
+            self.schreib_pruefung(team)
             if methode == "POST" and rest == ["kommentare"]:
                 return self.antwort(201, self.neuer_kommentar(projekt, ids, self.koerper(), autor, team))
             if methode == "POST" and len(rest) == 3 and rest[0] == "kommentare" and rest[2] == "erledigt":
@@ -759,7 +894,7 @@ class Api(BaseHTTPRequestHandler):
                 raise Fehler(429, "Zu viele Versuche. Probier es in 15 Minuten nochmal.")
             d = self.koerper()
             zugang, pw = str(d.get("zugang") or ""), str(d.get("passwort") or "")[:200]
-            if zugang not in ADMIN_ZUGAENGE:
+            if zugang not in zugaenge():
                 raise Fehler(400, "Diesen Zugang gibt es hier nicht.")
             if not pw:
                 raise Fehler(400, "Passwort fehlt.")
@@ -776,7 +911,9 @@ class Api(BaseHTTPRequestHandler):
                 bruecke("/logout", "POST", {}, token=a["token"])
                 raise Fehler(403, "Dieser Zugang darf hier nicht rein.")
             cookie = f"{COOKIE}={a['token']}; Path=/api/; Max-Age=31536000; HttpOnly; Secure; SameSite=Strict"
-            return self.antwort(200, {"name": ADMIN_ZUGAENGE[zugang], "zugang": zugang}, {"Set-Cookie": cookie})
+            return self.antwort(200, {"name": zugaenge()[zugang]["name"], "zugang": zugang}, {"Set-Cookie": cookie})
+        if methode == "GET" and rest == ["profile"]:  # für die Anmeldung in Web und App, ohne Anmeldung (23.11.2026)
+            return self.antwort(200, {"profile": profile()})
         if methode == "POST" and rest == ["abmelden"]:
             herkunft = self.headers.get("Origin")
             if herkunft and herkunft not in HERKUNFT:
@@ -808,6 +945,21 @@ class Api(BaseHTTPRequestHandler):
                             "DO UPDATE SET zugang=excluded.zugang, umgebung=excluded.umgebung, am=excluded.am",
                             (token, ich["zugang"], umgebung, jetzt(), alt["ab"] if alt else ab))
             return self.antwort(200, {"ok": True})
+        if methode == "GET" and len(rest) == 5 and rest[0] == "projekt" and rest[2] == "video" and rest[3].isdigit() and rest[4] == "marker":
+            frage = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
+            d = marker_daten(rest[1], rest[3], (frage.get("start") or ["01:00:00:00"])[0])
+            if (frage.get("format") or ["edl"])[0] == "json":
+                return self.antwort(200, d)
+            body = marker_edl(d).encode()
+            name = re.sub(r"[^A-Za-z0-9_-]+", "-", d["video"]).strip("-")[:60] or "video"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Disposition", f"attachment; filename=\"{name}-marker.edl\"; filename*=UTF-8''{urllib.parse.quote(d['video'] + ' Marker.edl')}")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if methode == "GET" and rest == ["uebersicht"]:
             ich = self.admin_sitzung()
             return self.antwort(200, {**uebersicht(), "ich": ich or {"zugang": "team", "name": "Team"}})
@@ -1013,17 +1165,31 @@ class Api(BaseHTTPRequestHandler):
         return {"ok": True}
 
     def status(self, projekt, ids, d, team):
-        video, wert, name = str(d.get("video") or ""), d.get("status"), sauber(d.get("name"), MAX_NAME) or None
-        if video not in ids or wert not in STATUS:
+        name = sauber(d.get("name"), MAX_NAME) or None
+        mehrere = d.get("eintraege")
+        if mehrere is None:
+            paare = [(str(d.get("video") or ""), d.get("status"))]
+        elif isinstance(mehrere, list) and 0 < len(mehrere) <= 300 and all(isinstance(e, dict) for e in mehrere):
+            paare = [(str(e.get("video") or ""), e.get("status")) for e in mehrere]
+        else:
+            raise Fehler(400, "Liste der Freigaben ungültig")
+        if any(video not in ids or wert not in STATUS for video, wert in paare):
             raise Fehler(400, "Video oder Status unbekannt")
         am = jetzt()
-        with db() as con:
-            con.execute("INSERT INTO status (projekt, video, wert, von, am) VALUES (?,?,?,?,?) "
-                        "ON CONFLICT(projekt, video) DO UPDATE SET wert=excluded.wert, von=excluded.von, am=excluded.am",
-                        (projekt, video, wert, name, am))
-            con.execute("INSERT INTO verlauf (am, projekt, video, art, von, daten) VALUES (?,?,?,?,?,?)",
-                        (am, projekt, video, "status", name, json.dumps({"status": wert, "team": team})))
-        return {"video": video, "wert": wert, "von": name, "am": am}
+        with db() as con:  # alles in einer Transaktion: ganz oder gar nicht
+            alt = {r["video"]: r["wert"] for r in con.execute("SELECT video, wert FROM status WHERE projekt=?", (projekt,))}
+            for video, wert in dict(paare).items():
+                if mehrere is not None and alt.get(video, "zur-freigabe") == wert:
+                    continue  # schon so, kein Eintrag im Verlauf
+                con.execute("INSERT INTO status (projekt, video, wert, von, am) VALUES (?,?,?,?,?) "
+                            "ON CONFLICT(projekt, video) DO UPDATE SET wert=excluded.wert, von=excluded.von, am=excluded.am",
+                            (projekt, video, wert, name, am))
+                con.execute("INSERT INTO verlauf (am, projekt, video, art, von, daten) VALUES (?,?,?,?,?,?)",
+                            (am, projekt, video, "status", name, json.dumps({"status": wert, "team": team})))
+        if mehrere is None:
+            video, wert = paare[0]
+            return {"video": video, "wert": wert, "von": name, "am": am}
+        return {"ok": True, "anzahl": len(paare), "von": name, "am": am}
 
     def fehler(self, projekt, ids, d):
         video = str(d.get("video") or "")
