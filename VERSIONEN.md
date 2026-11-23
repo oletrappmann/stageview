@@ -23,3 +23,4 @@ Eine Zeile pro Version, neueste unten. Ordner in `versionen/`, Wiederherstellen 
 | 2026-11-23_0340 | Daten und Code |
 | 2026-11-23_1155 | Daten, Code, App (TestFlight Skript wie TESS und Prompter) |
 | 2026-11-23_1155 | App (Spiegel auf GitHub über VPS 2, TestFlight Tag, Doku TestFlight) |
+| 2026-11-23_1200 | App (Anmeldung: Made by Stagecraft unten statt des kleinen Logos, etwas größer) |
