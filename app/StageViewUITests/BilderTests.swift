@@ -282,6 +282,47 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Freigabe pro Video und „Alle freigeben“ auf der Seite eines Links (23.11.2026)
+    func testFreigabe() {
+        let a = app("projekt:u9kd8m")
+        Thread.sleep(forTimeInterval: 3)
+        a.swipeUp()
+        bild("f1-liste", warten: 1.2)
+        a.buttons.matching(identifier: "freigabe-knopf").element(boundBy: 1).tap()
+        bild("f2-auswahl", warten: 0.9)
+        a.buttons["freigabe-freigegeben"].firstMatch.tap()
+        bild("f3-geaendert", warten: 1.2)
+        a.buttons["alle-freigeben"].firstMatch.tap()
+        bild("f4-rueckfrage", warten: 0.9)
+        a.buttons["rueckfrage-ja"].firstMatch.tap()
+        bild("f5-alle", warten: 1.5)
+        a.terminate()
+    }
+
+    /// Blatt im Player (23.11.2026): am Video hoch und runter wischen, an der Liste zuziehen, Kommentar schreiben
+    func testBlattFilm() {
+        let a = app("player:zskz92:2")
+        Thread.sleep(forTimeInterval: 4)
+        bild("b0-mitte", warten: 0.1)
+        func zieh(_ von: CGFloat, _ nach: CGFloat, _ v: XCUIGestureVelocity = .slow) {
+            a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: von))
+                .press(forDuration: 0.05, thenDragTo: a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: nach)), withVelocity: v, thenHoldForDuration: 0)
+        }
+        zieh(0.45, 0.2)
+        bild("b1-video-hoch", warten: 1.5)
+        zieh(0.62, 0.95, .default)
+        bild("b2-liste-runter", warten: 1.5)
+        zieh(0.3, 0.55, .fast)
+        bild("b3-video-runter", warten: 1.5)
+        zieh(0.5, 0.3, .fast)
+        bild("b4-video-hoch-schnell", warten: 1.5)
+        a.textFields["kommentar-feld"].firstMatch.tap()
+        bild("b5-schreiben", warten: 2)
+        zieh(0.3, 0.6, .fast)
+        bild("b6-nach-schreiben", warten: 1.5)
+        a.terminate()
+    }
+
     /// Zahnrad Menü wie im Web statt Apples Glasmenü (23.11.2026)
     func testZahnrad() {
         var a = app("player:zskz92:2")

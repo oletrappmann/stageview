@@ -169,6 +169,27 @@ final class ReviewStore {
         }
     }
 
+    /// „Alle freigeben“ (Ole, 23.11.2026): nacheinander, am Ende einmal neu laden
+    func setStatus(_ status: ReviewStatus, for videos: [Video]) async {
+        let targets = videos.filter { self.status(of: $0) != status }
+        guard !targets.isEmpty else { return }
+        for video in targets {
+            state.status[video.id] = StatusEntry(value: status, by: name, at: ISO8601DateFormatter().string(from: .now))
+        }
+        #if DEBUG
+        if Demo.isOn { return }
+        #endif
+        do {
+            for video in targets {
+                try await API.post("\(code)/status", ["video": video.id, "status": status.rawValue, "name": name])
+            }
+        } catch {
+            Store.shared.show(error.localizedDescription, error: true)
+        }
+        await Store.shared.refresh()
+        await load()
+    }
+
     func setStatus(_ status: ReviewStatus, for video: Video) async {
         let before = state.status[video.id]
         state.status[video.id] = StatusEntry(value: status, by: name, at: ISO8601DateFormatter().string(from: .now))

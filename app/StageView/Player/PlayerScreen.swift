@@ -55,6 +55,13 @@ struct PlayerScreen: View {
     /// Zuletzt berechnete Stufen, für das Ziehen über die Zeitleiste
     @State private var stopsBox = StopsBox()
     @State private var fieldHeight: CGFloat = 50
+    /// Wie weit die Tastatur in den Player ragt (selbst verfolgt, damit Blatt und Video in einer Bewegung mitgehen)
+    @State private var keyboard: CGFloat = 0
+    /// Nach dem Schreiben ist das Blatt offen (Ole, 23.11.2026: „wenn man auf Kommentar schreiben geht, ohne aufzuklappen,
+    /// dass es sich dann selbst aufklappt“)
+    @State private var stopAfterWriting: SheetStop?
+    /// Kommentarliste ganz oben: dann zieht ein Wisch nach unten das Blatt zu (wie bei iOS Blättern)
+    @State private var listAtTop = true
     @FocusState private var composing: Bool
     @Environment(\.dismiss) private var dismiss
 
@@ -76,7 +83,10 @@ struct PlayerScreen: View {
     var body: some View {
         GeometryReader { geo in
             let stops = sheetStops(total: geo.size.height)
-            let sheetHeight = liveHeight(stops)
+            // Beim Schreiben: Blatt mit Griff, Steuerung und großem Feld direkt über der Tastatur, das Video bekommt den Rest
+            let writing = composing && keyboard > 0
+            let sheetContent = writing ? (stops[.mitte] ?? 0) : liveHeight(stops)
+            let sheetHeight = sheetContent + (composing ? keyboard : 0)
             let _ = updateStops(stops)
             VStack(spacing: 0) {
                 header
@@ -85,13 +95,17 @@ struct PlayerScreen: View {
                 if videos.isEmpty {
                     empty.frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    pager(width: geo.size.width, height: max(90, geo.size.height - Self.headerHeight - sheetHeight))
+                    pager(width: geo.size.width, height: max(90, geo.size.height - Self.headerHeight - sheetHeight), stops: stops)
                         .zIndex(0)
-                    sheet(height: sheetHeight, stops: stops)
+                    sheet(height: sheetHeight, content: sheetContent, stops: stops)
                         .zIndex(3)
                 }
             }
         }
+        // Die Tastatur schiebt nichts von selbst, das macht keyboard (sonst sprang alles auf einmal, Ole: „leicht verbackt“)
+        .ignoresSafeArea(.keyboard)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification), perform: keyboardMoves)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification), perform: keyboardMoves)
         .background(Self.viewer.ignoresSafeArea())
         // Teilen Fenster über dem Player
         .overlay {
@@ -132,11 +146,14 @@ struct PlayerScreen: View {
             show(video, autoplay: true)
         }
         .onChange(of: composing) { _, now in
-            // Beim Schreiben hält das Video an, die Zeit bleibt die, an der man angefangen hat. Zugeklappt geht das Blatt auf die Mitte
+            // Beim Schreiben hält das Video an, die Zeit bleibt die, an der man angefangen hat. Danach steht das Blatt offen
             if now {
                 draftTime = pool.time
                 pool.pause()
-                if stop == .zu { withAnimation(Self.sheetSpring) { stop = .mitte } }
+                stopAfterWriting = .offen
+            } else if let after = stopAfterWriting {
+                stopAfterWriting = nil
+                withAnimation(Self.sheetSpring) { stop = after }
             }
         }
         // iPhone quer gedreht: Apples Player im Vollbild (die App selbst bleibt hochkant)
@@ -319,7 +336,7 @@ struct PlayerScreen: View {
 
     // MARK: Video oben: seitlich wischen wechselt das Video
 
-    private func pager(width: CGFloat, height: CGFloat) -> some View {
+    private func pager(width: CGFloat, height: CGFloat, stops: [SheetStop: CGFloat]) -> some View {
         ScrollView(.horizontal) {
             LazyHStack(spacing: 0) {
                 ForEach(videos) { video in
@@ -337,6 +354,9 @@ struct PlayerScreen: View {
         // Das Licht läuft nach oben unter den Kopf und nach unten unter das Blatt (seitlich schneidet jede Seite selbst ab)
         .scrollClipDisabled()
         .scrollDisabled(scrubbing || composing || dragBase != nil)
+        // Senkrecht auf dem Video wischen zieht das Blatt (nur App, Ole 23.11.2026: „nicht nur am kleinen Balken, auch am Video“),
+        // seitlich wechselt weiter das Video
+        .simultaneousGesture(sheetDrag(stops))
         .accessibilityIdentifier("player-seiten")
     }
 
@@ -398,7 +418,10 @@ struct PlayerScreen: View {
 
     private func sheetDragChanged(_ dy: CGFloat, stops: [SheetStop: CGFloat]) {
         if dragBase == nil {
-            if composing { composing = false }
+            if composing {
+                stopAfterWriting = nil
+                composing = false
+            }
             dragBase = stops[stop]
         }
         dragY = dy
@@ -407,14 +430,49 @@ struct PlayerScreen: View {
     /// Mit Schwung gerechnet zur nächsten Stufe (Web: blattLoslassen, 220 ms)
     private func sheetDragEnded(_ dy: CGFloat, _ vy: CGFloat, stops: [SheetStop: CGFloat]) {
         guard let base = dragBase else { return }
-        let target = base - dy - vy * 0.22
-        let best = SheetStop.allCases.min { abs((stops[$0] ?? 0) - target) < abs((stops[$1] ?? 0) - target) } ?? stop
+        let target = base - dy - vy * 0.3
+        var best = SheetStop.allCases.min { abs((stops[$0] ?? 0) - target) < abs((stops[$1] ?? 0) - target) } ?? stop
+        // Klarer Schwung geht immer mindestens eine Stufe in seine Richtung (Ole, 23.11.2026: „deutlich einfacher runterswipen,
+        // um es wieder zu schließen“), wie bei iOS Blättern
+        let order = SheetStop.allCases, here = order.firstIndex(of: stop) ?? 1, there = order.firstIndex(of: best) ?? here
+        if vy > 280, there >= here, here > 0 { best = order[here - 1] }
+        if vy < -280, there <= here, here < order.count - 1 { best = order[here + 1] }
         if best != stop { Haptics.select() }
         withAnimation(Self.sheetSpring) {
             stop = best
             dragBase = nil
             dragY = 0
         }
+    }
+
+    /// Ziehen an der Kommentarliste: nur wenn sie ganz oben steht und der Finger klar nach unten geht, sonst scrollt sie
+    private var listDrag: some Gesture {
+        DragGesture(minimumDistance: 10, coordinateSpace: .global)
+            .onChanged { value in
+                if dragBase == nil {
+                    guard !dragSideways, listAtTop, value.translation.height > 0,
+                          value.translation.height > abs(value.translation.width) else { dragSideways = true; return }
+                }
+                sheetDragChanged(value.translation.height, stops: lastStops)
+            }
+            .onEnded { value in
+                dragSideways = false
+                if dragBase != nil { sheetDragEnded(value.translation.height, value.velocity.height, stops: lastStops) }
+            }
+    }
+
+    /// Tastatur kommt oder geht: mit ihrer eigenen Dauer, Blatt und Video gehen in derselben Bewegung mit
+    private func keyboardMoves(_ note: Notification) {
+        let info = note.userInfo ?? [:]
+        let end = (info[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect) ?? .zero
+        let duration = (info[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
+        let window = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+        let screen = window?.bounds.height ?? end.maxY
+        let bottomInset = window?.safeAreaInsets.bottom ?? 0
+        let hiding = note.name == UIResponder.keyboardWillHideNotification || end.minY >= screen
+        let overlap = hiding ? 0 : max(0, screen - end.minY - bottomInset)
+        guard abs(overlap - keyboard) > 0.5 else { return }
+        withAnimation(.spring(duration: max(duration, 0.25), bounce: 0)) { keyboard = overlap }
     }
 
     private var lastStops: [SheetStop: CGFloat] { stopsBox.value }
@@ -426,11 +484,11 @@ struct PlayerScreen: View {
         withAnimation(Self.sheetSpring) { stop = stop == .mitte ? .offen : .mitte }
     }
 
-    private func sheet(height: CGFloat, stops: [SheetStop: CGFloat]) -> some View {
+    private func sheet(height: CGFloat, content: CGFloat, stops: [SheetStop: CGFloat]) -> some View {
         let zu = stops[.zu] ?? 0, mitte = stops[.mitte] ?? 0
-        // Feld und Liste blenden mit der Höhe ein, wie im Web (zu: kein Feld, mitte: keine Liste)
-        let fieldShown = composing ? 1 : min(max((height - zu) / max(mitte - zu, 1), 0), 1)
-        let listShown = min(max((height - mitte - 10) / 70, 0), 1)
+        // Feld und Liste blenden mit der Höhe ein, wie im Web (zu: kein Feld, mitte: keine Liste). Die Tastatur zählt nicht mit
+        let fieldShown = composing ? 1 : min(max((content - zu) / max(mitte - zu, 1), 0), 1)
+        let listShown = composing ? 0 : min(max((content - mitte - 10) / 70, 0), 1)
         return VStack(spacing: 0) {
             sheetHead
                 .contentShape(Rectangle())
@@ -444,6 +502,7 @@ struct PlayerScreen: View {
                 sheetList(video)
                     .frame(maxHeight: .infinity)
                     .opacity(listShown)
+                    .animation(.easeOut(duration: 0.18), value: composing)
                     .allowsHitTesting(listShown > 0.5)
             }
         }
@@ -473,8 +532,8 @@ struct PlayerScreen: View {
             // Griff höher und leichter zu treffen (Ole, 22.11.2026: „die Fläche zum Hochziehen leicht größer, für den Daumen“):
             // 28 pt Streifen, dazu 16 pt über der Kante des Blatts
             Capsule()
-                .fill(Color.white.opacity(dragBase != nil ? 0.4 : 0.24))
-                .frame(width: dragBase != nil ? 50 : 42, height: 5)
+                .fill(Color.white.opacity(dragBase != nil ? 0.6 : 0.38))
+                .frame(width: dragBase != nil ? 52 : 44, height: 5)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 10)
                 .padding(.bottom, 13)
@@ -844,6 +903,10 @@ struct PlayerScreen: View {
             .scrollIndicators(.hidden)
             .scrollEdgeEffectStyle(.soft, for: .top)
             .scrollDismissesKeyboard(.interactively)
+            .onScrollGeometryChange(for: Bool.self, of: { $0.contentOffset.y + $0.contentInsets.top <= 2 }) { _, top in listAtTop = top }
+            // Ganz oben nach unten wischen zieht das Blatt zu (wie bei iOS), sonst scrollt die Liste
+            .scrollDisabled(dragBase != nil)
+            .simultaneousGesture(listDrag)
             .onChange(of: activeThread) { _, id in
                 guard let id, !composing, stop == .offen, focusComment == nil else { return }
                 withAnimation(.easeOut(duration: 0.35)) { proxy.scrollTo(id, anchor: .center) }

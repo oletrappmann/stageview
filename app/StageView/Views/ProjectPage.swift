@@ -11,6 +11,9 @@ struct ProjectPage: View {
     @State private var renaming: Video?
     @State private var renameText = ""
     @State private var removing: Video?
+    /// Freigabe eines Videos ändern (mittiges Fenster) und „Alle freigeben“ (Ole, 23.11.2026)
+    @State private var choosingStatus: Video?
+    @State private var confirmAll = false
     @State private var sources = ""
     @State private var addTitle = ""
     @State private var addOpen = false
@@ -64,6 +67,20 @@ struct ProjectPage: View {
             guard let project else { return }
             Haptics.cancel()
             Task { await store.removeVideo(project, video) }
+        }
+        .statusChooser($choosingStatus, current: { video in project.flatMap { $0.code }.map { ReviewStore.of($0).status(of: video) } ?? video.status }) { video, status in
+            guard let code = project?.code else { return }
+            status == .approved ? Haptics.check() : Haptics.select()
+            Task { await ReviewStore.of(code).setStatus(status, for: video) }
+        }
+        .centerConfirm("Alle freigeben?", isPresented: $confirmAll, action: "Alle freigeben", symbol: "checkmark.seal.fill", destructive: false,
+                       message: { approveAllText }) {
+            guard let project, let code = project.code else { return }
+            Haptics.check()
+            Task {
+                await ReviewStore.of(code).setStatus(.approved, for: project.videos)
+                store.show("Alle freigegeben", symbol: "checkmark.seal.fill")
+            }
         }
         .alert("Titel ändern", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Titel", text: $renameText)
@@ -120,7 +137,7 @@ struct ProjectPage: View {
 
 
                 if project.videos.count != 1 {
-                    SectionTitle(title: "Videos", count: project.videos.count).padding(.top, 30).padding(.horizontal, 4)
+                    videosTitle(project).padding(.top, 30).padding(.horizontal, 4)
                     videos(project).padding(.top, 10)
                 }
                 if let note = project.driveNote {
@@ -363,9 +380,8 @@ struct ProjectPage: View {
                             .foregroundStyle(Palette.text)
                             .lineLimit(2)
                     }
-                    HStack(spacing: 6) {
-                        StatusDot(status: status)
-                        Text(status.title).foregroundStyle(Palette.muted)
+                    HStack(spacing: 8) {
+                        StatusPill(status: status) { choosingStatus = video }
                         if video.open > 0 {
                             Text("· \(Plural.count(video.open, "offen", "offen"))").foregroundStyle(Palette.changesInk).fontWeight(.semibold)
                         }
@@ -423,6 +439,46 @@ struct ProjectPage: View {
         .accessibilityIdentifier("drive-abgleichen")
     }
 
+    // MARK: Freigabe
+
+    private func pending(_ project: Project) -> [Video] {
+        guard let code = project.code else { return [] }
+        return project.videos.filter { ReviewStore.of(code).status(of: $0) != .approved }
+    }
+
+    private var approveAllText: String {
+        guard let project else { return "" }
+        let left = pending(project).count
+        return (left == project.videos.count ? "Alle \(left) Videos" : "Die übrigen \(left) Videos")
+            + " von „\(project.title)“ stehen danach auf Freigegeben, auch auf der Seite für den Kunden. Ändern geht jederzeit pro Video."
+    }
+
+    /// Überschrift der Videoliste, bei mehreren Videos mit „Alle freigeben“ (Ole, 23.11.2026)
+    private func videosTitle(_ project: Project) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Text("Videos").font(.system(size: 22, weight: .bold)).tracking(-0.4).foregroundStyle(Palette.text)
+            Text("\(project.videos.count)").font(.system(size: 17, weight: .semibold)).foregroundStyle(Palette.muted)
+            Spacer()
+            if project.code != nil && project.videos.count > 1 {
+                let done = pending(project).isEmpty
+                Button {
+                    Haptics.select()
+                    confirmAll = true
+                } label: {
+                    Label(done ? "Alle freigegeben" : "Alle freigeben", systemImage: done ? "checkmark.seal.fill" : "checkmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(done ? Palette.approvedInk : Palette.text)
+                        .padding(.horizontal, 13)
+                        .frame(height: 34)
+                        .background(done ? Palette.approved.opacity(0.14) : Palette.surface, in: Capsule())
+                }
+                .buttonStyle(PressStyle())
+                .disabled(done)
+                .accessibilityIdentifier("alle-freigeben")
+            }
+        }
+    }
+
     // MARK: Videos
 
     private func videos(_ project: Project) -> some View {
@@ -476,9 +532,7 @@ struct ProjectPage: View {
                             .multilineTextAlignment(.leading)
                     }
                     HStack(spacing: 6) {
-                        let status = project.code.map { ReviewStore.of($0).status(of: video) } ?? video.status
-                        StatusDot(status: status)
-                        Text([status.title, Clock.text(video.duration)].joined(separator: " · "))
+                        Text(Clock.text(video.duration))
                             .foregroundStyle(Palette.muted)
                         if video.open > 0 {
                             Text("· \(Plural.count(video.open, "offen", "offen"))").foregroundStyle(Palette.changesInk).fontWeight(.semibold)
@@ -488,9 +542,10 @@ struct ProjectPage: View {
                     .lineLimit(1)
                 }
                 Spacer(minLength: 4)
-                Image(systemName: "play.circle.fill")
-                    .font(.system(size: 26))
-                    .foregroundStyle(Palette.accent.opacity(0.85))
+                // Freigabe direkt in der Zeile ändern (Ole, 23.11.2026), Tipp auf die Zeile spielt weiter das Video
+                StatusPill(status: project.code.map { ReviewStore.of($0).status(of: video) } ?? video.status, compact: true) {
+                    choosingStatus = video
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
