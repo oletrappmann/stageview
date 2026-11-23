@@ -369,6 +369,23 @@ final class BilderTests: XCTestCase {
             print("SPRUNG nach Tipp", i, "| Zeitleiste:", t1, "dann", leiste.value as? String ?? "?")
             bild("k\(i)-ruhig", warten: 0.1)
         }
+        // Ganze Karte als Tippfläche: rechts neben „Antworten“ (leere Fläche der Karte) springt auch
+        // Erst anhalten: die Pause muss nach dem Tipp bleiben
+        a.buttons["abspielen"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 0.6)
+        let antworten = a.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'antworten-'"))
+        if antworten.count > 2 {
+            let ziel = antworten.element(boundBy: 2)
+            let f = ziel.frame
+            print("SPRUNG Karte vorher", leiste.value as? String ?? "?", ziel.identifier, "Knopf", Int(f.minX), Int(f.width))
+            // Rechts neben dem Knopf, noch in der Karte (Fenster 402 pt breit, Karte bis etwa 380)
+            a.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 300, dy: f.midY)).tap()
+            Thread.sleep(forTimeInterval: 1.2)
+            let t1 = leiste.value as? String ?? "?"
+            Thread.sleep(forTimeInterval: 1.2)
+            print("SPRUNG Karte nachher", t1, "dann", leiste.value as? String ?? "?", "(gleich = Pause blieb)")
+            bild("k-karte", warten: 0.1)
+        }
         a.terminate()
     }
 
