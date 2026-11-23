@@ -138,7 +138,7 @@
 
   /* Liste: eine Zeile pro Link. Tipp auf die Zeile öffnet Bearbeiten, Kopieren und Öffnen gehen direkt */
   .tabelle { display: flex; flex-direction: column; gap: 6px; }
-  .t-kopf, .zeile { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(130px, 1fr) 112px 104px 156px; gap: 16px; align-items: center; }
+  .t-kopf, .zeile { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(130px, 1fr) 112px 104px 254px; gap: 16px; align-items: center; }
   .t-kopf { padding: 0 14px 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
   .t-kopf button { color: inherit; font-weight: 600; display: inline-flex; align-items: center; gap: 3px; --s: 14px; width: fit-content; }
   .t-kopf button:hover, .t-kopf button.an { color: var(--text); }
@@ -161,22 +161,28 @@
   .z-klein { font-size: 12.5px; margin-top: 6px; }
   .z-aktiv { font-size: 13.5px; color: rgba(243,242,238,.75); }
   .keine { font-size: 13.5px; color: var(--leise); }
-  /* Kopieren, Öffnen, ⋯ groß mit eigener Fläche (Ole, 14.11.2026: „bitte größer, wir haben genug Platz“) */
+  /* Kopieren, Öffnen, Drive, Löschen, ⋯ (⋯ immer ganz hinten, Ole 22.11.2026) groß mit eigener Fläche (Ole, 14.11.2026: „bitte größer, wir haben genug Platz“) */
   .z-knoepfe { display: flex; gap: 6px; justify-content: flex-end; }
   .z-knoepfe .rund { width: 46px; height: 46px; background: #262624; color: var(--text); --s: 22px; }
   .z-knoepfe .rund:hover { background: var(--panel-3); }
   .z-knoepfe .rund.fertig { color: var(--akzent); }
   /* Löschen direkt in der Reihe (Ole, 17.11.2026), mit derselben Rückfrage wie im Fenster */
   .z-knoepfe .rund.loeschen:hover { color: var(--aenderung); }
+  /* Drive abgleichen direkt in der Reihe (Ole, 22.11.2026: „als Schnellbutton“), dreht sich, solange es läuft */
+  .z-knoepfe .rund.dreht svg { animation: drehen 1s linear infinite; }
+  .z-knoepfe .rund:disabled { cursor: default; opacity: .6; }
+  @keyframes drehen { to { transform: rotate(360deg); } }
   .nur-schmal { display: none; }
   /* Schmal (Handy, kleines Fenster): Freigabe unter dem Projekt, Kommentare und Aktivität in der kleinen Zeile */
   @container haupt (max-width: 760px) {
     .t-kopf { display: none; }
     .zeile { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 6px; padding: 12px; }
-    /* oben das Projekt über die volle Breite, darunter Freigabe und die großen Knöpfe nebeneinander */
+    /* oben das Projekt über die volle Breite, darunter das Feedback, darunter die fünf Knöpfe als eigene Reihe über die ganze Breite
+       (seit 22.11.2026 mit Drive abgleichen, neben dem Feedback war es zu eng) */
     .z-projekt { grid-column: 1 / -1; grid-row: 1; }
-    .z-freigabe { grid-column: 1; grid-row: 2; align-self: center; min-width: 0; }
-    .z-knoepfe { grid-column: 2; grid-row: 2; }
+    .z-freigabe { grid-column: 1 / -1; grid-row: 2; align-self: center; min-width: 0; }
+    .z-knoepfe { grid-column: 1 / -1; grid-row: 3; }
+    .z-knoepfe .rund { flex: 1 1 0; width: auto; height: 44px; border-radius: 14px; }
     .z-klein { white-space: normal; }
     .z-komm, .z-aktiv { display: none; }
     .nur-schmal { display: inline; }
@@ -285,6 +291,10 @@
   .loesch-zeile button { margin-left: auto; flex: none; height: 38px; padding: 0 16px; border-radius: 999px; background: var(--aenderung); color: #fff; font-weight: 600; font-size: 14px; }
   .loesch-zeile button:hover { background: color-mix(in srgb, var(--aenderung) 85%, #fff); }
   .loesch-zeile button:disabled { opacity: .5; cursor: default; }
+  /* Drive abgleichen (seit 22.11.2026): gleiche Zeile, neutral statt rot */
+  .loesch-zeile.drive-zeile { margin-top: 14px; background: var(--panel-2); }
+  .loesch-zeile.drive-zeile button { background: var(--text); color: var(--bg); }
+  .loesch-zeile.drive-zeile button:hover { background: color-mix(in srgb, var(--text) 88%, var(--bg)); }
   .felder { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .feld { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .feld.breit { grid-column: 1 / -1; }
@@ -539,6 +549,7 @@
     ICONS['suche'] = `<circle cx="14.5" cy="14.5" r="7" ${l}/><path d="M19.8 19.8L25 25" ${l}/>`;
     ICONS['oeffnen'] = `<path d="M14 8.5H10.5C9.4 8.5 8.5 9.4 8.5 10.5V21.5C8.5 22.6 9.4 23.5 10.5 23.5H21.5C22.6 23.5 23.5 22.6 23.5 21.5V18M18.5 8.5H23.5V13.5M23.2 8.8L15.5 16.5" ${l}/>`;
     ICONS['kopieren'] = `<rect x="11.5" y="11.5" width="13" height="13" rx="3" ${l}/><path d="M20.5 8.5V8.3C20.5 7.3 19.7 6.5 18.7 6.5H9.3C8.3 6.5 7.5 7.3 7.5 8.3V17.7C7.5 18.7 8.3 19.5 9.3 19.5H9.5" ${l}/>`;
+    ICONS['drive'] = `<path d="M23.5 12.5A8 8 0 0 0 9.2 10.8M8.5 19.5A8 8 0 0 0 22.8 21.2" ${l}/><path d="M9 6.8V11H13.2M23 25.2V21H18.8" ${l}/>`;
     ICONS['muell'] = `<path d="M8 10H24M13.5 10V8.5C13.5 7.7 14.2 7 15 7H17C17.8 7 18.5 7.7 18.5 8.5V10M10 10L11 23.2C11.1 24.2 11.9 25 12.9 25H19.1C20.1 25 20.9 24.2 21 23.2L22 10" ${l}/>`;
   })();
   const icon = (n, s) => `<svg class="i" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"${s ? ` style="--s:${s}px"` : ''}>${ICONS[n] || ''}</svg>`;
@@ -761,16 +772,16 @@
       }).join('') + `<button type="button" class="sl-punkt sl-neu-kunde" data-kunde-neu>${icon('plus', 16)}Neuer Kunde</button>`;
     const ich = D.ich || {};
     $('sl-konto').innerHTML = `<span class="bild">${BILDER[ich.zugang] ? `<img src="${BILDER[ich.zugang]}" alt="">` : esc((ich.name || '?')[0])}</span><b>${esc(ich.name || '')}</b><button type="button" data-abmelden>Abmelden</button>`;
-    const liste = sichtbar(), vids = liste.flatMap(p => p.videos), frei = vids.filter(v => v.status === 'freigegeben').length;
+    const liste = sichtbar(), vids = liste.flatMap(p => p.videos), offenAlle = vids.reduce((s, v) => s + (v.offen || 0), 0);
     const gewaehlt = KUNDE && kundeMit(KUNDE);
     $('h-titel').textContent = gewaehlt ? gewaehlt.name : ANSICHTEN[ANSICHT].t;
-    $('h-zahlen').textContent = [gewaehlt && gewaehlt.firma, mehrzahl(liste.length, 'Link', 'Links'), mehrzahl(vids.length, 'Video', 'Videos'), `${frei} von ${vids.length} freigegeben`].filter(Boolean).join(' · ');
+    $('h-zahlen').textContent = [gewaehlt && gewaehlt.firma, mehrzahl(liste.length, 'Link', 'Links'), mehrzahl(vids.length, 'Video', 'Videos'), offenAlle ? mehrzahl(offenAlle, 'offener Kommentar', 'offene Kommentare') : ''].filter(Boolean).join(' · ');
     $('kunde-aktionen').innerHTML = gewaehlt ? `<button type="button" class="pille klein" data-kunde-bearbeiten="${esc(gewaehlt.id)}" data-i="stift">Bearbeiten</button><button type="button" class="pille klein" data-kunde-loeschen="${esc(gewaehlt.id)}" data-i="muell">Löschen</button>` : '';
     symbole($('kunde-aktionen')); symbole($('sl-kunden'));
     auftraegeZeichnen();
     const kopf = (k, t) => `<button type="button" data-sort="${k}" class="${SORT === k ? 'an' : ''}"${SORT === k ? ' aria-pressed="true"' : ''}>${t}${SORT === k ? icon('chevron-down', 14) : ''}</button>`;
     $('liste').innerHTML = liste.length
-      ? `<div class="t-kopf">${kopf('name', 'Projekt')}<span>Freigabe</span><span>Kommentare</span>${kopf('aktiv', 'Aktivität')}<span></span></div>` + liste.map(zeile).join('')
+      ? `<div class="t-kopf">${kopf('name', 'Projekt')}<span>Feedback</span><span>Kommentare</span>${kopf('aktiv', 'Aktivität')}<span></span></div>` + liste.map(zeile).join('')
       : `<div class="nichts">${!P.length ? 'Noch keine Links. „Neuer Link“ legt den ersten an.' : SUCHE ? 'Nichts gefunden.' : 'Hier ist gerade nichts.'}</div>`;
     symbole($('liste'));
   }
@@ -782,9 +793,13 @@
       : quer ? `<img class="quer" src="${bild(p.videos[0], 200)}" alt="" loading="lazy">`
       : p.videos.slice(0, 3).map(v => `<img src="${bild(v, 120)}" alt="" loading="lazy">`).join('');
     const wer = [kundeVon(p), p.firma, n ? mehrzahl(n, 'Video', 'Videos') : p.wartend ? `${p.wartend} bei Mux` : ''].filter(Boolean).join(' · ');
-    const teile = [['var(--frei)', z.frei], ['var(--aenderung)', z.aenderung], ['#3A3A35', z.offen]].filter(([, k]) => k);
-    const balken = n ? `<div class="z-balken" aria-hidden="true">${teile.map(([c, k]) => `<span style="flex:${k};--c:${c}"></span>`).join('')}</div>` : '';
-    const freiText = n ? `${z.frei} von ${n}${z.aenderung ? ' · ' + mehrzahl(z.aenderung, 'Änderung', 'Änderungen') : ''}` : p.wartend ? 'Mux bereitet die Videos vor' : '';
+    // Feedback statt Freigabe (Ole, 22.11.2026: „die Zahl, wie viele Videos freigegeben sind, entfernen, etwas Brauchbares hin“):
+    // hat der Kunde schon reagiert, und wie viele Kommentare sind erledigt. Balken: erledigt Salbei, offen Beige
+    const gesamt = p.videos.reduce((s, v) => s + (v.kommentare || 0), 0), erledigt = Math.max(0, gesamt - z.kommentare);
+    const teile = [['var(--frei)', erledigt], ['var(--offen)', z.kommentare]].filter(([, k]) => k);
+    const balken = n && gesamt ? `<div class="z-balken" aria-hidden="true">${teile.map(([c, k]) => `<span style="flex:${k};--c:${c}"></span>`).join('')}</div>` : '';
+    const freiText = !n ? (p.wartend ? 'Mux bereitet die Videos vor' : '') : !gesamt ? 'Noch kein Feedback'
+      : !z.kommentare ? `Alles erledigt · ${mehrzahl(gesamt, 'Kommentar', 'Kommentare')}` : `${erledigt} von ${gesamt} erledigt`;
     const schmal = (z.kommentare ? ` · <b style="color:var(--offen);font-weight:600">${mehrzahl(z.kommentare, 'offener Kommentar', 'offene Kommentare')}</b>` : '') + (p.letzte ? ' · ' + wann(p.letzte) : '');
     const komm = z.kommentare ? `<button type="button" class="chip" style="--c:var(--offen)" data-bearbeiten="${esc(p.schluessel)}" data-ziel="kommentare">${z.kommentare} offen</button>` : '<span class="keine">keine</span>';
     return `<article class="zeile" data-zeile="${esc(p.schluessel)}">
@@ -792,14 +807,17 @@
       <div class="z-freigabe">${balken}<div class="z-klein">${freiText}<span class="nur-schmal">${schmal}</span></div></div>
       <div class="z-komm">${komm}</div>
       <div class="z-aktiv">${p.letzte ? wann(p.letzte) : 'noch keine'}</div>
-      <div class="z-knoepfe">${p.link ? `<button type="button" class="rund" data-kopieren="${esc(p.link)}" data-i="kopieren" title="Link kopieren" aria-label="Link kopieren"></button><a class="rund nur-breit" href="${esc(p.link)}" target="_blank" rel="noopener" data-i="oeffnen" title="Öffnen" aria-label="Öffnen"></a>` : ''}<button type="button" class="rund" data-bearbeiten="${esc(p.schluessel)}" data-i="menu-horizontal" title="Bearbeiten" aria-label="${esc(p.titel)} bearbeiten"></button>${p.code ? `<button type="button" class="rund loeschen" data-zeile-loeschen="${esc(p.schluessel)}" data-i="muell" title="Link löschen" aria-label="${esc(p.titel)} löschen"></button>` : ''}</div>
+      <div class="z-knoepfe">${p.link ? `<button type="button" class="rund" data-kopieren="${esc(p.link)}" data-i="kopieren" title="Link kopieren" aria-label="Link kopieren"></button><a class="rund nur-breit" href="${esc(p.link)}" target="_blank" rel="noopener" data-i="oeffnen" title="Öffnen" aria-label="Öffnen"></a>` : ''}${p.code ? (D.auftraege.some(a => a.laeuft && a.art === 'drive' && a.code === p.code)
+        ? `<button type="button" class="rund dreht" disabled data-i="drive" title="Drive wird abgeglichen" aria-label="${esc(p.titel)}: Drive wird abgeglichen"></button>`
+        : `<button type="button" class="rund" data-zeile-drive="${esc(p.schluessel)}" data-i="drive" title="Drive abgleichen: neue Videos holen" aria-label="${esc(p.titel)}: Drive abgleichen"></button>`)
+        + `<button type="button" class="rund loeschen" data-zeile-loeschen="${esc(p.schluessel)}" data-i="muell" title="Link löschen" aria-label="${esc(p.titel)} löschen"></button>` : ''}<button type="button" class="rund" data-bearbeiten="${esc(p.schluessel)}" data-i="menu-horizontal" title="Bearbeiten" aria-label="${esc(p.titel)} bearbeiten"></button></div>
     </article>`;
   }
 
   function auftraegeZeichnen() {
     const grenze = Date.now() - 2 * 3600e3, weg = JSON.parse(lies('sc-admin-weg') || '[]');
     const liste = D.auftraege.filter(a => a.laeuft || (new Date(a.start) > grenze && !weg.includes(a.id)));
-    const ARTEN = { neu: 'Neuer Link', dazu: 'Videos dazu' };  // Titel: bei „dazu“ das Projekt
+    const ARTEN = { neu: 'Neuer Link', dazu: 'Videos dazu', drive: 'Drive abgleichen' };  // Titel: bei „dazu“ das Projekt
     const zu = lies('sc-admin-meldungen-zu') === '1', fertige = liste.filter(a => !a.laeuft).length;
     const kopf = liste.length >= 2 ? `<div class="m-kopf"><button type="button" class="m-klappen" data-meldungen-klappen aria-expanded="${!zu}"><span data-i="chevron-down"></span>Meldungen <span class="n">${liste.length}</span></button>
       ${fertige ? '<button type="button" class="m-gelesen" data-alle-gelesen>Alle gelesen</button>' : ''}</div>` : '';
@@ -807,7 +825,7 @@
     $('auftraege').innerHTML = kopf + `<div class="m-liste"${kopf && zu ? ' hidden' : ''}>` + liste.slice(0, 4).map(a => {
       const titel = `${ARTEN[a.art] || 'Auftrag'}: ${esc(a.titel)}`;
       if (a.laeuft) return `<div class="auftrag"><span class="kreis"></span><div class="text"><b>${titel}</b><small>${esc(schoen(a.zuletzt))}</small></div></div>`;
-      if (a.ok) return `<div class="auftrag"><span class="ok" data-i="check"></span><div class="text"><b>${titel}</b><small>${a.link ? 'Fertig · ' + esc(kurz(a.link)) : 'Fertig'}</small></div>
+      if (a.ok) return `<div class="auftrag"><span class="ok" data-i="check"></span><div class="text"><b>${titel}</b><small>${a.art === 'drive' ? esc(a.zuletzt.replace(/^Drive geprüft: /, '')) : a.link ? 'Fertig · ' + esc(kurz(a.link)) : 'Fertig'}</small></div>
         ${a.link ? `<button type="button" class="rund klein" data-kopieren="${esc(a.link)}" data-i="kopieren" title="Link kopieren" aria-label="Link kopieren"></button><a class="rund klein" href="${esc(a.link)}" target="_blank" rel="noopener" data-i="oeffnen" title="Öffnen" aria-label="Öffnen"></a>` : ''}
         <button type="button" class="rund klein weg" data-weg="${esc(a.id)}" data-i="x-mark" title="Ausblenden" aria-label="Ausblenden"></button></div>`;
       return `<div class="auftrag fehler"><div class="text"><b>${titel}</b><small>Hat nicht geklappt: ${esc(a.fehler || 'unbekannter Fehler')}</small></div>
@@ -899,14 +917,18 @@
           </div>
         </li>`).join('')}</ul>` : '<div class="leer">Noch keine Videos online.</div>'}
       ${p.wartend ? `<p class="hilfe">${mehrzahl(p.wartend, 'Video ist', 'Videos sind')} noch bei Mux und ${p.wartend === 1 ? 'erscheint' : 'erscheinen'} gleich von selbst.</p>` : ''}
-      ${laufend.map(a => `<div class="auftrag" style="margin-top:10px;background:var(--panel-2)"><span class="kreis"></span><div class="text"><b>Videos dazu</b><small>${esc(schoen(a.zuletzt))}</small></div></div>`).join('')}
+      ${p.drive_hinweis ? `<p class="hilfe" style="color:var(--aenderung)">${esc(p.drive_hinweis)}.</p>` : ''}
+      ${p.drive_weg && p.drive_weg.length ? `<p class="hilfe">Nicht mehr im Drive, deshalb ausgeblendet: ${p.drive_weg.map(w => '„' + esc(w.titel) + '“').join(', ')}. Liegt ein Video wieder im Ordner, ist es von selbst zurück.</p>` : ''}
+      ${laufend.map(a => `<div class="auftrag" style="margin-top:10px;background:var(--panel-2)"><span class="kreis"></span><div class="text"><b>${a.art === 'drive' ? 'Drive abgleichen' : 'Videos dazu'}</b><small>${esc(schoen(a.zuletzt))}</small></div></div>`).join('')}
+      ${p.code ? `<div class="loesch-zeile drive-zeile"><div><b>Drive abgleichen</b><small>Holt neue Videos aus dem Ordner. Was nicht mehr im Drive liegt, verschwindet von selbst (alle 5 Minuten).</small></div>
+        <button type="button" data-drive-abgleich${laufend.some(a => a.art === 'drive') ? ' disabled' : ''}>Abgleichen</button></div>` : ''}
       ${p.code ? `<h4>Videos dazu</h4>
       <form class="dazu-form" id="dazu-form">
         <input class="eingabe-feld" name="quellen" required placeholder="Drive Link zu Ordner oder Video" autocomplete="off">
         <input class="eingabe-feld titel-feld" name="titel" maxlength="120" placeholder="Titel (optional)" autocomplete="off">
         <button class="primaer" type="submit" data-i="plus">Dazu</button>
       </form>
-      <p class="hilfe">Neue Schnittfassung? Einfach dazu, die alte bleibt mit ihren Kommentaren daneben stehen. Nur Videos, die es noch nicht gibt, gehen zu Mux.</p>` : ''}
+      <p class="hilfe">Neue Schnittfassung? Einfach dazu, die alte bleibt mit ihren Kommentaren stehen, solange sie im Drive liegt. Nur Videos, die es noch nicht gibt, gehen zu Mux.</p>` : ''}
       <h4 id="p-kommentare">Offene Kommentare <span class="n">${p.kommentare.length}</span></h4>
       ${p.kommentare.length ? `<ul class="km-liste">${p.kommentare.map(k => { const v = titelNach.get(k.video); return `<li><a href="${esc(linkVideo({ nr: k.nr }))}${k.zeit != null ? '?t=' + Math.floor(k.zeit) : ''}" target="_blank" rel="noopener">
           <div class="km-kopf"><b>${esc(k.name)}</b>${k.rolle === 'team' ? ' · Stagecraft' : ''} · ${esc(v ? v.titel : 'Video ' + k.nr)}${k.zeit != null ? ` <span class="zeit">${zeit(k.zeit)}</span>` : ''} · ${wann(k.erstellt)}</div>
@@ -985,9 +1007,23 @@
     const b = e.target.closest('[data-link-loeschen]'); if (!b || b.disabled) return;
     linkLoeschen(projekt(OFFEN), b);
   });
+  $('p-inhalt').addEventListener('click', async e => {
+    const b = e.target.closest('[data-drive-abgleich]'); if (!b || b.disabled) return;
+    const p = projekt(OFFEN); b.disabled = true; b.textContent = 'Startet …';
+    try { await api(`projekt/${p.code}/drive`, { method: 'POST', body: {} }); toast('Drive wird abgeglichen'); await laden(true); projektZeichnen(); }
+    catch (err) { b.disabled = false; b.textContent = 'Abgleichen'; toast(err.message, true); }
+  });
   $('liste').addEventListener('click', e => {
     const b = e.target.closest('[data-zeile-loeschen]'); if (!b || b.disabled) return;
     linkLoeschen(projekt(b.dataset.zeileLoeschen), b);
+  });
+  // Drive abgleichen direkt aus der Liste (Ole, 22.11.2026), Ergebnis kommt oben als Meldung
+  $('liste').addEventListener('click', async e => {
+    const b = e.target.closest('[data-zeile-drive]'); if (!b || b.disabled) return;
+    const p = projekt(b.dataset.zeileDrive); if (!p || !p.code) return;
+    b.disabled = true; b.classList.add('dreht');
+    try { await api(`projekt/${p.code}/drive`, { method: 'POST', body: {} }); toast('Drive wird abgeglichen'); await laden(true); }
+    catch (err) { b.disabled = false; b.classList.remove('dreht'); toast(err.message, true); }
   });
   $('projekt-dialog').addEventListener('close', () => { OFFEN = null; });
 

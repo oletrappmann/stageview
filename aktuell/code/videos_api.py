@@ -40,6 +40,9 @@ Aufträge (neuer Link, Videos dazu) als eigener systemd Dienst.
                                               Nicht, solange ein Auftrag für den Link läuft. Zurück mit stageview wiederherstellen
   POST   /api/admin/projekt/<code>/video/<nr>/entfernen
   POST   /api/admin/projekt/<code>/dazu       {quellen, titel}      Auftrag
+  POST   /api/admin/projekt/<code>/drive      Auftrag (seit 22.11.2026, Knopf „Drive abgleichen“): neue Videos aus dem Ordner dazu,
+                                              nicht mehr vorhandene aus (das läuft sonst alle 5 Minuten von selbst, stageview
+                                              drive-abgleich --alle im Cron von hermes). Ausgeblendete stehen in der Übersicht unter drive_weg
   POST   /api/admin/neu                       {titel, kunde, quellen, unterordner, kategorien, dreh}   Auftrag
   POST   /api/admin/vorbereiten               {quelle, unterordner}  Auftrag (seit 16.11.2026): Drive Link einfügen, Videos gehen
                                               sofort zu Mux, während Titel und Kunde eingetragen werden (stageview vorbereiten)
@@ -48,7 +51,18 @@ Aufträge (neuer Link, Videos dazu) als eigener systemd Dienst.
   POST   /api/admin/kunden                    {name, firma} neuer Kunde (nur StageView, nie im Content Brain)
   POST   /api/admin/kunden/<id>               {name, firma} ändern, gilt für alle Links des Kunden
   POST   /api/admin/kunden/<id>/loeschen      nur ohne Links, Kunden aus dem Content Brain werden nur ausgeblendet
+  POST   /api/admin/push                      {token, umgebung: sandbox|production} iPhone der StageView App meldet sich für
+                                              Mitteilungen an (seit 22.11.2026), hängt am angemeldeten Zugang
+  DELETE /api/admin/push                      {token} beim Abmelden in der App
+
+Mitteilungen bei neuen Kommentaren (seit 22.11.2026, Ole: „Benachrichtigung, wenn Kommentare geschrieben werden, 10 Minuten
+warten, bis das Nächste geschrieben wird, und alles innerhalb dieser 10 Minuten gebündelt als eine Mitteilung schicken“): pro Link
+und Gerät sammelt eine Schleife neue Kommentare (Tabelle kommentare). Erst wenn PUSH_RUHE lang keiner dazukam, geht eine Mitteilung
+raus, bei Dauerfeuer spätestens PUSH_HOECHSTENS nach dem ersten. Eigene Kommentare melden sich beim Schreiber nie (Team Name =
+Name des Zugangs). Antippen öffnet den Player beim ersten neuen Kommentar (Link mit ?t= und &k=). Apple Schlüssel der TESS App
+(~/.hermes/tess-app/apns.p8, gilt fürs ganze Team), Thema media.stagecraft.stageview. Im Log nur Zahlen, nie Texte oder Tokens.
 """
+import base64
 import hashlib
 import hmac
 import json
@@ -81,6 +95,14 @@ DATEN = Path(os.environ.get("STAGEVIEW_DATEN", str(Path.home() / ".hermes/data/s
 BEFEHL = os.environ.get("STAGEVIEW_BEFEHL", str(Path.home() / ".local/bin/stageview"))
 OS_PFAD = Path(os.environ.get("STAGEVIEW_OS", str(Path.home() / "workspace/stagecraft-os")))
 BASIS_URL = "https://videos.stagecraft.media"
+PUSH_RUHE = 600  # 10 Minuten ohne neuen Kommentar, dann eine gebündelte Mitteilung (Ole, 22.11.2026)
+PUSH_HOECHSTENS = 1800  # bei Dauerfeuer spätestens 30 Minuten nach dem ersten Kommentar
+PUSH_ALT = 6 * 3600  # was so lange liegen blieb (Server aus), ist keine Neuigkeit mehr
+APNS_SCHLUESSEL = Path(os.environ.get("APNS_SCHLUESSEL", str(Path.home() / ".hermes/tess-app/apns.p8")))
+APNS_INFO = APNS_SCHLUESSEL.with_name("apns.json")
+APNS_TEAM = "9ZM98AMD7M"
+APNS_THEMA = "media.stagecraft.stageview"
+APNS_HOSTS = {"production": "https://api.push.apple.com", "sandbox": "https://api.sandbox.push.apple.com"}
 CODE_RE = re.compile(r"^[a-z0-9]{6}$")
 
 STATUS = ("zur-freigabe", "aenderung", "freigegeben")
@@ -129,6 +151,10 @@ def anlegen():
         CREATE TABLE IF NOT EXISTS fehler (
           id INTEGER PRIMARY KEY AUTOINCREMENT, am TEXT NOT NULL, projekt TEXT NOT NULL,
           video TEXT, art TEXT NOT NULL, weg TEXT, geraet TEXT);
+        CREATE TABLE IF NOT EXISTS push_geraete (
+          token TEXT PRIMARY KEY, zugang TEXT NOT NULL, umgebung TEXT NOT NULL, am TEXT NOT NULL, ab INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS push_stand (
+          projekt TEXT NOT NULL, token TEXT NOT NULL, bis INTEGER NOT NULL, PRIMARY KEY (projekt, token));
         """)
         # Ein Verlauf ist immer als Ganzes erledigt oder offen (Ole, 13.11.2026): Antworten übernehmen den Zustand des Kommentars
         con.execute("""UPDATE kommentare SET
@@ -384,6 +410,8 @@ def uebersicht():
             "firma": d.get("firma", ""), "hinweis": d.get("hinweis", ""), "darstellung": d.get("darstellung") or "abschnitte",
             "dreh": d.get("dreh"), "angelegt": d.get("angelegt"), "stand": (pj or {}).get("stand"), "letzte": letzte.get(code),
             "videos": videos, "wartend": max(0, len(d.get("videos", [])) - len(videos)),
+            "drive_weg": [{"titel": w.get("titel") or "", "am": w.get("weg_am")} for w in d.get("drive_weg") or []],
+            "drive_hinweis": d.get("drive_hinweis"),
             "kommentare": [{**k, "nr": nr.get(k["video"])} for k in neueste.get(code, []) if k["video"] in nr]})
     return {"projekte": projekte, "kunden": kundenliste(definitionen), "auftraege": auftraege(), "jetzt": jetzt()}
 
@@ -453,6 +481,153 @@ def als_dict(r, eigener_autor, team):
         # Ändern (Ole, 16.11.2026): eigene Kommentare, das Team dazu alle Stagecraft Kommentare (z.B. von TESS gesetzt), nie die von Kunden
         "darf_bearbeiten": eigen or (team and r["rolle"] == "team"),
     }
+
+
+# ---------- Mitteilungen bei neuen Kommentaren (seit 22.11.2026)
+
+_apns = {"jwt": "", "am": 0.0}
+
+
+def b64(daten):
+    return base64.urlsafe_b64encode(daten).rstrip(b"=").decode()
+
+
+def apns_jwt(jetzt_s):
+    """Anmeldung bei Apple (ES256), 50 Minuten gültig, wie in der TESS App (tess_mitteilungen.provider_token)."""
+    if _apns["jwt"] and jetzt_s - _apns["am"] < 50 * 60:
+        return _apns["jwt"]
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+    kid = json.loads(APNS_INFO.read_text())["schluessel_id"]
+    kopf = b64(json.dumps({"alg": "ES256", "kid": kid}).encode())
+    inhalt = b64(json.dumps({"iss": APNS_TEAM, "iat": int(jetzt_s)}).encode())
+    schluessel = serialization.load_pem_private_key(APNS_SCHLUESSEL.read_bytes(), password=None)
+    r, s_ = decode_dss_signature(schluessel.sign(f"{kopf}.{inhalt}".encode(), ec.ECDSA(hashes.SHA256())))
+    _apns.update(jwt=f"{kopf}.{inhalt}.{b64(r.to_bytes(32, 'big') + s_.to_bytes(32, 'big'))}", am=jetzt_s)
+    return _apns["jwt"]
+
+
+def apns_senden(umgebung, token, nutzlast, jetzt_s):
+    """Eine Mitteilung an ein Gerät, Status und Apples Grund (0 = keine Verbindung). HTTP/2 über curl, alles über stdin."""
+    wert = lambda t: '"' + t.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    kopf = (f"authorization: bearer {apns_jwt(jetzt_s)}", f"apns-topic: {APNS_THEMA}", "apns-push-type: alert", "apns-priority: 10",
+            f"apns-expiration: {int(jetzt_s) + 86400}", "content-type: application/json")
+    zeilen = [f"url = {wert(APNS_HOSTS.get(umgebung, APNS_HOSTS['production']) + '/3/device/' + token)}", "http2", "silent",
+              "request = POST", "max-time = 20", 'write-out = "\\n%{http_code}"', f"data-binary = {wert(json.dumps(nutzlast))}"]
+    zeilen += [f"header = {wert(k)}" for k in kopf]
+    try:
+        fertig = subprocess.run(["curl", "--config", "-"], input="\n".join(zeilen) + "\n", capture_output=True, text=True, timeout=30)
+    except (subprocess.TimeoutExpired, OSError):
+        return 0, "Keine Verbindung"
+    koerper, _, status = fertig.stdout.rpartition("\n")
+    try:
+        grund = json.loads(koerper).get("reason", "") if koerper.strip() else ""
+    except ValueError:
+        grund = ""
+    return (int(status) if status.isdigit() else 0), grund
+
+
+def projekt_info(projekt):
+    """Titel des Links und pro Video Nummer und Titel aus projekt.json der Seite."""
+    try:
+        pj = json.loads((WEB / projekt / "projekt.json").read_text(encoding="utf-8"))
+    except Exception:
+        return {"titel": "StageView", "videos": {}}
+    return {"titel": pj.get("titel") or "StageView", "videos": {v["id"]: (v.get("nr"), v.get("titel") or "Video") for v in pj.get("videos", [])}}
+
+
+def kurz(text, laenge):
+    text = " ".join(str(text).split())
+    return text if len(text) <= laenge else text[: laenge - 1].rstrip() + "…"
+
+
+def push_nachricht(projekt, info, ks):
+    """Eine Mitteilung für alle neuen Kommentare eines Links, in ganzen Sätzen. Antippen öffnet den ersten neuen Kommentar."""
+    video_titel = lambda v: info["videos"].get(v, (None, "Video"))[1]
+    namen = list(dict.fromkeys(k["name"] for k in ks))
+    videos = list(dict.fromkeys(k["video"] for k in ks))
+    if len(ks) == 1:
+        text = f"{ks[0]['name']} zu „{video_titel(ks[0]['video'])}“: {kurz(ks[0]['text'], 160)}"
+    else:
+        wer = namen[0] if len(namen) == 1 else " und ".join([", ".join(namen[:-1]), namen[-1]]) if len(namen) <= 3 \
+            else f"{namen[0]} und {len(namen) - 1} weitere"
+        wo = f"zu „{video_titel(videos[0])}“" if len(videos) == 1 else f"zu {len(videos)} Videos"
+        text = f"{wer}: {len(ks)} neue Kommentare {wo}. Zuletzt: „{kurz(ks[-1]['text'], 110)}“"
+    erster = ks[0]
+    nr = info["videos"].get(erster["video"], (None,))[0]
+    link = f"{BASIS_URL}/{projekt}"
+    if nr:
+        link += f"/{nr}?k={erster['id']}" + (f"&t={int(erster['zeit'])}" if erster["zeit"] is not None else "")
+    return {"aps": {"alert": {"title": info["titel"], "body": text}, "sound": "default", "thread-id": f"stageview-{projekt}"},
+            "link": link}
+
+
+def push_runde(jetzt_s):
+    """Pro Gerät und Link: neue Kommentare (nicht die eigenen) sammeln, nach PUSH_RUHE Stille eine Mitteilung."""
+    if not (APNS_SCHLUESSEL.exists() and APNS_INFO.exists()):
+        return
+    with db() as con:
+        geraete = con.execute("SELECT token, zugang, umgebung, ab FROM push_geraete").fetchall()
+        if not geraete:
+            return
+        stand = {(r["projekt"], r["token"]): r["bis"] for r in con.execute("SELECT projekt, token, bis FROM push_stand")}
+        tiefste = min(g["ab"] for g in geraete)
+        neue = con.execute("SELECT id, projekt, video, zeit, text, name, rolle, erstellt FROM kommentare WHERE id > ? AND geloescht = 0 "
+                           "ORDER BY id", (tiefste,)).fetchall()
+    infos, gemacht, gesendet = {}, [], 0
+    for g in geraete:
+        person = ADMIN_ZUGAENGE.get(g["zugang"], "").lower()
+        nach_projekt = {}
+        for k in neue:
+            if k["id"] > max(g["ab"], stand.get((k["projekt"], g["token"]), 0)):
+                nach_projekt.setdefault(k["projekt"], []).append(k)
+        for projekt, ks in nach_projekt.items():
+            fremde = [k for k in ks if not (k["rolle"] == "team" and k["name"].strip().lower() == person)]
+            bis = ks[-1]["id"]
+            if not fremde:  # nur eigene: nichts melden, aber abhaken
+                gemacht.append((projekt, g["token"], bis))
+                continue
+            zeiten = [datetime.fromisoformat(k["erstellt"]).timestamp() for k in fremde]
+            if jetzt_s - zeiten[-1] < PUSH_RUHE and jetzt_s - zeiten[0] < PUSH_HOECHSTENS:
+                continue  # es könnte noch etwas kommen
+            if jetzt_s - zeiten[-1] > PUSH_ALT:
+                gemacht.append((projekt, g["token"], bis))
+                continue
+            info = infos.setdefault(projekt, projekt_info(projekt))
+            status, grund = apns_senden(g["umgebung"], g["token"], push_nachricht(projekt, info, fremde), jetzt_s)
+            if grund == "BadDeviceToken":  # Kennung gehört zum anderen Apple Server (wie in der TESS App)
+                andere = "production" if g["umgebung"] == "sandbox" else "sandbox"
+                status, grund = apns_senden(andere, g["token"], push_nachricht(projekt, info, fremde), jetzt_s)
+                if status == 200:
+                    with db() as con:
+                        con.execute("UPDATE push_geraete SET umgebung=? WHERE token=?", (andere, g["token"]))
+            if status == 200:
+                gesendet += 1
+                gemacht.append((projekt, g["token"], bis))
+            elif grund in ("BadDeviceToken", "Unregistered", "DeviceTokenNotForTopic"):
+                with db() as con:
+                    con.execute("DELETE FROM push_geraete WHERE token=?", (g["token"],))
+                print("Mitteilung: Gerät abgemeldet", status, grund, flush=True)
+            else:
+                if grund in ("InvalidProviderToken", "ExpiredProviderToken", "BadEnvironmentKeyInToken"):
+                    _apns.update(jwt="", am=0.0)
+                print("Mitteilung nicht zugestellt", status, grund, flush=True)  # nächste Runde nochmal
+    if gemacht:
+        with db() as con:
+            con.executemany("INSERT INTO push_stand (projekt, token, bis) VALUES (?,?,?) ON CONFLICT(projekt, token) "
+                            "DO UPDATE SET bis=excluded.bis", gemacht)
+    if gesendet:
+        print(f"Mitteilungen gesendet: {gesendet}", flush=True)
+
+
+def push_schleife():
+    while True:
+        try:
+            push_runde(time.time())
+        except Exception as e:  # nie den Dienst mitreißen
+            print("Mitteilungen Fehler:", type(e).__name__, flush=True)
+        time.sleep(30)
 
 
 class Fehler(Exception):
@@ -613,6 +788,26 @@ class Api(BaseHTTPRequestHandler):
             return self.antwort(200, {"ok": True}, {"Set-Cookie": f"{COOKIE}=; Path=/api/; Max-Age=0; HttpOnly; Secure; SameSite=Strict"})
         if not self.ist_team():
             raise Fehler(401, "Bitte anmelden")
+        if rest == ["push"] and methode in ("POST", "DELETE"):  # iPhone der StageView App für Mitteilungen (22.11.2026)
+            self.schreib_pruefung()
+            ich, d = self.admin_sitzung(), self.koerper()
+            token = str(d.get("token") or "")
+            if not re.fullmatch(r"[0-9a-f]{32,200}", token):
+                raise Fehler(400, "Kennung fehlt")
+            with db() as con:
+                if methode == "DELETE":
+                    con.execute("DELETE FROM push_geraete WHERE token=?", (token,))
+                    con.execute("DELETE FROM push_stand WHERE token=?", (token,))
+                    return self.antwort(200, {"ok": True})
+                if not ich:
+                    raise Fehler(401, "Bitte in der App anmelden")
+                umgebung = "sandbox" if d.get("umgebung") == "sandbox" else "production"
+                ab = con.execute("SELECT COALESCE(MAX(id), 0) FROM kommentare").fetchone()[0]
+                alt = con.execute("SELECT ab FROM push_geraete WHERE token=?", (token,)).fetchone()
+                con.execute("INSERT INTO push_geraete (token, zugang, umgebung, am, ab) VALUES (?,?,?,?,?) ON CONFLICT(token) "
+                            "DO UPDATE SET zugang=excluded.zugang, umgebung=excluded.umgebung, am=excluded.am",
+                            (token, ich["zugang"], umgebung, jetzt(), alt["ab"] if alt else ab))
+            return self.antwort(200, {"ok": True})
         if methode == "GET" and rest == ["uebersicht"]:
             ich = self.admin_sitzung()
             return self.antwort(200, {**uebersicht(), "ich": ich or {"zugang": "team", "name": "Team"}})
@@ -707,6 +902,12 @@ class Api(BaseHTTPRequestHandler):
             schluessel = next((s for s, c in lies_json(DATEN / "codes.json", {}).items() if c == code), "")
             projekt_titel = lies_json(DATEN / "projekte" / f"{schluessel}.json", {}).get("titel") or code
             return self.antwort(202, auftrag_starten("dazu", projekt_titel + (f" · {titel}" if titel else ""), args, code))
+        if rest[2:] == ["drive"]:
+            if any(a.get("laeuft") and a.get("code") == code and a.get("art") == "drive" for a in auftraege()):
+                raise Fehler(409, "Der Drive Abgleich läuft für diesen Link schon")
+            schluessel = next((s for s, c in lies_json(DATEN / "codes.json", {}).items() if c == code), "")
+            projekt_titel = lies_json(DATEN / "projekte" / f"{schluessel}.json", {}).get("titel") or code
+            return self.antwort(202, auftrag_starten("drive", projekt_titel, ["drive-abgleich", code, "--neue", "--warten=45"], code))
         if rest[2:3] == ["video"] and len(rest) >= 4 and rest[3].isdigit():
             if len(rest) == 4:
                 titel = sauber(d.get("titel"), 120)
@@ -836,6 +1037,7 @@ class Api(BaseHTTPRequestHandler):
 
 def main():
     anlegen()
+    threading.Thread(target=push_schleife, daemon=True, name="mitteilungen").start()
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Api)
     server.daemon_threads = True
     print(f"videos-api auf 127.0.0.1:{PORT}, Daten {DB}", flush=True)

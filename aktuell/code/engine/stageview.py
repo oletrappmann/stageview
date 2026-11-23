@@ -8,7 +8,9 @@ Läuft nur auf VPS 2 als Linux User hermes, schreibt direkt nach /var/www/videos
 Claude Code (per ssh) nutzen denselben Befehl. Alles Wichtige steht in der SKILL.md daneben.
 
 Daten (nur auf VPS 2, ~/.hermes/data/stageview/):
-  projekte/<schluessel>.json  ein Projekt (titel, kunde, firma, kunde_ordner, dreh, hinweis, videos)
+  projekte/<schluessel>.json  ein Projekt (titel, kunde, firma, kunde_ordner, dreh, hinweis, videos), seit 22.11.2026 dazu
+                              quellen (gewählte Drive Ordner), drive_weg (nicht mehr im Drive, ausgeblendet) und entfernt
+                              (von Hand von der Seite genommen, kommt nie von selbst zurück). Jedes Video merkt seinen Ordner
   codes.json                  schluessel → Code des Links (6 Zeichen, ersetzt das Passwort, ändert sich nie)
   nummern.json                pro Code: Video → feste Nummer für /<code>/<nr> (wird nie neu vergeben)
 Schlüssel: Mux in ~/.hermes/stageview.env (MUX_TOKEN_ID, MUX_TOKEN_SECRET), Team Schlüssel für Kommentare in
@@ -335,7 +337,7 @@ def drive_token():
 
 
 ALLE = {"supportsAllDrives": True}
-FELDER = "id,name,mimeType,size,modifiedTime,parents,driveId,webViewLink,videoMediaMetadata(width,height,durationMillis)"
+FELDER = "id,name,mimeType,size,createdTime,modifiedTime,parents,driveId,webViewLink,videoMediaMetadata(width,height,durationMillis)"
 
 
 def drive_datei(did):
@@ -660,6 +662,14 @@ def videos_aufnehmen(projekt, eintraege):
             projekt["videos"].append({k: v for k, v in e.items() if v not in (None, "")})
             da.add(e["drive"])
             neu += 1
+    # Ausdrücklich dazu genommen: gilt nicht mehr als ausgeblendet oder von Hand entfernt
+    if projekt.get("drive_weg"):
+        projekt["drive_weg"] = [w for w in projekt["drive_weg"] if w.get("drive") not in da] or None
+    if projekt.get("entfernt"):
+        projekt["entfernt"] = [d for d in projekt["entfernt"] if d not in da] or None
+    for feld in ("drive_weg", "entfernt"):
+        if feld in projekt and not projekt[feld]:
+            del projekt[feld]
     return neu
 
 
@@ -1328,13 +1338,15 @@ def eintraege_aus(args):
         paare = drive_videos_pfad(drive_id(o), bool(args.unterordner or nach_ordnern))
         namen = [f["name"] for f, _ in paare]
         for f, pfad in sorted(paare, key=lambda x: (x[1][:1], not ist_quer(x[0]), [t.lower() for t in x[1]], x[0]["name"].lower())):
-            e = {"drive": f["id"], "titel": titel_aus_dateiname(f["name"], namen), "groesse": int(f.get("size") or 0) or None}
+            e = {"drive": f["id"], "titel": titel_aus_dateiname(f["name"], namen), "groesse": int(f.get("size") or 0) or None,
+                 "ordner": (f.get("parents") or [None])[0]}
             if nach_ordnern and pfad:
                 e["gruppe"] = gruppe_aus_ordner(pfad[0])
             eintraege.append(e)
     for v in args.video or []:
         f = drive_datei(drive_id(v))
-        eintraege.append({"drive": f["id"], "titel": titel_aus_dateiname(f["name"]), "groesse": int(f.get("size") or 0) or None})
+        eintraege.append({"drive": f["id"], "titel": titel_aus_dateiname(f["name"]), "groesse": int(f.get("size") or 0) or None,
+                          "ordner": (f.get("parents") or [None])[0]})
     if getattr(args, "gruppe", None):  # feste Kategorie für alles, was dieser Aufruf dazu nimmt
         for e in eintraege:
             e["gruppe"] = args.gruppe.strip()
@@ -1350,7 +1362,19 @@ def b_neu(a):
     schluessel = a.schluessel or f"{k['ordner']}-{slug(titel)}"
     projekt_anlegen(schluessel, {"titel": titel, "kunde": a.anzeige or k["name"], "firma": a.firma if a.firma is not None else k.get("firma", ""),
                                  "kunde_ordner": k["ordner"], "dreh": a.dreh, "hinweis": a.hinweis,
-                                 "darstellung": "youtube" if a.darstellung == "youtube" else None}, eintraege, a.warten)
+                                 "darstellung": "youtube" if a.darstellung == "youtube" else None,
+                                 "quellen": quellen_aus(a)}, eintraege, a.warten)
+
+
+def quellen_aus(a):
+    """Die gewählten Drive Ordner, damit „Drive abgleichen“ später neue Videos darin findet (seit 22.11.2026)."""
+    tief = bool(a.unterordner or getattr(a, "gruppen_aus_ordnern", False))
+    raus = []
+    for o in a.ordner or []:
+        oid = drive_id(o)
+        if oid and oid not in {q["ordner"] for q in raus}:
+            raus.append({"ordner": oid, "tief": tief, "gruppen": bool(getattr(a, "gruppen_aus_ordnern", False))})
+    return raus or None
 
 
 def b_content_day(a):
@@ -1378,7 +1402,13 @@ def b_dazu(a):
     eintraege = eintraege_aus(a)
     if a.titel and len(eintraege) == 1:
         eintraege[0]["titel"] = a.titel
-    p = lesen_json(projekt_datei(s), {})
+    with Sperre():  # neue Ordner als Quelle dazu, damit der Drive Abgleich auch dort nach neuen Videos sieht
+        p = lesen_json(projekt_datei(s), {})
+        da = {q["ordner"] for q in p.get("quellen") or []}
+        neu = [q for q in quellen_aus(a) or [] if q["ordner"] not in da]
+        if neu:
+            p["quellen"] = (p.get("quellen") or []) + neu
+            schreiben_json(projekt_datei(s), p)
     projekt_anlegen(s, p, eintraege, a.warten)
 
 
@@ -1468,6 +1498,205 @@ def b_vorbereiten(a):
         mux(f"/video/v1/assets/{meine[d]}", "DELETE")
     if frei:
         melde(phase="aufgeraeumt", geloescht=len(frei))
+
+
+# ---------------------------------------------------------------- Drive Abgleich (seit 22.11.2026)
+# Ole, 22.11.2026: „einen Drive Update Button, wo er neue Videos neu erkennt, die im selben Ordner liegen“ und „das soll einfach
+# immer aktiv aktualisiert werden, dass wenn ein Video nicht mehr im Ordner ist, es nicht mehr angezeigt wird“.
+# Immer (alle 5 Minuten für alle Links, Cron von hermes): Videos, die im Papierkorb liegen, gelöscht oder aus ihrem Ordner
+# verschoben sind, verschwinden von der Seite (Liste drive_weg im Projekt, Nummer und Kommentare bleiben). Liegen sie wieder
+# im Ordner, kommen sie von selbst an ihren alten Platz zurück. Auf Knopfdruck (--neue) dazu neue Videos aus dem Ordner.
+# Vorsicht eingebaut: nur eindeutige Antworten vom Drive zählen (Fehler = nichts ändern), und ein Link wird nie ganz leer
+# geräumt (dann eher ein Hinweis, z.B. wenn der Agent den Zugriff auf den Ordner verloren hat).
+
+def drive_info(did):
+    """(datei, klar): datei None und klar True heißt gelöscht oder nicht mehr sichtbar, klar False heißt Fehler, nichts ändern."""
+    try:
+        return drive().files().get(fileId=did, fields="id,name,parents,trashed,createdTime,size,mimeType", **ALLE).execute(), True
+    except Exception as e:
+        return None, ("404" in str(e) or "notFound" in str(e))
+
+
+def zeitpunkt(iso):
+    try:
+        return datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def drive_abgleich(s, neue=False, trocken=False, warten=0, leise=False):
+    """Gleicht einen Link mit dem Drive ab. Gibt {weg, zurueck, neu, hinweis} mit Titeln zurück."""
+    p = lesen_json(projekt_datei(s), {})
+    code = code_fuer(s, False)
+    raus = {"weg": [], "zurueck": [], "neu": [], "hinweis": None}
+    if not code:
+        return raus
+    vids = [v for v in p.get("videos", []) if v.get("drive")]
+    ausgeblendet = [w for w in p.get("drive_weg") or [] if w.get("drive")]
+    if not vids and not ausgeblendet and not neue:
+        return raus
+    bekannte_ordner = {v["ordner"] for v in vids + ausgeblendet if v.get("ordner")} | {q["ordner"] for q in p.get("quellen") or []}
+
+    stand, ordner_neu = {}, {}  # drive → da | weg | unklar | weg404 ; drive → Ordner (nachgetragen oder verschoben innerhalb)
+    for v in vids + ausgeblendet:
+        f, klar = drive_info(v["drive"])
+        if not klar:
+            stand[v["drive"]] = "unklar"
+        elif f is None:
+            stand[v["drive"]] = "weg404"
+        elif f.get("trashed"):
+            stand[v["drive"]] = "weg"
+        else:
+            eltern = f.get("parents") or []
+            if not v.get("ordner"):  # ältere Videos: Ordner beim ersten Abgleich nachtragen
+                stand[v["drive"]] = "da"
+                if eltern:
+                    ordner_neu[v["drive"]] = eltern[0]
+            elif v["ordner"] in eltern:
+                stand[v["drive"]] = "da"
+            elif set(eltern) & bekannte_ordner:  # nur in einen anderen Ordner des Links gewandert (z.B. andere Kategorie)
+                stand[v["drive"]] = "da"
+                ordner_neu[v["drive"]] = next(e for e in eltern if e in bekannte_ordner)
+            else:
+                stand[v["drive"]] = "weg"
+    sichtbar = any(stand.get(v["drive"]) == "da" for v in vids + ausgeblendet)
+    # 404 zählt nur, wenn der Agent im selben Link andere Videos sieht (sonst eher Zugriff verloren als gelöscht)
+    weg = [v for v in vids if stand.get(v["drive"]) == "weg" or (stand.get(v["drive"]) == "weg404" and sichtbar)]
+    if vids and len(weg) == len(vids):
+        raus["hinweis"] = (f"Alle {len(vids)} Videos fehlen im Drive (Papierkorb oder kein Zugriff). Die Seite bleibt, wie sie ist, "
+                           "bitte prüfen, ob das so gewollt ist")
+        weg = []
+    zurueck = [w for w in ausgeblendet if stand.get(w["drive"]) == "da"]
+
+    kandidaten = []
+    if neue:
+        nummern = lesen_json(DATEN / "nummern.json", {}).get(code) or {}
+        bekannt = ({v["drive"] for v in vids} | {w["drive"] for w in ausgeblendet} | set(nummern) | set(p.get("entfernt") or []))
+        if p.get("quellen"):  # gewählte Ordner: alles Neue darin, wie beim Anlegen (Unterordner, Kategorien)
+            for q in p["quellen"]:
+                ns = argparse.Namespace(ordner=[q["ordner"]], video=None, quelle=None, unterordner=q.get("tief"),
+                                        gruppen_aus_ordnern=q.get("gruppen"), gruppe=None)
+                kandidaten += [e for e in eintraege_aus(ns) if e["drive"] not in bekannt and e["drive"] not in {k["drive"] for k in kandidaten}]
+        else:
+            # Ältere Links ohne gemerkten Ordner: nur Ordner, aus denen der Link damals alle Videos genommen hat. Liegen dort
+            # andere Videos von vor dem Anlegen (gemeinsamer Export Ordner eines Kunden), bleibt der Ordner außen vor.
+            # Videos, die schon in einem anderen Link stecken, zählen in beiden Fällen nicht
+            andere = {v.get("drive") for s2, p2 in alle_projekte().items() if s2 != s for v in p2.get("videos", [])}
+            angelegt = zeitpunkt(p.get("angelegt"))
+            ordner = {ordner_neu.get(v["drive"]) or v.get("ordner") for v in vids if stand.get(v["drive"]) == "da"} - {None}
+            for o in sorted(ordner):
+                kinder = [f for f in drive_kinder(o) if ist_video(f) and f["id"] not in andere]
+                vorher = [f for f in kinder if angelegt and (zeitpunkt(f.get("createdTime")) or angelegt) <= angelegt]
+                if not angelegt or any(f["id"] not in bekannt for f in vorher):
+                    continue
+                gruppen = [v.get("gruppe") for v in vids if (ordner_neu.get(v["drive"]) or v.get("ordner")) == o]
+                gruppe = max(set(gruppen), key=gruppen.count) if gruppen else None
+                namen = [f["name"] for f in kinder]
+                for f in kinder:
+                    if f["id"] not in bekannt:
+                        kandidaten.append({"drive": f["id"], "titel": titel_aus_dateiname(f["name"], namen),
+                                           "groesse": int(f.get("size") or 0) or None, "ordner": o, "gruppe": gruppe})
+    raus.update(weg=[v.get("titel") or v["drive"] for v in weg], zurueck=[w.get("titel") or w["drive"] for w in zurueck],
+                neu=[k["titel"] for k in kandidaten])
+    # Hinweis am Link merken (App und Dashboard zeigen ihn), ins Protokoll nur, wenn er neu ist
+    raus["hinweis_neu"] = bool(raus["hinweis"]) and raus["hinweis"] != p.get("drive_hinweis")
+    if not trocken and raus["hinweis"] != p.get("drive_hinweis") and not (weg or zurueck or kandidaten or ordner_neu):
+        with Sperre():
+            p = lesen_json(projekt_datei(s), {})
+            if raus["hinweis"]:
+                p["drive_hinweis"] = raus["hinweis"]
+            else:
+                p.pop("drive_hinweis", None)
+            schreiben_json(projekt_datei(s), p)
+    if trocken or not (weg or zurueck or kandidaten or ordner_neu):
+        return raus
+
+    jetzt_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    weg_ids, zurueck_ids = {v["drive"] for v in weg}, {w["drive"] for w in zurueck}
+    with Sperre():  # frisch lesen, damit nichts überschrieben wird, was in der Zwischenzeit dazukam
+        p = lesen_json(projekt_datei(s), {})
+        bleibt, raus_neu = [], []
+        for i, v in enumerate(p.get("videos", [])):
+            if v.get("drive") in ordner_neu:
+                v["ordner"] = ordner_neu[v["drive"]]
+            if v.get("drive") in weg_ids:
+                raus_neu.append({**v, "stelle": i, "weg_am": jetzt_iso})
+            else:
+                bleibt.append(v)
+        rest = []
+        for w in sorted(p.get("drive_weg") or [], key=lambda w: w.get("stelle", 0)):
+            if w.get("drive") in zurueck_ids and w["drive"] not in {v.get("drive") for v in bleibt}:
+                v = {k: x for k, x in w.items() if k not in ("stelle", "weg_am")}
+                if w["drive"] in ordner_neu:
+                    v["ordner"] = ordner_neu[w["drive"]]
+                bleibt.insert(min(w.get("stelle", len(bleibt)), len(bleibt)), v)
+            elif w.get("drive") not in zurueck_ids:
+                rest.append(w)
+        p["videos"] = bleibt
+        if raus["hinweis"]:
+            p["drive_hinweis"] = raus["hinweis"]
+        else:
+            p.pop("drive_hinweis", None)
+        if rest + raus_neu:
+            p["drive_weg"] = rest + raus_neu
+        else:
+            p.pop("drive_weg", None)
+        videos_aufnehmen(p, kandidaten)
+        schreiben_json(projekt_datei(s), p)
+    if kandidaten:
+        nach_mux(p, warten)
+    if weg or zurueck or kandidaten:
+        with Sperre():
+            ergebnis = bauen(s)
+        if not leise:
+            melden(ergebnis)
+    return raus
+
+
+def abgleich_text(r):
+    teile = []
+    if r["neu"]:
+        teile.append(f"{len(r['neu'])} {'neues Video' if len(r['neu']) == 1 else 'neue Videos'} dazu")
+    if r["weg"]:
+        teile.append(f"{len(r['weg'])} nicht mehr im Drive, ausgeblendet")
+    if r["zurueck"]:
+        teile.append(f"{len(r['zurueck'])} wieder im Drive, zurück auf der Seite")
+    return ", ".join(teile)
+
+
+def b_drive_abgleich(a):
+    if a.alle:
+        liste = [s for s in alle_projekte() if code_fuer(s, False)]
+    else:
+        liste = [schluessel_fuer(a.projekt or fehler("Link angeben oder --alle"))]
+    summe = {"weg": 0, "zurueck": 0, "neu": 0}
+    for s in liste:
+        try:
+            r = drive_abgleich(s, neue=a.neue and not a.alle, trocken=a.trocken, warten=a.warten, leise=a.alle)
+        except (SystemExit, Exception) as e:  # ein Link mit Fehler hält die anderen nicht auf
+            if not a.alle:
+                raise
+            print(f"{datetime.now().isoformat(timespec='seconds')} {code_fuer(s, False)}: übersprungen ({type(e).__name__})", flush=True)
+            continue
+        for k in summe:
+            summe[k] += len(r[k])
+        text = abgleich_text(r)
+        if a.alle:  # Cron Protokoll: nur Code und Zahlen, und nur wenn sich etwas tut
+            if text or r["hinweis_neu"]:
+                print(f"{datetime.now().isoformat(timespec='seconds')} {code_fuer(s, False)}: {text or 'Hinweis'}"
+                      f"{' (Probe)' if a.trocken else ''}", flush=True)
+            continue
+        for titel in r["neu"]:
+            print(f"  neu: {titel}")
+        for titel in r["weg"]:
+            print(f"  nicht mehr im Drive: {titel}")
+        for titel in r["zurueck"]:
+            print(f"  wieder da: {titel}")
+        print("@ " + json.dumps({"phase": "fertig", **{k: len(r[k]) for k in summe}, "hinweis": r["hinweis"]}, ensure_ascii=False))
+        ende = text or ("keine neuen Videos im Ordner, alles aktuell" if a.neue else "alles aktuell")
+        if r["hinweis"]:  # letzte Zeile zeigen App und Dashboard, deshalb der Hinweis dort
+            ende = f"{text}. {r['hinweis']}" if text else r["hinweis"]
+        print(f"Drive geprüft{' (Probe, nichts geändert)' if a.trocken else ''}: {ende}", flush=True)
 
 
 def b_versatz(a):
@@ -1592,6 +1821,8 @@ def b_entfernen(a):
     with Sperre():
         p = lesen_json(projekt_datei(s), {})
         p["videos"] = [v for v in p["videos"] if (v.get("drive") or v.get("id") or v.get("playback_id")) != ziel["id"]]
+        if ziel["id"] not in (p.get("entfernt") or []):  # der Drive Abgleich holt es nie von selbst zurück
+            p["entfernt"] = (p.get("entfernt") or []) + [ziel["id"]]
         schreiben_json(projekt_datei(s), p)
         melden(bauen(s))
     print(f"„{ziel['titel']}“ ist von der Seite runter (Nummer {a.nr} bleibt reserviert, Kommentare bleiben gespeichert)")
@@ -2019,6 +2250,11 @@ def main():
 
     p = sub.add_parser("dazu", help="Videos zu einem Projekt hinzufügen"); p.add_argument("projekt"); p.add_argument("--titel")
     quellen(p); p.set_defaults(f=b_dazu)
+    p = sub.add_parser("drive-abgleich", help="Link mit dem Drive abgleichen: nicht mehr da = ausblenden, wieder da = zurück, --neue holt neue Videos")
+    p.add_argument("projekt", nargs="?"); p.add_argument("--alle", action="store_true", help="alle Links (Cron, nur ausblenden und zurückholen)")
+    p.add_argument("--neue", action="store_true", help="auch neue Videos aus dem Ordner dazu (wie der Knopf Drive abgleichen)")
+    p.add_argument("--trocken", action="store_true", help="nur zeigen, was passieren würde")
+    p.add_argument("--warten", type=int, default=0, help="Minuten auf Mux warten"); p.set_defaults(f=b_drive_abgleich)
     p = sub.add_parser("vorbereiten", help="für das Dashboard: Videos aus dem Drive schon zu Mux bringen, bevor der Link angelegt wird")
     p.add_argument("--quelle", action="append", required=True, help="Drive Ordner oder Video (mehrfach möglich)")
     p.add_argument("--unterordner", action="store_true", help="auch Videos aus Unterordnern (ohne Videos direkt im Ordner sowieso)")

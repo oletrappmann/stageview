@@ -1,1 +1,3 @@
 40 3 * * * /home/hermes/.local/bin/stageview-sichern >/dev/null 2>&1
+# StageView Drive Abgleich (seit 22.11.2026, Ole): nicht mehr im Drive = ausblenden, wieder da = zurück. Quelle: Skill stagecraft-stageview
+*/5 * * * * flock -n /tmp/stageview-drive.lock /home/hermes/.local/bin/stageview drive-abgleich --alle >> /home/hermes/.hermes/logs/stageview-drive.log 2>&1
