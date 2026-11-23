@@ -146,6 +146,7 @@ private struct CommentRow: View {
         .contentShape(Rectangle())
         .onTapGesture { if let time = comment.time { Haptics.select(); jump(time) } }
         .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("kommentar-\(comment.id)")
     }
 
     private var avatar: some View {

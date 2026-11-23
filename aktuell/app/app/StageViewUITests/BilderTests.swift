@@ -329,6 +329,24 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Tipp auf einen Kommentar springt an seine Stelle und bleibt dort stehen (23.11.2026, vorher sprang das Anhalten zurück)
+    func testKommentarSprung() {
+        let a = app("player:8fykkr:1:5", env: ["SV_BLATT": "offen"])
+        Thread.sleep(forTimeInterval: 4)
+        let leiste = a.descendants(matching: .any)["zeitleiste"].firstMatch
+        let reihen = a.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'kommentar-' AND identifier != 'kommentar-feld'"))
+        print("SPRUNG vorher", leiste.value as? String ?? "?", "Kommentare", reihen.count)
+        bild("k0-vorher", warten: 0.5)
+        for i in [1, 3] where reihen.count > i {
+            let reihe = reihen.element(boundBy: i)
+            reihe.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
+            Thread.sleep(forTimeInterval: 2)
+            print("SPRUNG nach Tipp", i, String(reihe.label.prefix(28)), "| Zeitleiste:", leiste.value as? String ?? "?", "| sichtbar:", reihe.isHittable)
+            bild("k\(i)-nach-tipp", warten: 0.3)
+        }
+        a.terminate()
+    }
+
     /// Freigabe pro Video und „Alle freigeben“ auf der Seite eines Links (23.11.2026)
     func testFreigabe() {
         let a = app("projekt:u9kd8m")

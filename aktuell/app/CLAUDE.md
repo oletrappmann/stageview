@@ -64,6 +64,8 @@ app/
     sichern.sh           in den StageView Spiegel auf GitHub (über VPS 2)
 ```
 
+- **Tipp auf einen Kommentar springt an seine Stelle** (Ole, 23.11.2026): anhalten, dann genau auf sein Bild. `PlayerPool.pause()` legt nicht auf ein ganzes Bild, solange ein genauer Sprung läuft (sonst las es die alte Stelle und sprang zurück, so war es seit dem bildgenauen Anhalten kaputt), und die Zeitbeobachtung überschreibt die Zeit währenddessen nicht. Test `testKommentarSprung`
+
 ## TestFlight und Spiegel (seit 23.11.2026)
 
 - **TestFlight:** App Store Connect App „StageView“, ID 6838266936, SKU stageview-ios, Bundle ID media.stagecraft.stageview (Eintrag nur im Browser anlegbar, hat Ole angelegt). Neue Version: `scripts/testflight.sh` (Build Nummer = Uhrzeit, Schlüssel aus dem Mac Schlüsselbund wie TESS und Prompter, `--nur-archiv` ohne Upload), danach Tag `testflight-<Build>` und Spiegel. **Nur auf Oles ausdrückliches Ja.** Interne Gruppe „Stagecraft Team“ (`9c94be7d-f1e2-44a0-a706-cc198fdec737`, alle Builds, keine Prüfung durch Apple) mit Ole (Konto Stagecraft) und Jonas (StageView für ihn in App Store Connect sichtbar gemacht, vorher 409 „Tester(s) cannot be assigned“; danach ging `POST /v1/betaTesters` mit seiner Benutzer Adresse). Erster Build 202611231147. Ein Build läuft 90 Tage. Mitteilungen laufen dort über Apples Produktionsserver (`Push.swift` erkennt es, der Server kann beides)
