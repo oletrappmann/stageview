@@ -169,7 +169,29 @@ final class ReviewStore {
         }
     }
 
-    /// „Alle freigeben“ (Ole, 23.11.2026): nacheinander, am Ende einmal neu laden
+    /// Stände vor dem Schalter „Alle freigegeben“: Ausschalten holt sie zurück (nur solange die App läuft)
+    private var beforeAll: [String: ReviewStatus]?
+
+    /// Schalter „Alle freigegeben“ (Ole, 23.11.2026: „ein On/Off Schalter“). An: alle freigegeben, die Stände davor gemerkt.
+    /// Aus: die gemerkten Stände zurück, ohne gemerkte (z.B. der Kunde hat alles freigegeben) alle auf Zur Freigabe
+    func setAllApproved(_ on: Bool, videos: [Video]) async {
+        if on {
+            beforeAll = Dictionary(uniqueKeysWithValues: videos.filter { status(of: $0) != .approved }.map { ($0.id, status(of: $0)) })
+            await setStatus(.approved, for: videos)
+            return
+        }
+        let back = beforeAll ?? [:]
+        beforeAll = nil
+        if back.isEmpty {
+            await setStatus(.pending, for: videos)
+        } else {
+            for value in Set(back.values) {
+                await setStatus(value, for: videos.filter { back[$0.id] == value })
+            }
+        }
+    }
+
+    /// Mehrere Videos auf einmal: nacheinander, am Ende einmal neu laden
     func setStatus(_ status: ReviewStatus, for videos: [Video]) async {
         let targets = videos.filter { self.status(of: $0) != status }
         guard !targets.isEmpty else { return }

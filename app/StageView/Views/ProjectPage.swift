@@ -13,7 +13,6 @@ struct ProjectPage: View {
     @State private var removing: Video?
     /// Freigabe eines Videos ändern (mittiges Fenster) und „Alle freigeben“ (Ole, 23.11.2026)
     @State private var choosingStatus: Video?
-    @State private var confirmAll = false
     @State private var sources = ""
     @State private var addTitle = ""
     @State private var addOpen = false
@@ -72,15 +71,6 @@ struct ProjectPage: View {
             guard let code = project?.code else { return }
             status == .approved ? Haptics.check() : Haptics.select()
             Task { await ReviewStore.of(code).setStatus(status, for: video) }
-        }
-        .centerConfirm("Alle freigeben?", isPresented: $confirmAll, action: "Alle freigeben", symbol: "checkmark.seal.fill", destructive: false,
-                       message: { approveAllText }) {
-            guard let project, let code = project.code else { return }
-            Haptics.check()
-            Task {
-                await ReviewStore.of(code).setStatus(.approved, for: project.videos)
-                store.show("Alle freigegeben", symbol: "checkmark.seal.fill")
-            }
         }
         .alert("Titel ändern", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Titel", text: $renameText)
@@ -446,35 +436,26 @@ struct ProjectPage: View {
         return project.videos.filter { ReviewStore.of(code).status(of: $0) != .approved }
     }
 
-    private var approveAllText: String {
-        guard let project else { return "" }
-        let left = pending(project).count
-        return (left == project.videos.count ? "Alle \(left) Videos" : "Die übrigen \(left) Videos")
-            + " von „\(project.title)“ stehen danach auf Freigegeben, auch auf der Seite für den Kunden. Ändern geht jederzeit pro Video."
-    }
-
-    /// Überschrift der Videoliste, bei mehreren Videos mit „Alle freigeben“ (Ole, 23.11.2026)
+    /// Überschrift der Videoliste, bei mehreren Videos mit dem Schalter „Alle freigegeben“ (Ole, 23.11.2026)
     private func videosTitle(_ project: Project) -> some View {
         HStack(alignment: .center, spacing: 10) {
             Text("Videos").font(.system(size: 22, weight: .bold)).tracking(-0.4).foregroundStyle(Palette.text)
             Text("\(project.videos.count)").font(.system(size: 17, weight: .semibold)).foregroundStyle(Palette.muted)
             Spacer()
-            if project.code != nil && project.videos.count > 1 {
-                let done = pending(project).isEmpty
-                Button {
-                    Haptics.select()
-                    confirmAll = true
-                } label: {
-                    Label(done ? "Alle freigegeben" : "Alle freigeben", systemImage: done ? "checkmark.seal.fill" : "checkmark")
+            if let code = project.code, project.videos.count > 1 {
+                let on = pending(project).isEmpty
+                HStack(spacing: 8) {
+                    Text("Alle freigegeben")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(done ? Palette.approvedInk : Palette.text)
-                        .padding(.horizontal, 13)
-                        .frame(height: 34)
-                        .background(done ? Palette.approved.opacity(0.14) : Palette.surface, in: Capsule())
+                        .foregroundStyle(on ? Palette.approvedInk : Palette.muted)
+                    Toggle("Alle freigegeben", isOn: Binding(get: { on }, set: { value in
+                        value ? Haptics.check() : Haptics.select()
+                        Task { await ReviewStore.of(code).setAllApproved(value, videos: project.videos) }
+                    }))
+                    .labelsHidden()
+                    .tint(Palette.approved)
+                    .accessibilityIdentifier("alle-freigeben")
                 }
-                .buttonStyle(PressStyle())
-                .disabled(done)
-                .accessibilityIdentifier("alle-freigeben")
             }
         }
     }

@@ -292,10 +292,12 @@ final class BilderTests: XCTestCase {
         bild("f2-auswahl", warten: 0.9)
         a.buttons["freigabe-freigegeben"].firstMatch.tap()
         bild("f3-geaendert", warten: 1.2)
-        a.buttons["alle-freigeben"].firstMatch.tap()
-        bild("f4-rueckfrage", warten: 0.9)
-        a.buttons["rueckfrage-ja"].firstMatch.tap()
-        bild("f5-alle", warten: 1.5)
+        a.swipeDown()
+        let schalter = a.switches["alle-freigeben"].firstMatch
+        schalter.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)).tap()
+        bild("f4-an", warten: 1.2)
+        schalter.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)).tap()
+        bild("f5-aus-wie-vorher", warten: 1.2)
         a.terminate()
     }
 
