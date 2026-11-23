@@ -17,6 +17,12 @@ final class PlayerPool {
     var time: Double = 0
     var duration: Double = 0
     var ended = false
+    /// Endlosschleife (Ole, 23.11.2026: „bei Einstellungen eine Endlosschleife, standardmäßig nicht aktiviert“): am Ende von vorn,
+    /// pro Gerät gemerkt, gilt für jedes Video und auch im Vollbild
+    static let loopKey = "sv.schleife"
+    var loops: Bool = UserDefaults.standard.bool(forKey: PlayerPool.loopKey) {
+        didSet { UserDefaults.standard.set(loops, forKey: Self.loopKey) }
+    }
     var speed: Float = 1 { didSet { applySpeed() } }
     var muted = false { didSet { players.values.forEach { $0.isMuted = muted } } }
     /// Qualität wie im Zahnrad der Videoseite: nil = Auto, sonst höchstens diese Stufe (kurze Seite in Pixeln, 1080 = 1080p)
@@ -221,6 +227,8 @@ final class PlayerPool {
             MainActor.assumeIsolated {
                 guard let self, self.observed === player else { return }
                 self.ended = true
+                // Schleife: gleich wieder von vorn (play() legt bei ended auf den Anfang), kein „Als Nächstes“
+                if self.loops { self.play(); return }
                 self.playing = false
             }
         }
