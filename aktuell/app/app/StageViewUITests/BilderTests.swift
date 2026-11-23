@@ -329,6 +329,28 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Endlosschleife im Zahnrad (23.11.2026): Schalter, und am Ende geht es von vorn weiter
+    func testSchleife() {
+        let a = XCUIApplication()
+        a.launchEnvironment["SV_DEMO"] = "player:8fykkr:1:524"
+        a.launchEnvironment["SV_DEMO_DATEI"] = daten
+        a.launchArguments += ["-sv.schleife", "NO"]
+        a.launch()
+        Thread.sleep(forTimeInterval: 3)
+        a.buttons["einstellungen"].firstMatch.tap()
+        bild("s1-menue-aus", warten: 0.8)
+        a.buttons["e-schleife"].firstMatch.tap()
+        bild("s2-menue-an", warten: 0.8)
+        print("SCHLEIFE Schalter", a.buttons["e-schleife"].firstMatch.value as? String ?? "?")
+        a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()  // Menü zu
+        let leiste = a.descendants(matching: .any)["zeitleiste"].firstMatch
+        print("SCHLEIFE vor dem Ende", leiste.value as? String ?? "?")
+        Thread.sleep(forTimeInterval: 9)
+        print("SCHLEIFE danach", leiste.value as? String ?? "?")
+        bild("s3-wieder-von-vorn", warten: 0.3)
+        a.terminate()
+    }
+
     /// Tipp auf einen Kommentar springt an seine Stelle und bleibt dort stehen (23.11.2026, vorher sprang das Anhalten zurück)
     func testKommentarSprung() {
         let a = app("player:8fykkr:1:5", env: ["SV_BLATT": "offen"])

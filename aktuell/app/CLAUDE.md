@@ -64,6 +64,7 @@ app/
     sichern.sh           in den StageView Spiegel auf GitHub (über VPS 2)
 ```
 
+- **Endlosschleife im Zahnrad** (Ole, 23.11.2026: „überall bei Einstellungen eine Endlosschleife, standardmäßig nicht aktiviert“): Zeile mit Schalter in `SettingsPanel` (Menü bleibt offen), `PlayerPool.loops` gemerkt in `sv.schleife`, am Ende `play()` von vorn statt „Als Nächstes“, auch im Vollbild. Im Web genauso (`sc-schleife`). Test `testSchleife`
 - **Tipp auf einen Kommentar springt an seine Stelle** (Ole, 23.11.2026): anhalten, dann genau auf sein Bild. `PlayerPool.pause()` legt nicht auf ein ganzes Bild, solange ein genauer Sprung läuft (sonst las es die alte Stelle und sprang zurück, so war es seit dem bildgenauen Anhalten kaputt), und die Zeitbeobachtung überschreibt die Zeit währenddessen nicht. Test `testKommentarSprung`
 
 ## TestFlight und Spiegel (seit 23.11.2026)

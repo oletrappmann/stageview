@@ -56,10 +56,35 @@ struct SettingsPanel: View {
             mainRow(icon: AnyView(Image(systemName: "timer").font(.system(size: 19, weight: .medium))), title: "Tempo",
                     value: PlayerPool.speedText(pool.speed), id: "e-tempo") { go(.tempo) }
             mainRow(icon: AnyView(HDBadge(size: 22)), title: "Qualität", value: qualityValue, id: "e-quali") { go(.quality) }
+            loopRow
             // Zeitanzeige (Ole, 23.11.2026, Timecode wie bei Frame.io): nur für das Team, Kunden sehen im Web immer 0:42
             mainRow(icon: AnyView(Image(systemName: "clock").font(.system(size: 19, weight: .medium))), title: "Zeit",
                     value: timecode ? "Timecode" : "Normal", id: "e-zeit") { go(.time) }
         }
+    }
+
+    /// Endlosschleife: Schalter direkt in der Zeile (wie im Web), Tipp auf die Zeile schaltet, das Menü bleibt offen
+    private var loopRow: some View {
+        Button {
+            Haptics.select()
+            withAnimation(.timingCurve(0.3, 0.7, 0.3, 1, duration: 0.24)) { pool.loops.toggle() }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "repeat").font(.system(size: 18, weight: .medium)).frame(width: 24)
+                Text("Endlosschleife").font(.system(size: 16))
+                Spacer(minLength: 8)
+                MenuSwitch(on: pool.loops)
+            }
+            .foregroundStyle(Self.ink)
+            .padding(.leading, 14)
+            .padding(.trailing, 12)
+            .frame(height: 52)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(RowPress())
+        .accessibilityValue(pool.loops ? "An" : "Aus")
+        .accessibilityAddTraits(pool.loops ? .isSelected : [])
+        .accessibilityIdentifier("e-schleife")
     }
 
     private func mainRow(icon: AnyView, title: String, value: String, id: String, action: @escaping () -> Void) -> some View {
@@ -173,6 +198,21 @@ struct SettingsPanel: View {
                 .accessibilityIdentifier(option.id)
             }
         }
+    }
+}
+
+/// Kleiner Schalter wie im Web (.einstell-menue .schalter): an Salbeigrün, aus hell durchscheinend
+private struct MenuSwitch: View {
+    let on: Bool
+
+    var body: some View {
+        Capsule()
+            .fill(on ? Color(UIColor(hex: 0x93AA98)) : Color.white.opacity(0.18))
+            .frame(width: 44, height: 26)
+            .overlay(alignment: on ? .trailing : .leading) {
+                Circle().fill(.white).frame(width: 21, height: 21).shadow(color: .black.opacity(0.35), radius: 1.5, y: 1).padding(2.5)
+            }
+            .accessibilityHidden(true)
     }
 }
 
