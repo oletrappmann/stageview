@@ -44,6 +44,7 @@ final class ReviewStore {
         do {
             let fresh: ReviewState = try await API.get("\(code)/")
             state = fresh
+            keepPending()
             loaded = true
             failed = false
         } catch {
@@ -191,39 +192,78 @@ final class ReviewStore {
         }
     }
 
-    /// Mehrere Videos auf einmal: nacheinander, am Ende einmal neu laden
+    // MARK: Freigabe speichern (Ole, 23.11.2026: „so viel rumdrücken, wie man möchte, es wird trotzdem gespeichert und ist
+    // automatisch fehlerresistent“): sofort sichtbar, kurz gesammelt, gebündelt in einer Anfrage, bei schnellem Hin und Her
+    // zählt nur der letzte Stand. Klappt das Speichern nicht, versucht es die App selbst weiter (1, 2, 4 … höchstens 20 s),
+    // bis es gespeichert ist. Neu laden überschreibt nichts, was noch unterwegs ist
+
+    /// Noch nicht gesendet und gerade unterwegs (Video ID → Stand)
+    private var wanted: [String: ReviewStatus] = [:]
+    private var sending: [String: ReviewStatus] = [:]
+    private var flushTask: Task<Void, Never>?
+    private var saveFailures = 0
+
     func setStatus(_ status: ReviewStatus, for videos: [Video]) async {
-        let targets = videos.filter { self.status(of: $0) != status }
-        guard !targets.isEmpty else { return }
-        for video in targets {
-            state.status[video.id] = StatusEntry(value: status, by: name, at: ISO8601DateFormatter().string(from: .now))
-        }
-        #if DEBUG
-        if Demo.isOn { return }
-        #endif
-        do {
-            for video in targets {
-                try await API.post("\(code)/status", ["video": video.id, "status": status.rawValue, "name": name])
-            }
-        } catch {
-            Store.shared.show(error.localizedDescription, error: true)
-        }
-        await Store.shared.refresh()
-        await load()
+        queue(Dictionary(videos.map { ($0.id, status) }, uniquingKeysWith: { _, last in last }))
     }
 
     func setStatus(_ status: ReviewStatus, for video: Video) async {
-        let before = state.status[video.id]
-        state.status[video.id] = StatusEntry(value: status, by: name, at: ISO8601DateFormatter().string(from: .now))
-        #if DEBUG
-        if Demo.isOn { return }
-        #endif
-        do {
-            try await API.post("\(code)/status", ["video": video.id, "status": status.rawValue, "name": name])
-            Task { await Store.shared.refresh() }
-        } catch {
-            state.status[video.id] = before
-            Store.shared.show(error.localizedDescription, error: true)
+        queue([video.id: status])
+    }
+
+    private func queue(_ changes: [String: ReviewStatus]) {
+        guard !changes.isEmpty else { return }
+        let at = ISO8601DateFormatter().string(from: .now)
+        for (id, value) in changes {
+            state.status[id] = StatusEntry(value: value, by: name, at: at)
+            wanted[id] = value
         }
+        #if DEBUG
+        if Demo.isOn { wanted = [:]; return }
+        #endif
+        guard flushTask == nil else { return }  // läuft schon: nimmt den neuen Stand gleich mit
+        flushTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(350))
+            await self?.flush()
+        }
+    }
+
+    private func flush() async {
+        while !wanted.isEmpty {
+            let batch = wanted
+            wanted = [:]
+            sending = batch
+            do {
+                try await API.post("\(code)/status", ["eintraege": batch.map { ["video": $0.key, "status": $0.value.rawValue] }, "name": name])
+                sending = [:]
+                if saveFailures >= 2 { Store.shared.show("Freigabe gespeichert") }
+                saveFailures = 0
+            } catch APIError.signedOut {
+                sending = [:]
+                wanted = [:]
+                break
+            } catch APIError.server(let code, let text) where code == 400 || code == 403 || code == 404 {
+                // Ungültig (z.B. Video inzwischen weg): nicht wiederholen, Stand vom Server holen
+                sending = [:]
+                Store.shared.show(text, error: true)
+                await load()
+            } catch {
+                sending = [:]
+                for (id, value) in batch where wanted[id] == nil { wanted[id] = value }  // Neueres gewinnt
+                saveFailures += 1
+                if saveFailures == 2 { Store.shared.show("Freigabe wird gespeichert, sobald es wieder geht", symbol: "arrow.triangle.2.circlepath") }
+                try? await Task.sleep(for: .seconds(min(20, pow(2, Double(saveFailures - 1)))))
+            }
+        }
+        flushTask = nil
+        await Store.shared.refresh()
+    }
+
+    /// Was noch nicht beim Server angekommen ist, über frisch geladene Stände legen
+    private func keepPending() {
+        let pending = sending.merging(wanted) { _, newer in newer }
+        guard !pending.isEmpty else { return }
+        let at = ISO8601DateFormatter().string(from: .now)
+        for (id, value) in pending { state.status[id] = StatusEntry(value: value, by: name, at: at) }
     }
 }
