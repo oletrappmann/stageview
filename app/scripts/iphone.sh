@@ -21,3 +21,5 @@ APP=build/DerivedDataGeraet/Build/Products/Release-iphoneos/StageView.app
 codesign -d --entitlements - "$APP" 2>/dev/null | grep -q "applinks:videos.stagecraft.media" && echo "Universal Links im Paket: ja" || echo "Universal Links im Paket: FEHLT"
 xcrun devicectl device install app --device "$GERAET" "$APP" 2>&1 | grep -E "installed|App installed|bundleID|rror" | head -5
 xcrun devicectl device process launch --device "$GERAET" media.stagecraft.stageview 2>&1 | grep -E "Launched|rror|locked" | head -3 || true
+# Danach in den Spiegel auf GitHub (scripts/sichern.sh), ein Fehler dort hält nichts auf
+scripts/sichern.sh || echo "Spiegel nicht geschafft, später scripts/sichern.sh"
