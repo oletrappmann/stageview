@@ -299,10 +299,6 @@ final class BilderTests: XCTestCase {
         a.textFields["kommentar-feld"].firstMatch.tap()
         Thread.sleep(forTimeInterval: 1.5)
         bild("t4-schreiben", warten: 0.2)
-        a.buttons["bild-vor"].firstMatch.tap()
-        a.buttons["bild-vor"].firstMatch.tap()
-        a.buttons["bild-vor"].firstMatch.tap()
-        bild("t5-drei-bilder-vor", warten: 0.8)
         a.terminate()
     }
 
@@ -316,8 +312,10 @@ final class BilderTests: XCTestCase {
         leiste.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
             .press(forDuration: 0.1, thenDragTo: leiste.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5)), withVelocity: .slow, thenHoldForDuration: 0.2)
         bild("z2-gespult", warten: 1.2)
-        a.buttons["bild-zurueck"].firstMatch.tap()
-        bild("z3-ein-bild-zurueck", warten: 0.8)
+        a.buttons["abspielen"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 1.3)
+        a.buttons["abspielen"].firstMatch.tap()
+        bild("z3-abgespielt-pausiert", warten: 1.2)
         a.terminate()
     }
 

@@ -150,8 +150,7 @@ struct PlayerScreen: View {
             // gespeichert wird die Stelle beim Senden (Ole, 23.11.2026). Danach steht das Blatt offen
             if now {
                 // Anhalten und genau auf das Bild der Zeitmarke springen: was man sieht, ist die Stelle des Kommentars
-                pool.pause()
-                pool.seek(to: Timecode.snap(pool.time, fps: current?.fps), exact: true)
+                pool.pause()  // hält genau auf einem ganzen Bild
                 stopAfterWriting = .offen
             } else if let after = stopAfterWriting {
                 stopAfterWriting = nil
@@ -730,10 +729,7 @@ struct PlayerScreen: View {
                     .accessibilityIdentifier("kommentar-feld")
                 if composerOpen {
                     HStack {
-                        if replyTo == nil && editing == nil {
-                            timeChip
-                            frameStepper
-                        }
+                        if replyTo == nil && editing == nil { timeChip }
                         Spacer()
                         sendButton
                     }
@@ -781,41 +777,6 @@ struct PlayerScreen: View {
         .buttonStyle(PressStyle())
         .accessibilityLabel(attachTime ? "Zeit wird angehängt" : "Ohne Zeit")
         .accessibilityIdentifier("zeit-chip")
-    }
-
-    /// Ein Bild vor oder zurück, bevor der Kommentar gesetzt wird (wie Frame.io mit den Pfeiltasten, Ole 23.11.2026).
-    /// Nur mit bekannter Bildrate, jedes Video mit seiner eigenen
-    @ViewBuilder
-    private var frameStepper: some View {
-        if let fps = current?.fps, attachTime {
-            HStack(spacing: 4) {
-                stepButton("chevron.left", label: "Ein Bild zurück", id: "bild-zurueck") { stepFrame(-1, fps) }
-                stepButton("chevron.right", label: "Ein Bild vor", id: "bild-vor") { stepFrame(1, fps) }
-            }
-            .transition(.opacity)
-        }
-    }
-
-    private func stepButton(_ symbol: String, label: String, id: String, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptics.select()
-            action()
-        } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 32, height: 32)
-                .background(Color.white.opacity(0.1), in: Circle())
-        }
-        .buttonStyle(PressStyle())
-        .accessibilityLabel(label)
-        .accessibilityIdentifier(id)
-    }
-
-    private func stepFrame(_ n: Int, _ fps: Double) {
-        let end = pool.duration > 0 ? pool.duration : (current?.duration ?? 0)
-        let t = Timecode.step(pool.time, by: n, fps: fps)
-        pool.seek(to: end > 0 ? min(t, max(0, end - 1 / fps)) : t, exact: true)
     }
 
     private var sendButton: some View {

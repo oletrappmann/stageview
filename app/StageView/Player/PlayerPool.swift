@@ -94,7 +94,40 @@ final class PlayerPool {
         player.play()
     }
 
-    func pause() { activePlayer?.pause() }
+    /// Bildrate des laufenden Videos (nil = unbekannt)
+    var activeFPS: Double? { activeID.flatMap { videosByID[$0]?.fps } }
+
+    /// Anhalten genau auf einem ganzen Bild (Ole, 23.11.2026: „genauer, wenn man Pause drückt“): die Zeit ist dann genau das Bild,
+    /// das man sieht, und so landet auch der Kommentar
+    func pause() {
+        guard let player = activePlayer else { return }
+        player.pause()
+        let now = player.currentTime().seconds
+        guard now.isFinite, activeFPS != nil else { return }
+        let target = Timecode.snap(now, fps: activeFPS)
+        time = target
+        player.seek(to: CMTime(seconds: target, preferredTimescale: 120_000), toleranceBefore: .zero, toleranceAfter: .zero)
+    }
+
+    /// Spulen im Pausenzustand: jedes Mal genau aufs Bild, aber nie mehr als ein Sprung gleichzeitig (der nächste wartet), so bleibt
+    /// die Vorschau flüssig und man kann einzelne Bilder treffen
+    private var seekBusy = false
+    private var seekNext: Double?
+
+    private func preciseSeek(_ player: AVPlayer, to target: Double) {
+        if seekBusy { seekNext = target; return }
+        seekBusy = true
+        player.seek(to: CMTime(seconds: target, preferredTimescale: 120_000), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.seekBusy = false
+                if let next = self.seekNext {
+                    self.seekNext = nil
+                    self.preciseSeek(player, to: next)
+                }
+            }
+        }
+    }
 
     func toggle() { playing ? pause() : play() }
 
@@ -103,7 +136,14 @@ final class PlayerPool {
         let target = max(0, min(seconds, duration > 0 ? duration - 0.05 : seconds))
         time = target
         ended = false
-        let tolerance = exact ? CMTime.zero : CMTime(seconds: 0.25, preferredTimescale: 600)
+        // Genau: aufs Bild gelegt. Beim Spulen ohne Abspielen ebenfalls genau, damit man einzelne Bilder treffen kann
+        if exact || !playing {
+            let snapped = activeFPS != nil ? Timecode.snap(target, fps: activeFPS) : target
+            time = snapped
+            preciseSeek(player, to: snapped)
+            return
+        }
+        let tolerance = CMTime(seconds: 0.25, preferredTimescale: 600)
         player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: tolerance, toleranceAfter: tolerance)
     }
 

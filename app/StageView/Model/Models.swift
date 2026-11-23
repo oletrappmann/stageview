@@ -493,7 +493,8 @@ enum Timecode {
     /// Zeitanzeige im Zahnrad: Normal (0:42) oder Timecode (00:00:42:12), gemerkt pro Gerät
     static let key = "sv.zeit.timecode"
 
-    static func frames(_ seconds: Double, fps: Double) -> Int { Int((max(0, seconds) * fps).rounded()) }
+    /// Das Bild, das zu dieser Zeit zu sehen ist (ein Bild läuft von seinem Anfang bis kurz vor dem nächsten)
+    static func frames(_ seconds: Double, fps: Double) -> Int { Int((max(0, seconds) * fps + 0.001).rounded(.down)) }
 
     static func text(_ seconds: Double, fps: Double?) -> String {
         guard let fps, fps >= 1 else { return Clock.text(seconds) }
@@ -503,14 +504,12 @@ enum Timecode {
 
     static func display(_ seconds: Double, fps: Double?, on: Bool) -> String { on ? text(seconds, fps: fps) : Clock.text(seconds) }
 
-    /// Auf ein ganzes Bild gerundet (so wird gespeichert), ohne Bildrate auf Tausendstel
+    /// Auf das sichtbare Bild gelegt (so wird gespeichert und angehalten): die Mitte des Bildes, damit auch gerundet und nach
+    /// späterem Springen sicher dasselbe Bild kommt. Ohne Bildrate auf Tausendstel
     static func snap(_ seconds: Double, fps: Double?) -> Double {
         guard let fps, fps >= 1 else { return (max(0, seconds) * 1000).rounded() / 1000 }
-        return (Double(frames(seconds, fps: fps)) / fps * 1000).rounded() / 1000
+        return ((Double(frames(seconds, fps: fps)) + 0.5) / fps * 10000).rounded() / 10000
     }
-
-    /// Ein Bild vor oder zurück
-    static func step(_ seconds: Double, by n: Int, fps: Double) -> Double { Double(max(0, frames(seconds, fps: fps) + n)) / fps }
 }
 
 enum When {
