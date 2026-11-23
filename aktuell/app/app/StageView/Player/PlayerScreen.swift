@@ -45,6 +45,9 @@ struct PlayerScreen: View {
     @State private var commentFilter = CommentFilter.all
     /// Kommentar, mit dem der Player geöffnet wurde (Ole, 22.11.2026: „Kommentar antippen: der Kommentar geht auf und ist hervorgehoben“)
     @State private var focusComment: Int?
+    /// Zuletzt angetippter Faden: er trägt den grünen Rand, solange das Video in seinem Fenster läuft, auch wenn ein Kommentar
+    /// direkt daneben liegt (23.11.2026)
+    @State private var tappedThread: Int?
     // Blatt
     @State private var stop: SheetStop = .mitte
     @State private var dragBase: CGFloat?
@@ -911,7 +914,8 @@ struct PlayerScreen: View {
             .scrollDisabled(dragBase != nil)
             .simultaneousGesture(listDrag)
             .onChange(of: activeThread) { _, id in
-                guard let id, !composing, stop == .offen, focusComment == nil else { return }
+                // Angetippt heißt: er ist schon zu sehen, die Liste bleibt dann stehen
+                guard let id, id != tappedThread, !composing, stop == .offen, focusComment == nil else { return }
                 withAnimation(.easeOut(duration: 0.35)) { proxy.scrollTo(id, anchor: .center) }
             }
             // Angetippter Kommentar: hinscrollen, sobald das Blatt offen und die Kommentare da sind
@@ -1010,13 +1014,20 @@ struct PlayerScreen: View {
 
     /// Der Kommentar, an dessen Stelle das Video gerade läuft (bis 4 s danach hervorgehoben, wie auf der Videoseite)
     private func highlighted(in threads: [CommentThread]) -> Int? {
-        threads.last { t in guard let s = t.root.time else { return false }; return pool.time >= s - 0.2 && pool.time < s + 4 }?.id
+        let inWindow = { (t: CommentThread) -> Bool in guard let s = t.root.time else { return false }; return pool.time >= s - 0.2 && pool.time < s + 4 }
+        if let tapped = tappedThread, let t = threads.first(where: { $0.id == tapped }), inWindow(t) { return tapped }
+        return threads.last(where: inWindow)?.id
     }
 
     private func threadView(_ thread: CommentThread, highlighted: Bool) -> some View {
         ThreadView(thread: thread, highlighted: highlighted, fps: current?.fps,
-                   // Tipp auf einen Kommentar: anhalten und genau auf sein Bild (Ole, 23.11.2026)
-                   jump: { time in pool.pause(); pool.seek(to: time) },
+                   // Tipp auf einen Kommentar: genau auf sein Bild und weiter abspielen, nie anhalten (Ole, 23.11.2026: „bitte unbedingt
+                   // nicht den Video Player stoppen“), wie auf der Videoseite
+                   jump: { time in
+                       tappedThread = thread.id
+                       pool.seek(to: time)
+                       if !pool.playing { pool.play() }
+                   },
                    reply: { comment in replyTo = comment; composing = true },
                    toggleDone: { comment in
                        comment.done ? Haptics.select() : Haptics.check()

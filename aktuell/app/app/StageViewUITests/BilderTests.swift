@@ -351,20 +351,23 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
-    /// Tipp auf einen Kommentar springt an seine Stelle und bleibt dort stehen (23.11.2026, vorher sprang das Anhalten zurück)
+    /// Tipp auf einen Kommentar springt an seine Stelle und spielt weiter (23.11.2026), kurzer Leuchtrand, danach grüner Rand
     func testKommentarSprung() {
         let a = app("player:8fykkr:1:5", env: ["SV_BLATT": "offen"])
         Thread.sleep(forTimeInterval: 4)
         let leiste = a.descendants(matching: .any)["zeitleiste"].firstMatch
         let reihen = a.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'kommentar-' AND identifier != 'kommentar-feld'"))
         print("SPRUNG vorher", leiste.value as? String ?? "?", "Kommentare", reihen.count)
-        bild("k0-vorher", warten: 0.5)
         for i in [1, 3] where reihen.count > i {
-            let reihe = reihen.element(boundBy: i)
-            reihe.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
-            Thread.sleep(forTimeInterval: 2)
-            print("SPRUNG nach Tipp", i, String(reihe.label.prefix(28)), "| Zeitleiste:", leiste.value as? String ?? "?", "| sichtbar:", reihe.isHittable)
-            bild("k\(i)-nach-tipp", warten: 0.3)
+            reihen.element(boundBy: i).coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
+            bild("k\(i)-a", warten: 0.02)
+            bild("k\(i)-b", warten: 0.02)
+            bild("k\(i)-c", warten: 0.02)
+            Thread.sleep(forTimeInterval: 0.8)
+            let t1 = leiste.value as? String ?? "?"
+            Thread.sleep(forTimeInterval: 1.5)
+            print("SPRUNG nach Tipp", i, "| Zeitleiste:", t1, "dann", leiste.value as? String ?? "?")
+            bild("k\(i)-ruhig", warten: 0.1)
         }
         a.terminate()
     }

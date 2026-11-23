@@ -26,3 +26,4 @@ Eine Zeile pro Version, neueste unten. Ordner in `versionen/`, Wiederherstellen 
 | 2026-11-23_1200 | App (Anmeldung: Made by Stagecraft unten statt des kleinen Logos, etwas größer) |
 | 2026-11-23_1225 | Daten, App (Tipp auf einen Kommentar springt wieder an seine Stelle (Anhalten las die alte Z) |
 | 2026-11-23_1230 | Code, App (Endlosschleife im Zahnrad, Standard aus) |
+| 2026-11-23_1236 | App (Tipp auf einen Kommentar: weiter abspielen, grüner Rand wie im Web, kurzer Leuc) |
