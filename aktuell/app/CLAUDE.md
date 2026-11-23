@@ -59,8 +59,16 @@ app/
     demo_daten.py        echter Datenstand aus den öffentlichen Videoseiten nach build/demo.json (nicht ins Paket)
     bilder.sh            Screenshots auf dem eigenen Simulator „StageView Test“ (TEST=testAlles, testStart, testWidgets, testTeilen, testFeedback, testMitteilungsLink, testNeu, testGriff, testMeldungen, testKunde, testPlayer, testAnmeldung, testLinks, DUNKEL=1; SV_BLATT=zu|offen für den Player)
     icon.js              App Symbol aus dem StageView Zeichen
-    iphone.sh            Release signiert direkt aufs verbundene iPhone (ohne TestFlight), wie bei der Regie App
+    iphone.sh            Release signiert direkt aufs verbundene iPhone (ohne TestFlight), wie bei der Regie App, danach Spiegel
+    testflight.sh        Release Archiv zu TestFlight (nur auf Oles Ja), Tag testflight-<Build>, danach Spiegel
+    sichern.sh           in den StageView Spiegel auf GitHub (über VPS 2)
 ```
+
+## TestFlight und Spiegel (seit 23.11.2026)
+
+- **TestFlight:** App Store Connect App „StageView“, ID 6838266936, SKU stageview-ios, Bundle ID media.stagecraft.stageview (Eintrag nur im Browser anlegbar, hat Ole angelegt). Neue Version: `scripts/testflight.sh` (Build Nummer = Uhrzeit, Schlüssel aus dem Mac Schlüsselbund wie TESS und Prompter, `--nur-archiv` ohne Upload), danach Tag `testflight-<Build>` und Spiegel. **Nur auf Oles ausdrückliches Ja.** Interne Gruppe „Stagecraft Team“ (`9c94be7d-f1e2-44a0-a706-cc198fdec737`, alle Builds, keine Prüfung durch Apple) mit Ole (Konto Stagecraft) und Jonas (StageView für ihn in App Store Connect sichtbar gemacht, vorher 409 „Tester(s) cannot be assigned“; danach ging `POST /v1/betaTesters` mit seiner Benutzer Adresse). Erster Build 202611231147. Ein Build läuft 90 Tage. Mitteilungen laufen dort über Apples Produktionsserver (`Push.swift` erkennt es, der Server kann beides)
+- **Produktseite und TestFlight Texte** per API gefüllt (nichts veröffentlicht): Untertitel „Videos prüfen und freigeben“, Beschreibung, Werbetext, Schlagworte, Kategorien Foto und Video plus Wirtschaft, Copyright 2026 Stagecraft GmbH, Links stagecraft.media und Datenschutz, Feedback an info@stagecraft-studios.de, „Was zu testen ist“ am Build. Für eine Veröffentlichung fehlen Screenshots (nur mit neutralen Vorführdaten, nie echte Kunden), Altersfreigabe und App Datenschutz
+- **Spiegel auf GitHub** (Ole: „Spiegel mit verschiedenen Backups wie bei der Web Version“): `scripts/sichern.sh` schiebt main und Tags ins nackte Repo `~/.hermes/data/stageview-app.git` auf VPS 2 (Git Remote `vps`) und ruft dort `stageview-sichern` auf. Der legt die App ins private Repo oletrappmann/stageview: `aktuell/app/` lesbar, pro neuem Stand eine Version `versionen/<Datum>/app.tar.gz` (Zeile in VERSIONEN.md mit der Commit Nachricht), voller Verlauf im Zweig `app`, Tags `testflight-<Build>`. Läuft von selbst am Ende von `testflight.sh` und `iphone.sh`, nachts 03:40 sowieso. Nur Committetes kommt mit
 
 ## Arbeiten
 

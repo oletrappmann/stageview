@@ -34,5 +34,9 @@ xcodebuild archive -project StageView.xcodeproj -scheme StageView -configuration
 [ -d "$ORDNER/StageView-$BUILD.xcarchive" ] && echo "Archiv $BUILD fertig"
 [ "${1:-}" = "--nur-archiv" ] && exit 0
 xcodebuild -exportArchive -archivePath "$ORDNER/StageView-$BUILD.xcarchive" -exportOptionsPlist "$ORDNER/ExportOptions.plist" \
-  -exportPath "$ORDNER/export-$BUILD" "${ZUGANG[@]}" 2>&1 | grep -E "error|rror:|Upload|upload|EXPORT|no suitable|App Store|Progress 100" | cut -c1-260 | tail -14
+  -exportPath "$ORDNER/export-$BUILD" "${ZUGANG[@]}" 2>&1 | tee build/export.log | grep -E "error|rror:|Upload|upload|EXPORT|no suitable|App Store|Progress 100" | cut -c1-260 | tail -14
 echo "Build $BUILD"
+# Hochgeladen: Stand als testflight-<Build> merken und in den Spiegel auf GitHub (scripts/sichern.sh)
+if grep -q "EXPORT SUCCEEDED" build/export.log; then
+  git tag "testflight-$BUILD" && scripts/sichern.sh || echo "Spiegel nicht geschafft, später scripts/sichern.sh"
+fi

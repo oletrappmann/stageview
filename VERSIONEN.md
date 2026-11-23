@@ -22,3 +22,4 @@ Eine Zeile pro Version, neueste unten. Ordner in `versionen/`, Wiederherstellen 
 | 2026-11-22_1344 | Daten und Code |
 | 2026-11-23_0340 | Daten und Code |
 | 2026-11-23_1155 | Daten, Code, App (TestFlight Skript wie TESS und Prompter) |
+| 2026-11-23_1155 | App (Spiegel auf GitHub über VPS 2, TestFlight Tag, Doku TestFlight) |
