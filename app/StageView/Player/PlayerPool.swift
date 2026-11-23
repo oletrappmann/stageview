@@ -102,11 +102,14 @@ final class PlayerPool {
     func pause() {
         guard let player = activePlayer else { return }
         player.pause()
+        // Läuft gerade ein genauer Sprung (Tipp auf einen Kommentar, Spulen), liegt sein Ziel schon auf einem ganzen Bild. Dann nicht
+        // die alte Stelle lesen und zurückspringen (23.11.2026, Ole: Tipp auf einen Kommentar ging nicht an seine Zeit)
+        if seekBusy || seekNext != nil { return }
         let now = player.currentTime().seconds
         guard now.isFinite, activeFPS != nil else { return }
         let target = Timecode.snap(now, fps: activeFPS)
         time = target
-        player.seek(to: CMTime(seconds: target, preferredTimescale: 120_000), toleranceBefore: .zero, toleranceAfter: .zero)
+        preciseSeek(player, to: target)
     }
 
     /// Spulen im Pausenzustand: jedes Mal genau aufs Bild, aber nie mehr als ein Sprung gleichzeitig (der nächste wartet), so bleibt
@@ -198,7 +201,8 @@ final class PlayerPool {
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.1, preferredTimescale: 600), queue: .main) { [weak self] t in
             MainActor.assumeIsolated {
                 guard let self, self.observed === player else { return }
-                if t.seconds.isFinite { self.time = t.seconds }
+                // Während eines genauen Sprungs meldet AVPlayer noch die alte Stelle, die Anzeige bleibt dann beim Ziel
+                if t.seconds.isFinite, !self.seekBusy { self.time = t.seconds }
                 if let d = player.currentItem?.duration.seconds, d.isFinite, d > 0 { self.duration = d }
                 if let size = player.currentItem?.presentationSize, size.width > 0 { self.currentHeight = Int(min(size.width, size.height)) }
             }

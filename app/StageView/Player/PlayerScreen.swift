@@ -1015,7 +1015,8 @@ struct PlayerScreen: View {
 
     private func threadView(_ thread: CommentThread, highlighted: Bool) -> some View {
         ThreadView(thread: thread, highlighted: highlighted, fps: current?.fps,
-                   jump: { time in pool.seek(to: time); pool.pause() },
+                   // Tipp auf einen Kommentar: anhalten und genau auf sein Bild (Ole, 23.11.2026)
+                   jump: { time in pool.pause(); pool.seek(to: time) },
                    reply: { comment in replyTo = comment; composing = true },
                    toggleDone: { comment in
                        comment.done ? Haptics.select() : Haptics.check()
