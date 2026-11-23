@@ -53,6 +53,15 @@ struct ThreadView: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)
+        // Die ganze Karte ist die Tippfläche (Ole, 23.11.2026: „das ganze Widget von der eigentlichen Antwort mit den Antworten
+        // darunter“): Kommentar, Antworten und Ränder springen an die Stelle des Kommentars. Knöpfe darin (Abhaken, Antworten,
+        // Links im Text) gehen vor
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .onTapGesture {
+            guard let time = thread.root.time ?? thread.replies.lazy.compactMap(\.time).first else { return }
+            Haptics.select()
+            tapped(time)
+        }
         // Läuft das Video an seiner Stelle (oder wurde er angetippt): grüner Rand wie auf der Videoseite (.km.aktiv, --akzent)
         .background(highlighted ? Color.white.opacity(0.05) : .clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
@@ -225,8 +234,6 @@ private struct CommentRow: View {
             }
         }
         .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .onTapGesture { if let time = comment.time { Haptics.select(); jump(time) } }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("kommentar-\(comment.id)")
     }

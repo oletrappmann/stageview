@@ -405,6 +405,23 @@
   .leer { color: var(--muted); font-size: 14px; line-height: 1.5; padding: 18px 16px; border-radius: 18px; border: 1px dashed var(--linie); text-align: center; }
   .km { background: var(--panel); border-radius: 18px; padding: 12px 14px; border: 1px solid transparent; transition: border-color .2s, background .2s; }
   .km.aktiv { border-color: var(--akzent); }
+  /* Kurzer Leuchtrand beim Anklicken (Ole, 23.11.2026, wie in der StageView App und angelehnt an den Leuchtrand der TESS App,
+     „deutlich schlichter, kleiner und schneller“): ein drehender Verlauf in Grün und Salbei läuft einmal um die Karte, wird kurz
+     breit und hell und legt sich in gut einer halben Sekunde auf den ruhigen grünen Rand (.aktiv). Die Karte gibt leicht nach */
+  @property --km-dreh { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+  .km { position: relative; }
+  .km.leuchtet { animation: km-drueck .55s cubic-bezier(.2,.8,.2,1); }
+  .km.leuchtet::after { content: ''; position: absolute; inset: -1px; border-radius: 19px; padding: 1px; pointer-events: none;
+    background: conic-gradient(from var(--km-dreh), #A9C1AE, #5F8068, #93AA98, #D9E6DB, #6A7B6D, #A9C1AE);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+    animation: km-leuchten .65s cubic-bezier(.2,.8,.2,1) forwards; }
+  @keyframes km-leuchten { 0% { opacity: 0; padding: 1px; --km-dreh: 0deg; } 15% { opacity: 1; } 25% { padding: 3.2px; }
+    50% { opacity: 1; } 100% { opacity: 0; padding: 1px; --km-dreh: 160deg; } }
+  @keyframes km-drueck { 0% { transform: scale(1); box-shadow: 0 0 0 rgba(147,170,152,0); background-color: var(--panel); }
+    12% { transform: scale(.985); } 25% { box-shadow: 0 0 16px rgba(147,170,152,.55); background-color: color-mix(in srgb, #93AA98 10%, var(--panel)); }
+    100% { transform: scale(1); box-shadow: 0 0 0 rgba(147,170,152,0); background-color: var(--panel); } }
+  @media (prefers-reduced-motion: reduce) { .km.leuchtet, .km.leuchtet::after { animation: none; } .km.leuchtet::after { display: none; } }
   /* Ganzen Kommentar antippen spult an seine Stelle (Ole, 13.11.2026). Knöpfe darin bleiben eigene, größere Tippflächen */
   .liste { -webkit-tap-highlight-color: transparent; }
   .km.springbar { cursor: pointer; }
@@ -1386,9 +1403,15 @@
     });
     neuId = null;
   }
+  // Anklicken eines Kommentars: an seine Stelle, Abspielen oder Pause bleiben, wie sie waren (Ole, 23.11.2026: „nicht den Video
+  // Player stoppen … davor schon in Pause, dann unbedingt die Pause auch beibehalten“). Die angeklickte Karte behält den grünen Rand,
+  // solange das Video in ihrem Fenster ist, auch wenn ein Kommentar direkt daneben liegt, und leuchtet einmal kurz auf
+  let ANGETIPPT = null;
   function springen(t, id) {
-    if (!mv) return; mv.currentTime = t; mv.play().catch(() => {});
-    karteZeigen(document.querySelector(`.km[data-id="${id}"]`));
+    if (!mv) return; ANGETIPPT = id; mv.currentTime = t;
+    const el = document.querySelector(`.km[data-id="${id}"]`);
+    if (el) { el.classList.remove('leuchtet'); void el.offsetWidth; el.classList.add('leuchtet'); setTimeout(() => el.classList.remove('leuchtet'), 700); }
+    karteZeigen(el); zeitLaeuft();
   }
   // Kommentar in den sichtbaren Bereich holen. Am Handy nur im offenen Blatt scrollen, nie die ganze Seite
   function karteZeigen(el) {
@@ -1401,7 +1424,8 @@
   function zeitLaeuft() {
     if (LAYOUT === 'licht') lichtMalen(mv.currentTime);
     if ($('zeit-chip').classList.contains('an')) $('zeit-chip-text').textContent = zeitK(mv.currentTime);
-    const t = mv.currentTime, j = K.kommentare.find(k => k.video === AKT.id && !k.antwort_auf && k.zeit != null && t >= k.zeit && t < k.zeit + 3);
+    const t = mv.currentTime, imFenster = k => k.video === AKT.id && !k.antwort_auf && k.zeit != null && t >= k.zeit - 0.05 && t < k.zeit + 3;
+    const j = K.kommentare.find(k => k.id === ANGETIPPT && imFenster(k)) || K.kommentare.find(imFenster);
     document.querySelectorAll('.km').forEach(el => el.classList.toggle('aktiv', !!j && +el.dataset.id === j.id));
     document.querySelectorAll('.marker').forEach(el => el.classList.toggle('an', !!j && +el.dataset.id === j.id));
   }

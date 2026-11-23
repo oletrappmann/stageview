@@ -1021,12 +1021,11 @@ struct PlayerScreen: View {
 
     private func threadView(_ thread: CommentThread, highlighted: Bool) -> some View {
         ThreadView(thread: thread, highlighted: highlighted, fps: current?.fps,
-                   // Tipp auf einen Kommentar: genau auf sein Bild und weiter abspielen, nie anhalten (Ole, 23.11.2026: „bitte unbedingt
-                   // nicht den Video Player stoppen“), wie auf der Videoseite
+                   // Tipp auf einen Kommentar: genau auf sein Bild, Abspielen oder Pause bleiben, wie sie waren (Ole, 23.11.2026: „bitte
+                   // unbedingt nicht den Video Player stoppen“, „davor schon in Pause, dann unbedingt die Pause auch beibehalten“)
                    jump: { time in
                        tappedThread = thread.id
                        pool.seek(to: time)
-                       if !pool.playing { pool.play() }
                    },
                    reply: { comment in replyTo = comment; composing = true },
                    toggleDone: { comment in
