@@ -1066,6 +1066,8 @@ private struct Stage: View {
 
     @State private var ready = false
     @State private var flash: String?
+    /// Nach dem Halten kommt bei iOS noch ein Tipp an, der darf nicht anhalten
+    @State private var heldUntil = Date.distantPast
 
     var body: some View {
         ZStack {
@@ -1083,10 +1085,37 @@ private struct Stage: View {
         .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
         .contentShape(Rectangle())
         .onTapGesture {
-            guard active else { return }
+            guard active, Date() > heldUntil else { return }
             Haptics.select()
             pool.toggle()
             flash(pool.playing ? "pause.fill" : "play.fill")
+        }
+        // Gedrückt halten: 2× (Ole, 23.11.2026), Wischen zum nächsten Video und das Blatt bleiben (wer sich bewegt, hält nicht)
+        .gesture(HoldGesture { pressing in
+            guard active else { return }
+            if pressing {
+                Haptics.press()
+                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.22)) { pool.boost(true) }
+            } else {
+                heldUntil = Date().addingTimeInterval(0.35)
+                withAnimation(.easeOut(duration: 0.18)) { pool.boost(false) }
+            }
+        })
+        .overlay(alignment: .top) {
+            if active && pool.boosting {
+                HStack(spacing: 6) {
+                    Text("2×").font(.system(size: 14, weight: .semibold).monospacedDigit())
+                    Image(systemName: "forward.fill").font(.system(size: 12, weight: .bold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .frame(height: 30)
+                .glassEffect(.regular, in: .capsule)
+                .padding(.top, 12)
+                .transition(.opacity.combined(with: .offset(y: -6)).combined(with: .scale(scale: 0.92)))
+                .allowsHitTesting(false)
+                .accessibilityIdentifier("zweifach")
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(video.title)
@@ -1150,3 +1179,32 @@ private struct Stage: View {
 
 /// Ablage der Stufen ohne neues Zeichnen (eine Klasse, SwiftUI beobachtet sie nicht)
 final class StopsBox { var value: [SheetStop: CGFloat] = [:] }
+
+/// Langes Drücken über UIKit: meldet Anfang und Ende (SwiftUIs onLongPressGesture meldet das Loslassen nicht verlässlich). Läuft
+/// neben Tippen, Wischen und Blatt, bricht ab, sobald sich der Finger mehr als 12 pt bewegt, bevor es losgeht
+struct HoldGesture: UIGestureRecognizerRepresentable {
+    let changed: (Bool) -> Void
+
+    func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
+        let recognizer = UILongPressGestureRecognizer()
+        recognizer.minimumPressDuration = 0.35
+        recognizer.allowableMovement = 12
+        recognizer.delegate = context.coordinator
+        return recognizer
+    }
+
+    func handleUIGestureRecognizerAction(_ recognizer: UILongPressGestureRecognizer, context: Context) {
+        switch recognizer.state {
+        case .began: changed(true)
+        case .ended, .cancelled, .failed: changed(false)
+        default: break
+        }
+    }
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+    }
+}
