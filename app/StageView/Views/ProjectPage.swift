@@ -13,6 +13,9 @@ struct ProjectPage: View {
     @State private var removing: Video?
     /// Freigabe eines Videos ändern (mittiges Fenster) und „Alle freigeben“ (Ole, 23.11.2026)
     @State private var choosingStatus: Video?
+    @AppStorage(Timecode.key) private var timecode = false
+    /// Marker für DaVinci als Datei zum Teilen (AirDrop an den Mac), Ole 23.11.2026
+    @State private var markerFile: SharedFile?
     @State private var sources = ""
     @State private var addTitle = ""
     @State private var addOpen = false
@@ -72,6 +75,7 @@ struct ProjectPage: View {
             status == .approved ? Haptics.check() : Haptics.select()
             Task { await ReviewStore.of(code).setStatus(status, for: video) }
         }
+        .sheet(item: $markerFile) { file in ActivitySheet(items: [file.url]).ignoresSafeArea() }
         .alert("Titel ändern", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Titel", text: $renameText)
             Button("Abbrechen", role: .cancel) {}
@@ -429,6 +433,26 @@ struct ProjectPage: View {
         .accessibilityIdentifier("drive-abgleichen")
     }
 
+    // MARK: Marker für DaVinci
+
+    private func exportMarkers(_ project: Project, _ video: Video) async {
+        guard let code = project.code else { return }
+        Haptics.select()
+        do {
+            let data = try await API.download("admin/projekt/\(code)/video/\(video.nr)/marker?format=edl")
+            guard String(decoding: data, as: UTF8.self).contains("|M:") else {
+                store.show("Dieses Video hat noch keine Kommentare mit Zeit", symbol: "flag")
+                return
+            }
+            let name = video.title.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: " ")
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(name) Marker.edl")
+            try data.write(to: url, options: .atomic)
+            markerFile = SharedFile(url: url)
+        } catch {
+            store.show(error.localizedDescription, error: true)
+        }
+    }
+
     // MARK: Freigabe
 
     private func pending(_ project: Project) -> [Video] {
@@ -558,6 +582,11 @@ struct ProjectPage: View {
                 Link(destination: link) { Label("In Safari öffnen", systemImage: "safari") }
             }
             if let drive = video.driveURL { Link(destination: drive) { Label("Original im Drive", systemImage: "arrow.down.circle") } }
+            // Kommentare als Marker für DaVinci (Ole, 23.11.2026, wie Frame.io): EDL Datei, per AirDrop an den Mac, in Resolve über
+            // Timeline > Import > Timeline Markers from EDL. Offen rot, erledigt grün, bildgenau mit der Bildrate des Videos
+            if video.comments > 0 || video.open > 0 {
+                Button { Task { await exportMarkers(project, video) } } label: { Label("Marker für DaVinci", systemImage: "flag") }
+            }
             StatusMenuItems(project: project, video: video)
             Divider()
             Button(role: .destructive) { removing = video } label: { Label("Von der Seite nehmen", systemImage: "rectangle.badge.minus") }
@@ -625,7 +654,7 @@ struct ProjectPage: View {
                     Text(comment.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(Palette.text)
                     if comment.team { Text("· Stagecraft").font(.system(size: 13)).foregroundStyle(Palette.muted) }
                     if let time = comment.time {
-                        Text(Clock.text(time))
+                        Text(Timecode.display(time, fps: video?.fps, on: timecode))
                             .font(.system(size: 12, weight: .semibold).monospacedDigit())
                             .foregroundStyle(Color(UIColor(hex: 0x1E1E1C)))
                             .padding(.horizontal, 7)
@@ -769,4 +798,17 @@ struct DriveField: View {
             .accessibilityIdentifier("drive-feld")
         if let focus { base.focused(focus) } else { base }
     }
+}
+
+/// Datei zum Teilen (z.B. Marker für DaVinci)
+struct SharedFile: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+/// Apples Teilen Blatt für Dateien (AirDrop an den Mac)
+struct ActivitySheet: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController { UIActivityViewController(activityItems: items, applicationActivities: nil) }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

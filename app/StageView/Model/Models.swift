@@ -113,9 +113,11 @@ struct Video: Decodable, Identifiable, Hashable {
     var status: ReviewStatus
     var open: Int
     var comments: Int
+    /// Bildrate von Mux (seit 23.11.2026, bildgenaue Kommentare und Timecode). nil = unbekannt, dann gilt die normale Zeit
+    var fps: Double?
 
     enum CodingKeys: String, CodingKey {
-        case nr, id, titel, playback_id, dauer, seitenverhaeltnis, posting, format, status, offen, kommentare
+        case nr, id, titel, playback_id, dauer, seitenverhaeltnis, posting, format, status, offen, kommentare, fps
     }
 
     init(nr: Int, id: String, title: String, playbackID: String?, duration: Double, aspect: Double, posting: String? = nil,
@@ -138,6 +140,7 @@ struct Video: Decodable, Identifiable, Hashable {
         status = ReviewStatus(c.lenient(.status))
         open = Int(c.number(.offen) ?? 0)
         comments = Int(c.number(.kommentare) ?? 0)
+        fps = c.number(.fps).flatMap { (1...240).contains($0) ? $0 : nil }
     }
 
     var portrait: Bool { aspect < 1 }
@@ -482,6 +485,32 @@ enum Clock {
         let h = s / 3600, m = (s % 3600) / 60, r = s % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, r) : String(format: "%d:%02d", m, r)
     }
+}
+
+/// Timecode wie bei Frame.io (Ole, 23.11.2026): bildgenau, ohne Drop Frame wie Resolve Standard (29,97 zählt mit 30, 23,976 mit 24).
+/// Jedes Video rechnet mit seiner eigenen Bildrate, ohne Bildrate bleibt es bei der normalen Zeit, nie ein Fehler
+enum Timecode {
+    /// Zeitanzeige im Zahnrad: Normal (0:42) oder Timecode (00:00:42:12), gemerkt pro Gerät
+    static let key = "sv.zeit.timecode"
+
+    static func frames(_ seconds: Double, fps: Double) -> Int { Int((max(0, seconds) * fps).rounded()) }
+
+    static func text(_ seconds: Double, fps: Double?) -> String {
+        guard let fps, fps >= 1 else { return Clock.text(seconds) }
+        let n = max(1, Int(fps.rounded())), f = frames(seconds, fps: fps)
+        return String(format: "%02d:%02d:%02d:%02d", f / (3600 * n), f / (60 * n) % 60, f / n % 60, f % n)
+    }
+
+    static func display(_ seconds: Double, fps: Double?, on: Bool) -> String { on ? text(seconds, fps: fps) : Clock.text(seconds) }
+
+    /// Auf ein ganzes Bild gerundet (so wird gespeichert), ohne Bildrate auf Tausendstel
+    static func snap(_ seconds: Double, fps: Double?) -> Double {
+        guard let fps, fps >= 1 else { return (max(0, seconds) * 1000).rounded() / 1000 }
+        return (Double(frames(seconds, fps: fps)) / fps * 1000).rounded() / 1000
+    }
+
+    /// Ein Bild vor oder zurück
+    static func step(_ seconds: Double, by n: Int, fps: Double) -> Double { Double(max(0, frames(seconds, fps: fps) + n)) / fps }
 }
 
 enum When {

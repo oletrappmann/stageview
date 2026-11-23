@@ -62,6 +62,7 @@ struct PlayerScreen: View {
     @State private var stopAfterWriting: SheetStop?
     /// Kommentarliste ganz oben: dann zieht ein Wisch nach unten das Blatt zu (wie bei iOS Blättern)
     @State private var listAtTop = true
+    @AppStorage(Timecode.key) private var timecode = false
     @FocusState private var composing: Bool
     @Environment(\.dismiss) private var dismiss
 
@@ -148,8 +149,10 @@ struct PlayerScreen: View {
         .onChange(of: composing) { _, now in
             // Beim Schreiben hält das Video an, die Zeit bleibt die, an der man angefangen hat. Danach steht das Blatt offen
             if now {
-                draftTime = pool.time
+                // Anhalten und genau auf das Bild der Zeitmarke springen: was man sieht, ist die Stelle des Kommentars
                 pool.pause()
+                draftTime = Timecode.snap(pool.time, fps: current?.fps)
+                pool.seek(to: draftTime, exact: true)
                 stopAfterWriting = .offen
             } else if let after = stopAfterWriting {
                 stopAfterWriting = nil
@@ -585,7 +588,7 @@ struct PlayerScreen: View {
                         .frame(width: 42, height: 44)
                 }
                 .accessibilityLabel(pool.muted ? "Ton an" : "Ton aus")
-                Text("\(Clock.text(pool.time)) / \(Clock.text(duration))")
+                Text(timecode && video.fps != nil ? Timecode.text(pool.time, fps: video.fps) : "\(Clock.text(pool.time)) / \(Clock.text(duration))")
                     .font(.system(size: 14, weight: .medium).monospacedDigit())
                     .foregroundStyle(Color.white.opacity(0.85))
                     .padding(.leading, 4)
@@ -728,7 +731,10 @@ struct PlayerScreen: View {
                     .accessibilityIdentifier("kommentar-feld")
                 if composerOpen {
                     HStack {
-                        if replyTo == nil && editing == nil { timeChip }
+                        if replyTo == nil && editing == nil {
+                            timeChip
+                            frameStepper
+                        }
                         Spacer()
                         sendButton
                     }
@@ -764,7 +770,8 @@ struct PlayerScreen: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "timer").font(.system(size: 12, weight: .semibold))
-                Text(Clock.text(composing ? draftTime : pool.time)).font(.system(size: 13, weight: .semibold).monospacedDigit())
+                Text(Timecode.display(composing ? draftTime : pool.time, fps: current?.fps, on: timecode))
+                    .font(.system(size: 13, weight: .semibold).monospacedDigit())
             }
             .foregroundStyle(attachTime ? Palette.stage : Color.white.opacity(0.6))
             .padding(.horizontal, 11)
@@ -774,6 +781,42 @@ struct PlayerScreen: View {
         .buttonStyle(PressStyle())
         .accessibilityLabel(attachTime ? "Zeit wird angehängt" : "Ohne Zeit")
         .accessibilityIdentifier("zeit-chip")
+    }
+
+    /// Ein Bild vor oder zurück, bevor der Kommentar gesetzt wird (wie Frame.io mit den Pfeiltasten, Ole 23.11.2026).
+    /// Nur mit bekannter Bildrate, jedes Video mit seiner eigenen
+    @ViewBuilder
+    private var frameStepper: some View {
+        if let fps = current?.fps, attachTime {
+            HStack(spacing: 4) {
+                stepButton("chevron.left", label: "Ein Bild zurück", id: "bild-zurueck") { stepFrame(-1, fps) }
+                stepButton("chevron.right", label: "Ein Bild vor", id: "bild-vor") { stepFrame(1, fps) }
+            }
+            .transition(.opacity)
+        }
+    }
+
+    private func stepButton(_ symbol: String, label: String, id: String, action: @escaping () -> Void) -> some View {
+        Button {
+            Haptics.select()
+            action()
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(Color.white.opacity(0.1), in: Circle())
+        }
+        .buttonStyle(PressStyle())
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(id)
+    }
+
+    private func stepFrame(_ n: Int, _ fps: Double) {
+        let end = pool.duration > 0 ? pool.duration : (current?.duration ?? 0)
+        let t = Timecode.step(draftTime, by: n, fps: fps)
+        draftTime = end > 0 ? min(t, max(0, end - 1 / fps)) : t
+        pool.seek(to: draftTime, exact: true)
     }
 
     private var sendButton: some View {
@@ -812,7 +855,7 @@ struct PlayerScreen: View {
             return
         }
         Task {
-            let ok = await review.add(video: video.id, text: text, time: attachTime ? draftTime : nil, replyTo: replyTo?.id)
+            let ok = await review.add(video: video.id, text: text, time: attachTime ? draftTime : nil, replyTo: replyTo?.id, fps: video.fps)
             sending = false
             if ok {
                 Haptics.sent()
@@ -1011,7 +1054,7 @@ struct PlayerScreen: View {
     }
 
     private func threadView(_ thread: CommentThread, highlighted: Bool) -> some View {
-        ThreadView(thread: thread, highlighted: highlighted,
+        ThreadView(thread: thread, highlighted: highlighted, fps: current?.fps,
                    jump: { time in pool.seek(to: time); pool.pause() },
                    reply: { comment in replyTo = comment; composing = true },
                    toggleDone: { comment in

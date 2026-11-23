@@ -48,7 +48,7 @@ for m in [m for m in zeilen if m]:
                 offen[k["video"]] += 1
     for s in api["status"].values():
         letzte = max(letzte or "", s.get("am") or "")
-    videos = [{"nr": v["nr"], "id": v["id"], "titel": v["titel"], "playback_id": v.get("playback_id"), "dauer": v.get("dauer"),
+    videos = [{"nr": v["nr"], "id": v["id"], "titel": v["titel"], "playback_id": v.get("playback_id"), "dauer": v.get("dauer"), "fps": v.get("fps"),
                "seitenverhaeltnis": v.get("seitenverhaeltnis"), "posting": v.get("posting"), "format": v.get("format"),
                "status": (api["status"].get(v["id"]) or {}).get("wert", "zur-freigabe"), "offen": offen[v["id"]],
                "kommentare": gesamt[v["id"]]} for v in pj.get("videos", [])]

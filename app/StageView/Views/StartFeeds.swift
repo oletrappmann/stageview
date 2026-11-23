@@ -297,6 +297,7 @@ private struct CommentFeedRow: View {
     let project: Project
     let comment: OpenComment
     @State private var store = Store.shared
+    @AppStorage(Timecode.key) private var timecode = false
 
     var body: some View {
         let video = project.videos.first { $0.id == comment.video }
@@ -320,7 +321,7 @@ private struct CommentFeedRow: View {
                                 .padding(.horizontal, 6).frame(height: 18).background(Palette.surface, in: Capsule())
                         }
                         if let time = comment.time {
-                            Text(Clock.text(time)).font(.system(size: 12, weight: .semibold).monospacedDigit())
+                            Text(Timecode.display(time, fps: video?.fps, on: timecode)).font(.system(size: 12, weight: .semibold).monospacedDigit())
                                 .foregroundStyle(Color(UIColor(hex: 0x1E1E1C))).padding(.horizontal, 7).frame(height: 20)
                                 .background(Palette.pending, in: Capsule())
                         }

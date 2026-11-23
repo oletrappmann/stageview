@@ -282,6 +282,30 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Timecode wie bei Frame.io (23.11.2026): im Zahnrad umstellen, Zeitmarken bildgenau, beim Schreiben ein Bild vor und zurück
+    func testTimecode() {
+        let a = app("player:8fykkr:1:42")
+        Thread.sleep(forTimeInterval: 4)
+        a.buttons["einstellungen"].firstMatch.tap()
+        bild("t1-zahnrad", warten: 0.8)
+        a.buttons["e-zeit"].firstMatch.tap()
+        bild("t2-zeit", warten: 0.8)
+        a.buttons["zeit-timecode"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 0.5)
+        a.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+        Thread.sleep(forTimeInterval: 0.6)
+        a.descendants(matching: .any)["griff"].firstMatch.tap()
+        bild("t3-kommentare-timecode", warten: 1.5)
+        a.textFields["kommentar-feld"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 1.5)
+        bild("t4-schreiben", warten: 0.2)
+        a.buttons["bild-vor"].firstMatch.tap()
+        a.buttons["bild-vor"].firstMatch.tap()
+        a.buttons["bild-vor"].firstMatch.tap()
+        bild("t5-drei-bilder-vor", warten: 0.8)
+        a.terminate()
+    }
+
     /// Freigabe pro Video und „Alle freigeben“ auf der Seite eines Links (23.11.2026)
     func testFreigabe() {
         let a = app("projekt:u9kd8m")

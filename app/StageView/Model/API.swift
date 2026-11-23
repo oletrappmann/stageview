@@ -82,6 +82,25 @@ enum API {
         return URLSession(configuration: config)
     }()
 
+    /// Datei vom Server holen (z.B. Marker für DaVinci als EDL), mit derselben Anmeldung
+    static func download(_ path: String) async throws -> Data {
+        var request = URLRequest(url: URL(string: "/api/" + path, relativeTo: host)!)
+        if let token = Keychain.token { request.setValue("sv_sitzung=\(token)", forHTTPHeaderField: "Cookie") }
+        let data: Data, response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as URLError where error.code != .cancelled {
+            throw APIError.offline
+        }
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 401 { throw APIError.signedOut }
+        guard (200..<300).contains(status) else {
+            let text = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["fehler"] as? String
+            throw APIError.server(status, text ?? "Das hat nicht geklappt (Fehler \(status)).")
+        }
+        return data
+    }
+
     static func get<T: Decodable>(_ path: String, as type: T.Type = T.self) async throws -> T {
         try await send(path, method: "GET", body: nil)
     }

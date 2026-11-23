@@ -5,6 +5,7 @@ import SwiftUI
 struct ThreadView: View {
     let thread: CommentThread
     let highlighted: Bool
+    var fps: Double?
     let jump: (Double) -> Void
     let reply: (Comment) -> Void
     let toggleDone: (Comment) -> Void
@@ -13,10 +14,10 @@ struct ThreadView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CommentRow(comment: thread.root, reply: false, highlighted: highlighted, jump: jump, toggleDone: toggleDone)
+            CommentRow(comment: thread.root, reply: false, highlighted: highlighted, fps: fps, jump: jump, toggleDone: toggleDone)
                 .contextMenu { menu(thread.root) }
             ForEach(thread.replies) { answer in
-                CommentRow(comment: answer, reply: true, highlighted: false, jump: jump, toggleDone: toggleDone)
+                CommentRow(comment: answer, reply: true, highlighted: false, fps: fps, jump: jump, toggleDone: toggleDone)
                     .padding(.leading, 38)
                     .contextMenu { menu(answer) }
             }
@@ -64,8 +65,10 @@ private struct CommentRow: View {
     let comment: Comment
     let reply: Bool
     let highlighted: Bool
+    var fps: Double?
     let jump: (Double) -> Void
     let toggleDone: (Comment) -> Void
+    @AppStorage(Timecode.key) private var timecode = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -89,20 +92,23 @@ private struct CommentRow: View {
                             Haptics.select()
                             jump(time)
                         } label: {
-                            Text(Clock.text(time))
+                            Text(Timecode.display(time, fps: fps, on: timecode))
                                 .font(.system(size: 12, weight: .semibold).monospacedDigit())
                                 .foregroundStyle(Palette.stage)
                                 .padding(.horizontal, 7)
                                 .frame(height: 20)
                                 .background(Palette.pending, in: Capsule())
+                                .fixedSize()
                         }
                         .buttonStyle(PressStyle())
-                        .accessibilityLabel("Zu \(Clock.text(time)) springen")
+                        .layoutPriority(1)
+                        .accessibilityLabel("Zu \(Timecode.display(time, fps: fps, on: timecode)) springen")
                     }
                     Text(When.ago(comment.created))
                         .font(.system(size: 12))
                         .foregroundStyle(Color.white.opacity(0.4))
                         .lineLimit(1)
+                        .layoutPriority(-1)
                 }
                 Text(LinkedText.make(comment.text))
                     .font(.system(size: 15))

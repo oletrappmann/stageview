@@ -93,11 +93,12 @@ final class ReviewStore {
 
     // MARK: Schreiben (sofort sichtbar, bei Fehler zurück)
 
-    func add(video: String, text: String, time: Double?, replyTo: Int? = nil) async -> Bool {
+    func add(video: String, text: String, time: Double?, replyTo: Int? = nil, fps: Double? = nil) async -> Bool {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return false }
         var body: [String: Any] = ["video": video, "text": clean, "name": name]
-        if let replyTo { body["antwort_auf"] = replyTo } else if let time { body["zeit"] = (time * 10).rounded() / 10 }
+        // Bildgenau (seit 23.11.2026), ohne Bildrate auf Tausendstel
+        if let replyTo { body["antwort_auf"] = replyTo } else if let time { body["zeit"] = Timecode.snap(time, fps: fps) }
         #if DEBUG
         if Demo.isOn {
             state.comments.append(Comment(id: (state.comments.map(\.id).max() ?? 0) + 1, video: video, time: replyTo == nil ? time : nil,

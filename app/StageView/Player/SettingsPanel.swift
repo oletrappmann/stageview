@@ -8,7 +8,8 @@ struct SettingsPanel: View {
     let pool: PlayerPool
     let video: Video
 
-    enum Page { case main, tempo, quality }
+    enum Page { case main, tempo, quality, time }
+    @AppStorage(Timecode.key) private var timecode = false
     @State private var page = Page.main
     @State private var forward = true
 
@@ -22,6 +23,7 @@ struct SettingsPanel: View {
             case .main: mainList.transition(slide)
             case .tempo: choiceList(title: "Tempo", options: tempoOptions).transition(slide)
             case .quality: choiceList(title: "Qualität", options: qualityOptions).transition(slide)
+            case .time: choiceList(title: "Zeit", options: timeOptions).transition(slide)
             }
         }
         .padding(6)
@@ -54,6 +56,9 @@ struct SettingsPanel: View {
             mainRow(icon: AnyView(Image(systemName: "timer").font(.system(size: 19, weight: .medium))), title: "Tempo",
                     value: PlayerPool.speedText(pool.speed), id: "e-tempo") { go(.tempo) }
             mainRow(icon: AnyView(HDBadge(size: 22)), title: "Qualität", value: qualityValue, id: "e-quali") { go(.quality) }
+            // Zeitanzeige (Ole, 23.11.2026, Timecode wie bei Frame.io): nur für das Team, Kunden sehen im Web immer 0:42
+            mainRow(icon: AnyView(Image(systemName: "clock").font(.system(size: 19, weight: .medium))), title: "Zeit",
+                    value: timecode ? "Timecode" : "Normal", id: "e-zeit") { go(.time) }
         }
     }
 
@@ -99,6 +104,16 @@ struct SettingsPanel: View {
             + pool.qualities(for: video).map { h in
                 Option(id: "quali-\(h)", text: PlayerPool.qualityText(h), selected: pool.quality == h) { pool.quality = h }
             }
+    }
+
+    private var timeOptions: [Option] {
+        [Option(id: "zeit-normal", text: "Normal", extra: "0:42", selected: !timecode) { timecode = false },
+         Option(id: "zeit-timecode", text: "Timecode", extra: video.fps.map { "00:00:42:\(String(format: "%02d", min(12, Int($0.rounded()) - 1))) · \(fpsText($0)) fps" } ?? "Bildrate unbekannt",
+                selected: timecode) { timecode = true }]
+    }
+
+    private func fpsText(_ fps: Double) -> String {
+        fps == fps.rounded() ? String(Int(fps)) : fps.formatted(.number.precision(.fractionLength(0...3)))
     }
 
     private var qualityValue: String {
