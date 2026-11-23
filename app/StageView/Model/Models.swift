@@ -16,17 +16,55 @@ extension KeyedDecodingContainer {
     }
 }
 
-/// Wer sich anmelden darf: dieselben vier Zugänge wie in der TESS App und im Admin Dashboard (Brücke 127.0.0.1:8651)
-enum Access: String, CaseIterable, Identifiable {
-    case tess, alfred, caspar, niklas
+/// Ein Konto zum Anmelden. Seit 23.11.2026 aus der Liste von StageHub (`GET /api/admin/profile`, dahinter `/profile` der Brücke
+/// der TESS App): Zugang, Vorname, Rolle, Reihenfolge und Bild. Neue Konten erscheinen ohne neue App Version (Ole: „immer, wenn
+/// ein neues Profil angelegt wird, auch direkt in StageView drin“). Die Liste hält `Profiles`.
+struct Access: Codable, Hashable, Identifiable {
+    /// Zugang der Brücke (tess, alfred, caspar …), so heißt er auch beim Anmelden
+    var rawValue: String
+    /// Vorname, wie er unter dem Bild steht
+    var person: String
+    var role: String = "team"
+    var order: Int = 0
+    /// Öffentliche Adresse des Profilbilds, ändert sich mit jedem neuen Bild (?v=…)
+    var picture: URL?
+
     var id: String { rawValue }
-    var person: String {
-        switch self {
-        case .tess: "Ole"
-        case .alfred: "Jonas"
-        case .caspar: "Caspar"
-        case .niklas: "Niklas"
-        }
+
+    enum CodingKeys: String, CodingKey { case rawValue = "zugang", person = "name", role = "rolle", order = "reihe", picture = "bild" }
+
+    init(rawValue: String, person: String, role: String = "team", order: Int = 0, picture: URL? = nil) {
+        self.rawValue = rawValue
+        self.person = person
+        self.role = role
+        self.order = order
+        self.picture = picture
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        rawValue = try c.decode(String.self, forKey: .rawValue)
+        person = try c.decode(String.self, forKey: .person)
+        role = c.lenient(.role, "team")
+        order = Int(c.number(.order) ?? 0)
+        let address: String? = c.lenient(.picture)
+        picture = address.flatMap(URL.init(string:)).flatMap { $0.scheme == "https" ? $0 : nil }
+    }
+
+    /// Bild als Text, wie es kam (URL selbst würde als {"relative": …} gespeichert und sich nicht mehr lesen lassen)
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(rawValue, forKey: .rawValue)
+        try c.encode(person, forKey: .person)
+        try c.encode(role, forKey: .role)
+        try c.encode(order, forKey: .order)
+        try c.encodeIfPresent(picture?.absoluteString, forKey: .picture)
+    }
+
+    /// Konto aus der aktuellen Liste
+    @MainActor init?(rawValue: String) {
+        guard let found = Profiles.shared.all.first(where: { $0.rawValue == rawValue }) else { return nil }
+        self = found
     }
 }
 

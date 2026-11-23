@@ -35,6 +35,8 @@ struct StageViewApp: App {
             RootView()
                 .preferredColorScheme(.dark)
                 .tint(Palette.accent)
+                // Konten und Bilder von StageHub auch angemeldet frisch halten (Konto Menü, 23.11.2026)
+                .task { await Profiles.shared.refresh() }
         }
     }
 }

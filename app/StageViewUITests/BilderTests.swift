@@ -137,6 +137,16 @@ final class BilderTests: XCTestCase {
         bild("a-buehne", warten: 2)
         a.buttons["zugang-tess"].tap()
         bild("a-buehne-passwort", warten: 1.2)
+        // Konten von StageHub (23.11.2026): ab dem fünften eine zweite Seite zum Wischen, Punkte darunter
+        a.scrollViews["profile"].swipeLeft()
+        bild("a-buehne-seite2", warten: 1)
+        a.buttons["zugang-noah"].tap()
+        bild("a-buehne-noah", warten: 1)
+        a.terminate()
+        // Gemerkte Wahl auf Seite 2: beim Öffnen steht diese Seite vorn
+        a.launchEnvironment["SV_GEWAEHLT"] = "noah"
+        a.launch()
+        bild("a-buehne-gemerkt", warten: 2)
         a.terminate()
     }
 

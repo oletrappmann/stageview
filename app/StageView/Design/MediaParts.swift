@@ -175,17 +175,31 @@ struct ApprovalBar: View {
 struct TeamAvatar: View {
     let access: Access
     var size: CGFloat = 52
+    @State private var loaded: UIImage?
+
+    /// Töne für Konten ohne Bild, nach der Reihenfolge wie bei StageHub (stil.css .ton0 bis .ton3)
+    private static let tones: [(color: UInt32, text: UInt32)] = [(0x48514A, 0xF6F6F3), (0x6E7A70, 0xF6F6F3), (0xA3AFA5, 0x2B312C), (0x3A403B, 0xF6F6F3)]
 
     var body: some View {
-        if let photo = UIImage(named: "avatar-\(access.person.lowercased())") {
+        // Bild aus der Liste von StageHub (eigenes Profilbild oder das feste), bis es geladen ist das mitgelieferte, sonst der
+        // Anfangsbuchstabe auf dem Ton seiner Reihe (23.11.2026)
+        if let photo = loaded ?? access.picture.flatMap(ImageStore.shared.cached) ?? UIImage(named: "avatar-\(access.person.lowercased())") {
             Image(uiImage: photo).resizable().scaledToFill().frame(width: size, height: size).clipShape(Circle())
+                .task(id: access.picture) { await load() }
         } else {
+            let tone = Self.tones[abs(access.order) % Self.tones.count]
             Text(String(access.person.prefix(1)))
                 .font(.system(size: size * 0.42, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color(UIColor(hex: tone.text)))
                 .frame(width: size, height: size)
-                .background(Palette.forest, in: Circle())
+                .background(Color(UIColor(hex: tone.color)), in: Circle())
+                .task(id: access.picture) { await load() }
         }
+    }
+
+    private func load() async {
+        guard let url = access.picture else { loaded = nil; return }
+        if let image = await ImageStore.shared.load(url) { loaded = image }
     }
 }
 
