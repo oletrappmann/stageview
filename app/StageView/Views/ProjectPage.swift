@@ -8,6 +8,7 @@ struct ProjectPage: View {
     @State private var store = Store.shared
     @State private var editing = false
     @State private var confirmDelete = false
+    @State private var confirmAllDone = false
     @State private var renaming: Video?
     @State private var renameText = ""
     @State private var removing: Video?
@@ -57,6 +58,15 @@ struct ProjectPage: View {
             }
         }
         .sheet(isPresented: $editing) { if let project { ProjectEditSheet(project: project) } }
+        .centerConfirm("Alle Kommentare erledigt?", isPresented: $confirmAllDone, action: "Alle abhaken", symbol: "checkmark.circle",
+                       destructive: false, message: {
+                           let n = project?.openCount ?? 0
+                           return "\(n == 1 ? "Der offene Kommentar" : "Alle \(n) offenen Kommentare") dieses Links \(n == 1 ? "wird" : "werden") abgehakt, samt Antworten. Neue Kommentare kommen danach wieder offen dazu."
+                       }) {
+            guard let project else { return }
+            Haptics.done()
+            Task { await store.markAllDone(project) }
+        }
         .centerConfirm("Link löschen?", isPresented: $confirmDelete, action: "Link löschen", message: { DeleteText.link(project) }) {
             guard let project else { return }
             Haptics.cancel()
@@ -161,7 +171,36 @@ struct ProjectPage: View {
 
                 // Offene Kommentare unter den Videos (Ole, 23.11.2026)
                 if !project.openComments.isEmpty {
-                    SectionTitle(title: "Offene Kommentare", count: project.openComments.count).padding(.top, 30).padding(.horizontal, 4)
+                    // Alle auf einmal abhaken (Ole, 23.11.2026: „ein Button, der alle Kommentare auf abgehakt setzt, und wenn neue kommen,
+                    // sind die wieder offen“), bewusst kein Schalter
+                    HStack(alignment: .center, spacing: 8) {
+                        // Titel und Zahl in einer Zeile, der Knopf rechts daneben (sonst brach „Offene Kommentare“ um)
+                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                            Text("Offene Kommentare")
+                                .font(.system(size: 22, weight: .bold))
+                                .tracking(-0.4)
+                                .foregroundStyle(Palette.text)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                            Text("\(project.openCount)").font(.system(size: 17, weight: .semibold)).foregroundStyle(Palette.muted)
+                        }
+                        .accessibilityElement(children: .combine)
+                        Spacer(minLength: 4)
+                        Button {
+                            Haptics.select()
+                            confirmAllDone = true
+                        } label: {
+                            Label("Alle erledigt", systemImage: "checkmark.circle")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Palette.text)
+                                .padding(.horizontal, 12)
+                                .frame(height: 32)
+                                .background(Palette.surface, in: Capsule())
+                        }
+                        .buttonStyle(PressStyle())
+                        .accessibilityIdentifier("alle-erledigt")
+                    }
+                    .padding(.top, 30).padding(.horizontal, 4)
                     comments(project).padding(.top, 10)
                 }
 

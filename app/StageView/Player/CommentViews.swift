@@ -29,7 +29,6 @@ struct ThreadView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             CommentRow(comment: thread.root, reply: false, highlighted: highlighted, fps: fps, jump: tapped, toggleDone: toggleDone)
-                .contextMenu { menu(thread.root) }
             ForEach(thread.replies) { answer in
                 CommentRow(comment: answer, reply: true, highlighted: false, fps: fps, jump: tapped, toggleDone: toggleDone)
                     .padding(.leading, 38)
@@ -62,6 +61,10 @@ struct ThreadView: View {
             Haptics.select()
             tapped(time)
         }
+        // Langes Drücken irgendwo auf der Karte öffnet das Menü des Kommentars (Ole, 23.11.2026: „aufs Kommentar gedrückt halten,
+        // dann öffnet sich das Menü, Löschen, Bearbeiten“), auf einer Antwort ihr eigenes. Vorher hing es nur an der Zeile, die seit
+        // der ganzen Karte als Tippfläche keine eigene Fläche mehr hatte, auf leeren Stellen kam deshalb nichts
+        .contextMenu { menu(thread.root) }
         // Läuft das Video an seiner Stelle (oder wurde er angetippt): grüner Rand wie auf der Videoseite (.km.aktiv, --akzent)
         .background(highlighted ? Color.white.opacity(0.05) : .clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
@@ -206,7 +209,7 @@ private struct CommentRow: View {
                     .foregroundStyle(Color.white.opacity(0.92))
                     .tint(Palette.approved)
                     .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
+                    // Keine Textauswahl: langes Drücken soll das Menü öffnen, nicht Text markieren (Ole, 23.11.2026). Kopieren steht im Menü
                     .environment(\.openURL, OpenURLAction { url in
                         // StageView Links öffnen in der App, alles andere wie gewohnt in Safari
                         if Store.isStageViewLink(url) { Haptics.press(); Store.shared.open(url); return .handled }
@@ -234,6 +237,8 @@ private struct CommentRow: View {
             }
         }
         .padding(.vertical, 4)
+        // Eigene Fläche für das Menü einer Antwort (leere Stellen zählen mit)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("kommentar-\(comment.id)")
     }
