@@ -329,6 +329,33 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Gedrückt halten spielt doppelt so schnell (23.11.2026): laufend und pausiert
+    func testHalten() {
+        let a = app("player:8fykkr:1:20")
+        Thread.sleep(forTimeInterval: 4)
+        let leiste = a.descendants(matching: .any)["zeitleiste"].firstMatch
+        let buehne = a.descendants(matching: .any)["buehne-1"].firstMatch
+        func sek() -> Double {
+            let teile = (leiste.value as? String ?? "0:00").split(separator: " ").first?.split(separator: ":").compactMap { Double($0) } ?? [0]
+            return teile.reduce(0) { $0 * 60 + $1 }
+        }
+        let t0 = sek()
+        buehne.press(forDuration: 4)
+        let t1 = sek()
+        Thread.sleep(forTimeInterval: 3)
+        let t2 = sek()
+        print("HALTEN laufend: 4 s gedrückt", t1 - t0, "danach 3 s", t2 - t1)
+        a.buttons["abspielen"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 1)
+        let p0 = sek()
+        buehne.press(forDuration: 3)
+        let p1 = sek()
+        Thread.sleep(forTimeInterval: 2)
+        let p2 = sek()
+        print("HALTEN pausiert: 3 s gedrückt", p1 - p0, "danach 2 s", p2 - p1, "(0 = wieder pausiert)")
+        a.terminate()
+    }
+
     /// Endlosschleife im Zahnrad (23.11.2026): Schalter, und am Ende geht es von vorn weiter
     func testSchleife() {
         let a = XCUIApplication()

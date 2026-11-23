@@ -146,6 +146,28 @@ final class PlayerPool {
 
     func toggle() { playing ? pause() : play() }
 
+    /// Gedrückt halten: doppelt so schnell, solange der Finger unten ist (Ole, 23.11.2026). Das Tempo im Zahnrad bleibt, war es
+    /// pausiert, läuft es dabei und hält danach wieder an
+    private(set) var boosting = false
+    private var boostWasPlaying = false
+
+    func boost(_ on: Bool) {
+        guard let player = activePlayer else { boosting = false; return }
+        if on {
+            guard !boosting, !ended else { return }
+            boosting = true
+            boostWasPlaying = playing
+            quietPause = false
+            player.defaultRate = 2
+            player.playImmediately(atRate: 2)
+        } else {
+            guard boosting else { return }
+            boosting = false
+            player.defaultRate = currentRate
+            if boostWasPlaying { player.rate = currentRate } else { pause() }
+        }
+    }
+
     func seek(to seconds: Double, exact: Bool = true) {
         guard let player = activePlayer else { return }
         let target = max(0, min(seconds, duration > 0 ? duration - 0.05 : seconds))
@@ -199,6 +221,7 @@ final class PlayerPool {
     }
 
     private func applySpeed() {
+        if boosting { return }
         guard let player = activePlayer else { return }
         player.defaultRate = currentRate
         if playing { player.rate = currentRate }

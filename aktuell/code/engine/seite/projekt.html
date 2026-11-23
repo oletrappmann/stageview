@@ -242,6 +242,14 @@
     transition: transform .18s ease, opacity .18s ease; }
   /* Fest aufs Video drücken hält an (Ole, 16.11.2026), ohne dass das iPhone dabei sein Menü zum Sichern oder Teilen öffnet */
   .video-box { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  /* Gedrückt halten: doppelt so schnell (Ole, 23.11.2026), oben mittig eine kleine Glaspille „2×“ wie bei YouTube */
+  .zweifach { position: absolute; top: 12px; left: 50%; z-index: 7; pointer-events: none; display: flex; align-items: center; gap: 6px;
+    height: 30px; padding: 0 12px; border-radius: 999px; color: #fff; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums;
+    background: rgba(20,20,19,.55); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.14), 0 6px 18px rgba(0,0,0,.3);
+    transform: translate(-50%, -6px) scale(.92); opacity: 0; transition: opacity .18s, transform .22s cubic-bezier(.2,.8,.2,1); }
+  .zweifach.an { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  .zweifach svg { width: 15px; height: 15px; }
   .video-box media-controller { width: 100%; height: 100%; display: block; --media-control-background: transparent; --media-control-hover-background: transparent;
     --media-primary-color: #fff; --media-background-color: var(--viewer); }
   .video-box mux-video { width: 100%; height: 100%; }
@@ -299,6 +307,25 @@
   .spul-zeit { position: absolute; bottom: calc(100% + 14px); left: 0; transform: translateX(-50%); z-index: 3; pointer-events: none; white-space: nowrap;
     background: var(--panel-3); color: var(--text); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; padding: 5px 11px; border-radius: 999px;
     box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+  /* Vorschau beim Spulen wie in der StageView App (Ole, 23.11.2026: „Timeline gedrückt halten und vor oder zurückspulen, ein
+     Vorschaubild wie in der App, auch beim Desktop“): Standbild der Stelle aus dem Storyboard von Mux (ein Bild, kein Laden pro
+     Stelle), darunter die Zeit als Glaspille. Handy beim Wischen auf der Leiste, Rechner beim Ziehen und Drüberfahren. Ersetzt
+     die eingebaute Vorschau von media-chrome (zeigte am Rechner nur die Zeit) */
+  .spul-vorschau { position: absolute; bottom: calc(100% + 12px); left: 0; transform: translateX(-50%); z-index: 6; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .spul-vorschau[hidden] { display: none; }
+  /* Größe wächst mit dem Bildschirm (Ole, 23.11.2026: „größer bei größeren Bildschirmen, nicht zu groß“): Handy 112, Tablet
+     und Rechner 184, sehr große Bildschirme 212 px breit. Hochkant etwas höher als breit gedacht wie in der App (112 × 92) */
+  .spul-vorschau { --svb: 112px; }
+  @media (min-width: 860px) { .spul-vorschau { --svb: 184px; } }
+  @media (min-width: 1600px) { .spul-vorschau { --svb: 212px; } }
+  .sv-bild { width: var(--svb); height: calc(var(--svb) * .5625); border-radius: calc(var(--svb) * .09); background-color: rgba(255,255,255,.08); background-repeat: no-repeat;
+    box-shadow: 0 10px 28px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.08); }
+  .spul-vorschau.hoch .sv-bild { height: calc(var(--svb) * .82); }
+  .sv-zeit { height: 26px; padding: 0 10px; border-radius: 999px; display: flex; align-items: center; font-size: 14px; font-weight: 600;
+    font-variant-numeric: tabular-nums; color: #fff; background: rgba(38,38,36,.62); -webkit-backdrop-filter: blur(14px) saturate(1.4);
+    backdrop-filter: blur(14px) saturate(1.4); box-shadow: inset 0 0 0 1px rgba(255,255,255,.12), 0 6px 18px rgba(0,0,0,.3); }
+  media-time-range::part(preview-box) { display: none; }
   .zeitleiste.spult media-time-range { --media-range-track-height: 9px; --media-range-thumb-opacity: 1; --media-range-thumb-width: 18px; --media-range-thumb-height: 18px; }
   .zeitleiste media-time-range { width: 100%; height: 26px; --media-control-padding: 0; --media-range-track-height: 5px; --media-range-track-border-radius: 5px;
     --media-range-bar-color: var(--akzent); --media-range-track-background: var(--spur); --media-time-range-buffered-color: var(--spur);
@@ -770,7 +797,7 @@
       <section class="viewer pausiert" id="viewer">
         <div class="video-flaeche" id="flaeche">
           <div class="licht" id="licht" aria-hidden="true"><canvas></canvas><canvas></canvas></div>
-          <div class="video-box" id="video-box">
+          <div class="video-box" id="video-box"><div class="zweifach" id="zweifach" aria-hidden="true"><span>2×</span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6.2v11.6c0 .8.9 1.3 1.6.8l8.3-5.8c.6-.4.6-1.2 0-1.6L4.6 5.4C3.9 4.9 3 5.4 3 6.2zm9.5 0v11.6c0 .8.9 1.3 1.6.8l8.3-5.8c.6-.4.6-1.2 0-1.6l-8.3-5.8c-.7-.5-1.6 0-1.6.8z"/></svg></div>
             <media-controller id="mc" autohide="-1" fullscreenelement="viewer">
               <media-poster-image slot="poster" id="poster"></media-poster-image>
               <media-loading-indicator slot="centered-chrome" noautohide></media-loading-indicator>
@@ -785,7 +812,7 @@
           <button class="weiter" id="weiter" hidden><span>Als Nächstes</span><b id="weiter-titel"></b><span data-i="chevron-right"></span></button>
         </div>
         <div class="steuerung" id="steuerung">
-          <div class="zeitleiste" id="zeitleiste"><media-time-range mediacontroller="mc"></media-time-range><div class="zeit-fang" id="zeit-fang"></div><div class="spul-zeit" id="spul-zeit" hidden></div></div>
+          <div class="zeitleiste" id="zeitleiste"><media-time-range mediacontroller="mc"></media-time-range><div class="zeit-fang" id="zeit-fang"></div><div class="spul-zeit" id="spul-zeit" hidden></div><div class="spul-vorschau" id="spul-vorschau" hidden><div class="sv-bild" id="sv-bild"></div><div class="sv-zeit" id="sv-zeit"></div></div></div>
           <div class="reihe">
             <media-play-button mediacontroller="mc" notooltip><span slot="play" data-i="play"></span><span slot="pause" data-i="pause"></span></media-play-button>
             <media-mute-button mediacontroller="mc" notooltip><span slot="high" data-i="ton-an"></span><span slot="medium" data-i="ton-an"></span><span slot="low" data-i="ton-leise"></span><span slot="off" data-i="ton-aus"></span></media-mute-button>
@@ -1186,6 +1213,7 @@
     // Zeitmarke im Kommentarfeld folgt auch beim Spulen sofort (Ole, 23.11.2026: „geht auf jeden Fall der Timestamp mit und aktualisiert sich dauerhaft“)
     ['seeking', 'seeked'].forEach(ev => mv.addEventListener(ev, () => { if ($('zeit-chip').classList.contains('an')) $('zeit-chip-text').textContent = zeitK(mv.currentTime); }));
     if (LAYOUT === 'licht') { mv.addEventListener('seeked', () => lichtMalen(mv.currentTime, true)); lichtLaden(v); }
+    vorschauLaden(v);
     const t = opt.t ?? +new URLSearchParams(location.search).get('t');
     if (t > 0) { mv.addEventListener('loadedmetadata', () => { mv.currentTime = t; }, { once: true }); if (location.search) history.replaceState(history.state, '', location.pathname); }
     viewer.classList.add('pausiert'); viewer.classList.remove('still-gesprungen'); $('weiter').hidden = true;
@@ -1756,6 +1784,34 @@
     if (mv.paused) { const p = mv.play(); if (p && p.catch) p.catch(() => {}); } else mv.pause();
   });
   $('video-box').addEventListener('pointercancel', () => { tipp = null; });
+
+  // Gedrückt halten spielt doppelt so schnell, solange der Finger oder die Maustaste unten bleibt (Ole, 23.11.2026: „wenn man den
+  // Videoplayer gedrückt hält, in 2-facher Geschwindigkeit, solange man gedrückt hält … im Web und auf dem Handy“), wie bei YouTube.
+  // Nach 0,35 s ohne Bewegung, war es pausiert, läuft es dabei und hält danach wieder an. Loslassen stellt das Tempo von vorher her,
+  // der Klick danach wird geschluckt (sonst hielte er an). Wischen zum nächsten Video und das Blatt bleiben, wer sich bewegt, hält nicht
+  let halten = null;
+  $('video-box').addEventListener('pointerdown', e => {
+    if (!mv || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0) || e.target.closest('media-play-button, button, a, .wechsel, media-control-bar')) return;
+    const h = halten = { id: e.pointerId, x: e.clientX, y: e.clientY, an: false };
+    h.uhr = setTimeout(() => {
+      if (halten !== h || !mv || (geste && geste.art) || mv.ended) return;
+      h.an = true; h.tempo = mv.playbackRate; h.lief = !mv.paused; tipp = null;
+      mv.playbackRate = 2; if (mv.paused) { const p = mv.play(); if (p && p.catch) p.catch(() => {}); }
+      $('zweifach').classList.add('an'); try { navigator.vibrate?.(10); } catch {}
+    }, 350);
+  });
+  addEventListener('pointermove', e => {
+    const h = halten; if (!h || h.an || h.id !== e.pointerId) return;
+    if (Math.hypot(e.clientX - h.x, e.clientY - h.y) > 12) { clearTimeout(h.uhr); halten = null; }
+  });
+  const haltenEnde = e => {
+    const h = halten; if (!h || (e && e.pointerId !== h.id)) return;
+    halten = null; clearTimeout(h.uhr); if (!h.an) return;
+    $('zweifach').classList.remove('an'); klickSperre = performance.now() + 600;
+    if (!mv) return; mv.playbackRate = h.tempo || 1; if (!h.lief) mv.pause();
+  };
+  addEventListener('pointerup', haltenEnde); addEventListener('pointercancel', haltenEnde);
+  addEventListener('blur', () => haltenEnde());
   addEventListener('pointerup', gesteEnde); addEventListener('pointercancel', gesteEnde);
 
   // Im offenen Blatt: ganz oben in der Liste nach unten ziehen klappt das Blatt wieder ein (wie bei iOS)
@@ -1799,15 +1855,64 @@
     const s = spul; if (!s) return; const w = zeitleiste.clientWidth;
     s.t = Math.max(0, Math.min(s.dauer - .1, s.t0 + (x - s.x0) / w * s.dauer));
     zeitRange.setAttribute('mediacurrenttime', s.t);
-    spulBlase(`${zeit(s.t)} / ${zeit(s.dauer)}`, s.t / s.dauer * w);
+    vorschauZeigen(s.t, s.t / s.dauer * w);
     const jetzt = performance.now(); if (jetzt - s.zuletzt > 90) { s.zuletzt = jetzt; mv.currentTime = s.t; }
   }
   function spulenEnde(abbruch) {
     const s = spul; spul = null; if (!s) return;
     if (!abbruch) mv.currentTime = s.t;
-    zeitleiste.classList.remove('spult'); viewer.classList.remove('spult'); spulZeit.hidden = true;
+    zeitleiste.classList.remove('spult'); viewer.classList.remove('spult'); spulZeit.hidden = true; spulVorschau.hidden = true;
     if (s.lief) mv.play().catch(() => {});
   }
+  // ---------- Vorschau beim Spulen (23.11.2026): Storyboard von Mux, eine Kachel pro paar Sekunden in einem Bild
+  const spulVorschau = $('spul-vorschau'), svBild = $('sv-bild'), svZeit = $('sv-zeit');
+  const VORSCHAU = { v: null, cues: [], url: '', iw: 0, ih: 0 };
+  async function vorschauLaden(v) {
+    VORSCHAU.v = v; VORSCHAU.cues = []; spulVorschau.classList.toggle('hoch', !querVideo(v) && (v.seitenverhaeltnis || .5625) < 1);
+    try {
+      const text = await (await fetch(`https://image.mux.com/${v.playback_id}/storyboard.vtt`)).text();
+      const cues = [...text.matchAll(/([\d:.]+) --> ([\d:.]+)\s+(\S+?)#xywh=(\d+),(\d+),(\d+),(\d+)/g)]
+        .map(m => ({ a: sek(m[1]), b: sek(m[2]), url: m[3], x: +m[4], y: +m[5], w: +m[6], h: +m[7] }));
+      if (!cues.length) return;
+      const img = new Image(); img.src = cues[0].url; await img.decode();
+      if (VORSCHAU.v !== v) return;
+      Object.assign(VORSCHAU, { cues, url: cues[0].url, iw: img.naturalWidth, ih: img.naturalHeight });
+    } catch { /* ohne Storyboard nur die Zeit */ }
+  }
+  function vorschauZeigen(t, x) {
+    const w = zeitleiste.clientWidth;
+    svZeit.textContent = zeit(t);
+    const c = VORSCHAU.cues; let k = null;
+    if (c.length) { k = c.find(q => t >= q.a && t < q.b) || c[c.length - 1]; }
+    svBild.hidden = !k;
+    if (k) {
+      // Wie object-fit: cover in der Blase, nur diese eine Kachel ist zu sehen
+      const bw = svBild.offsetWidth || 112, bh = svBild.offsetHeight || 63, f = Math.max(bw / k.w, bh / k.h);
+      svBild.style.backgroundImage = `url("${VORSCHAU.url}")`;
+      svBild.style.backgroundSize = `${VORSCHAU.iw * f}px ${VORSCHAU.ih * f}px`;
+      svBild.style.backgroundPosition = `${-k.x * f + (bw - k.w * f) / 2}px ${-k.y * f + (bh - k.h * f) / 2}px`;
+    }
+    spulVorschau.hidden = false; spulZeit.hidden = true;
+    const b = (spulVorschau.offsetWidth || 112) / 2;
+    spulVorschau.style.left = Math.max(b - 6, Math.min(w - b + 6, x)) + 'px';
+  }
+  // Rechner (Maus): Drüberfahren und Ziehen zeigen die Vorschau, media-chrome spult selbst
+  let mausZieht = false;
+  const mausZeit = e => { const r = zeitRange.getBoundingClientRect(); const x = Math.max(0, Math.min(r.width, e.clientX - r.left)); return [x / (r.width || 1), x + (r.left - zeitleiste.getBoundingClientRect().left)]; };
+  const mausZeigen = e => { if (!mv || !(isFinite(mv.duration) && mv.duration > 0)) return; const [a, x] = mausZeit(e); vorschauZeigen(a * mv.duration, x); };
+  zeitleiste.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' && !mausZieht) mausZeigen(e); });
+  zeitleiste.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && !mausZieht) spulVorschau.hidden = true; });
+  zeitleiste.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'mouse' || e.button !== 0 || e.target.closest('.marker')) return;
+    mausZieht = true; mausZeigen(e);
+    const zieh = ev => mausZeigen(ev);
+    const los = ev => {
+      mausZieht = false; removeEventListener('pointermove', zieh); removeEventListener('pointerup', los); removeEventListener('pointercancel', los);
+      if (!zeitleiste.matches(':hover')) spulVorschau.hidden = true; else mausZeigen(ev);
+    };
+    addEventListener('pointermove', zieh); addEventListener('pointerup', los); addEventListener('pointercancel', los);
+  });
+
   function spulHinweis(x) {
     spulBlase('Zum Spulen wischen', x - zeitleiste.getBoundingClientRect().left);
     clearTimeout(spulBlase.weg); spulBlase.weg = setTimeout(() => (spulZeit.hidden = true), 1500);
@@ -2069,7 +2174,21 @@
     neu.classList.add('an'); alt.classList.remove('an');
   }
 
-  // Tastatur am Rechner: Leertaste und k spielen oder halten an, Pfeile springen 5 s, f für Vollbild.
+  // Pausiert gehen die Pfeile Bild für Bild (Ole, 23.11.2026: „wenn man Pause hat, Frame für Frame nach vorne oder hinten mit den
+  // Pfeiltasten“), laufend weiter 5 s. Schnelles Drücken oder Halten zählt vom letzten Ziel aus, auch wenn der Sprung davor noch
+  // lädt. Über der Stelle steht kurz der Timecode (ohne bekannte Bildrate 30 Bilder pro Sekunde)
+  let BILD_ZIEL = null;
+  function bildSchritt(r) {
+    const f = bildrate() || 30, d = isFinite(mv.duration) && mv.duration > 0 ? mv.duration : 1e9;
+    const basis = mv.seeking && BILD_ZIEL != null ? BILD_ZIEL : mv.currentTime;
+    const ziel = Math.min(d - 0.5 / f, Math.round((Math.max(0, bildNr(basis, f) + r) + 0.5) / f * 10000) / 10000);
+    BILD_ZIEL = ziel; mv.currentTime = ziel;
+    spulVorschau.hidden = true;
+    spulBlase(tcText(ziel, f), d < 1e9 ? ziel / d * zeitleiste.clientWidth : 0);
+    clearTimeout(spulBlase.weg); spulBlase.weg = setTimeout(() => (spulZeit.hidden = true), 1200);
+  }
+
+  // Tastatur am Rechner: Leertaste und k spielen oder halten an, Pfeile springen 5 s (pausiert ein Bild), f für Vollbild.
   // Seit 16.11.2026 überall auf der Videoseite (Ole: nach einem Klick in die Zeitleiste ging die Leertaste nicht mehr). Vorher kam
   // die Taste nicht an, sobald Zeitleiste, Player oder ein Knopf den Fokus hatte. Ausnahme bleiben nur Textfelder, Fenster und das
   // Einstellungsmenü, Pfeile auf dem Lautstärke Regler stellen weiter die Lautstärke. Läuft vor allen anderen (capture) und hält die
@@ -2085,6 +2204,7 @@
     e.preventDefault(); e.stopPropagation(); genommen.add(e.code);
     if (e.repeat && taste !== 'ArrowRight' && taste !== 'ArrowLeft') return;
     if (taste === ' ' || taste === 'k') mv.paused ? mv.play().catch(() => {}) : mv.pause();
+    else if ((taste === 'ArrowRight' || taste === 'ArrowLeft') && mv.paused) bildSchritt(taste === 'ArrowRight' ? 1 : -1);
     else if (taste === 'ArrowRight') mv.currentTime = Math.min(mv.duration || 1e9, mv.currentTime + 5);
     else if (taste === 'ArrowLeft') mv.currentTime = Math.max(0, mv.currentTime - 5);
     else if (taste === 'f') vollbildUmschalten();
