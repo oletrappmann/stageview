@@ -31,3 +31,4 @@ Eine Zeile pro Version, neueste unten. Ordner in `versionen/`, Wiederherstellen 
 | 2026-11-23_1247 | Daten, Code, App (Pausiert auf Kommentar gesprungen: kein großer Play Knopf) |
 | 2026-11-23_1307 | Daten, Code, App (Gedrückt halten spielt doppelt so schnell) |
 | 2026-11-23_1325 | Daten, Code, App (Menü auf der ganzen Kommentar Karte, keine Textauswahl; Alle erledigt auf der S) |
+| 2026-11-24_0340 | Daten |
