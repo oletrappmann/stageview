@@ -63,11 +63,12 @@ Aufträge (neuer Link, Videos dazu) als eigener systemd Dienst.
                                               Mitteilungen an (seit 22.11.2026), hängt am angemeldeten Zugang
   DELETE /api/admin/push                      {token} beim Abmelden in der App
 
-Mitteilungen bei neuen Kommentaren (seit 22.11.2026, Ole: „Benachrichtigung, wenn Kommentare geschrieben werden, 10 Minuten
-warten, bis das Nächste geschrieben wird, und alles innerhalb dieser 10 Minuten gebündelt als eine Mitteilung schicken“): pro Link
-und Gerät sammelt eine Schleife neue Kommentare (Tabelle kommentare). Erst wenn PUSH_RUHE lang keiner dazukam, geht eine Mitteilung
-raus, bei Dauerfeuer spätestens PUSH_HOECHSTENS nach dem ersten. Eigene Kommentare melden sich beim Schreiber nie (Team Name =
-Name des Zugangs). Antippen öffnet den Player beim ersten neuen Kommentar (Link mit ?t= und &k=). Apple Schlüssel der TESS App
+Mitteilungen bei neuen Kommentaren (seit 22.11.2026, seit 24.11.2026 als Sitzung, Ole: „Bei dem ersten Kommentar kommt direkt
+schon mal eine Benachrichtigung, ab da erstmal keine weiteren. Erst wieder nach 10 Minuten, wenn es ruhig ist, kommt noch mal eine
+mit: es gibt noch mehr Kommentare“): pro Link und Gerät. Der erste Kommentar einer Sitzung meldet sich sofort (ein neuer Kommentar
+weckt die Schleife), alle weiteren werden gesammelt und gehen erst nach PUSH_RUHE ohne neuen Kommentar als eine Nachmeldung raus,
+bei Dauerfeuer spätestens PUSH_HOECHSTENS nach dem ersten gesammelten. Die Sitzung endet nach PUSH_RUHE Stille, danach meldet sich
+der nächste Kommentar wieder sofort. Eigene Kommentare melden sich beim Schreiber nie (Team Name = Name des Zugangs). Antippen öffnet den Player beim ersten neuen Kommentar (Link mit ?t= und &k=). Apple Schlüssel der TESS App
 (~/.hermes/tess-app/apns.p8, gilt fürs ganze Team), Thema media.stagecraft.stageview. Im Log nur Zahlen, nie Texte oder Tokens.
 """
 import base64
@@ -109,8 +110,8 @@ PROFILE_DATEI = DATEN / "profile.json"  # letzte Liste der Brücke, damit die An
 BEFEHL = os.environ.get("STAGEVIEW_BEFEHL", str(Path.home() / ".local/bin/stageview"))
 OS_PFAD = Path(os.environ.get("STAGEVIEW_OS", str(Path.home() / "workspace/stagecraft-os")))
 BASIS_URL = "https://videos.stagecraft.media"
-PUSH_RUHE = 600  # 10 Minuten ohne neuen Kommentar, dann eine gebündelte Mitteilung (Ole, 22.11.2026)
-PUSH_HOECHSTENS = 1800  # bei Dauerfeuer spätestens 30 Minuten nach dem ersten Kommentar
+PUSH_RUHE = 600  # 10 Minuten Ruhe: Nachmeldung für alles nach dem ersten Kommentar, danach ist die Sitzung vorbei (Ole, 24.11.2026)
+PUSH_HOECHSTENS = 1800  # bei Dauerfeuer spätestens 30 Minuten nach dem ersten gesammelten Kommentar
 PUSH_ALT = 6 * 3600  # was so lange liegen blieb (Server aus), ist keine Neuigkeit mehr
 APNS_SCHLUESSEL = Path(os.environ.get("APNS_SCHLUESSEL", str(Path.home() / ".hermes/tess-app/apns.p8")))
 APNS_INFO = APNS_SCHLUESSEL.with_name("apns.json")
@@ -183,6 +184,9 @@ def anlegen():
         # Bearbeiten (seit 16.11.2026): Zeitpunkt der letzten Änderung, der alte Text steht im Verlauf
         if "bearbeitet" not in {r[1] for r in con.execute("PRAGMA table_info(kommentare)")}:
             con.execute("ALTER TABLE kommentare ADD COLUMN bearbeitet TEXT")
+        # Sitzung (seit 24.11.2026): Zeit des letzten schon gemeldeten fremden Kommentars pro Gerät und Link
+        if "letzte" not in {r[1] for r in con.execute("PRAGMA table_info(push_stand)")}:
+            con.execute("ALTER TABLE push_stand ADD COLUMN letzte REAL")
     os.chmod(DB, 0o600)
 
 
@@ -623,6 +627,7 @@ def als_dict(r, eigener_autor, team):
 # ---------- Mitteilungen bei neuen Kommentaren (seit 22.11.2026)
 
 _apns = {"jwt": "", "am": 0.0}
+PUSH_WECKEN = threading.Event()  # ein neuer Kommentar weckt die Schleife, damit der erste sofort gemeldet wird
 
 
 def b64(daten):
@@ -679,17 +684,21 @@ def kurz(text, laenge):
     return text if len(text) <= laenge else text[: laenge - 1].rstrip() + "…"
 
 
-def push_nachricht(projekt, info, ks):
-    """Eine Mitteilung für alle neuen Kommentare eines Links, in ganzen Sätzen. Antippen öffnet den ersten neuen Kommentar."""
+def push_nachricht(projekt, info, ks, nach=False):
+    """Eine Mitteilung in ganzen Sätzen, Antippen öffnet den ersten Kommentar darin. nach = Nachmeldung einer laufenden Sitzung."""
     video_titel = lambda v: info["videos"].get(v, (None, "Video"))[1]
     namen = list(dict.fromkeys(k["name"] for k in ks))
     videos = list(dict.fromkeys(k["video"] for k in ks))
-    if len(ks) == 1:
+    wer = namen[0] if len(namen) == 1 else " und ".join([", ".join(namen[:-1]), namen[-1]]) if len(namen) <= 3 \
+        else f"{namen[0]} und {len(namen) - 1} {'weiteren' if nach else 'weitere'}"
+    wo = f"zu „{video_titel(videos[0])}“" if len(videos) == 1 else f"zu {len(videos)} Videos"
+    if nach and len(ks) == 1:
+        text = f"Es gibt noch einen Kommentar von {wer} {wo}: {kurz(ks[0]['text'], 140)}"
+    elif nach:
+        text = f"Es gibt noch mehr Kommentare: {len(ks)} weitere von {wer} {wo}. Zuletzt: „{kurz(ks[-1]['text'], 100)}“"
+    elif len(ks) == 1:
         text = f"{ks[0]['name']} zu „{video_titel(ks[0]['video'])}“: {kurz(ks[0]['text'], 160)}"
     else:
-        wer = namen[0] if len(namen) == 1 else " und ".join([", ".join(namen[:-1]), namen[-1]]) if len(namen) <= 3 \
-            else f"{namen[0]} und {len(namen) - 1} weitere"
-        wo = f"zu „{video_titel(videos[0])}“" if len(videos) == 1 else f"zu {len(videos)} Videos"
         text = f"{wer}: {len(ks)} neue Kommentare {wo}. Zuletzt: „{kurz(ks[-1]['text'], 110)}“"
     erster = ks[0]
     nr = info["videos"].get(erster["video"], (None,))[0]
@@ -701,14 +710,15 @@ def push_nachricht(projekt, info, ks):
 
 
 def push_runde(jetzt_s):
-    """Pro Gerät und Link: neue Kommentare (nicht die eigenen) sammeln, nach PUSH_RUHE Stille eine Mitteilung."""
+    """Pro Gerät und Link: der erste fremde Kommentar einer Sitzung sofort, die weiteren gesammelt nach PUSH_RUHE Stille."""
     if not (APNS_SCHLUESSEL.exists() and APNS_INFO.exists()):
         return
     with db() as con:
         geraete = con.execute("SELECT token, zugang, umgebung, ab FROM push_geraete").fetchall()
         if not geraete:
             return
-        stand = {(r["projekt"], r["token"]): r["bis"] for r in con.execute("SELECT projekt, token, bis FROM push_stand")}
+        stand = {(r["projekt"], r["token"]): (r["bis"], r["letzte"])
+                 for r in con.execute("SELECT projekt, token, bis, letzte FROM push_stand")}
         tiefste = min(g["ab"] for g in geraete)
         neue = con.execute("SELECT id, projekt, video, zeit, text, name, rolle, erstellt FROM kommentare WHERE id > ? AND geloescht = 0 "
                            "ORDER BY id", (tiefste,)).fetchall()
@@ -717,31 +727,35 @@ def push_runde(jetzt_s):
         person = zugaenge().get(g["zugang"], {}).get("name", "").lower()
         nach_projekt = {}
         for k in neue:
-            if k["id"] > max(g["ab"], stand.get((k["projekt"], g["token"]), 0)):
+            if k["id"] > max(g["ab"], stand.get((k["projekt"], g["token"]), (0, None))[0]):
                 nach_projekt.setdefault(k["projekt"], []).append(k)
         for projekt, ks in nach_projekt.items():
             fremde = [k for k in ks if not (k["rolle"] == "team" and k["name"].strip().lower() == person)]
             bis = ks[-1]["id"]
+            letzte = stand.get((projekt, g["token"]), (0, None))[1]
             if not fremde:  # nur eigene: nichts melden, aber abhaken
-                gemacht.append((projekt, g["token"], bis))
+                gemacht.append((projekt, g["token"], bis, letzte))
                 continue
             zeiten = [datetime.fromisoformat(k["erstellt"]).timestamp() for k in fremde]
-            if jetzt_s - zeiten[-1] < PUSH_RUHE and jetzt_s - zeiten[0] < PUSH_HOECHSTENS:
-                continue  # es könnte noch etwas kommen
             if jetzt_s - zeiten[-1] > PUSH_ALT:
-                gemacht.append((projekt, g["token"], bis))
+                gemacht.append((projekt, g["token"], bis, letzte))
                 continue
+            # Sitzung läuft, solange zwischen dem letzten gemeldeten und dem ersten neuen Kommentar keine PUSH_RUHE lag
+            nach = letzte is not None and zeiten[0] - letzte < PUSH_RUHE
+            if nach and jetzt_s - zeiten[-1] < PUSH_RUHE and jetzt_s - zeiten[0] < PUSH_HOECHSTENS:
+                continue  # weitere Kommentare sammeln, bis es ruhig ist
             info = infos.setdefault(projekt, projekt_info(projekt))
-            status, grund = apns_senden(g["umgebung"], g["token"], push_nachricht(projekt, info, fremde), jetzt_s)
+            nachricht = push_nachricht(projekt, info, fremde, nach)
+            status, grund = apns_senden(g["umgebung"], g["token"], nachricht, jetzt_s)
             if grund == "BadDeviceToken":  # Kennung gehört zum anderen Apple Server (wie in der TESS App)
                 andere = "production" if g["umgebung"] == "sandbox" else "sandbox"
-                status, grund = apns_senden(andere, g["token"], push_nachricht(projekt, info, fremde), jetzt_s)
+                status, grund = apns_senden(andere, g["token"], nachricht, jetzt_s)
                 if status == 200:
                     with db() as con:
                         con.execute("UPDATE push_geraete SET umgebung=? WHERE token=?", (andere, g["token"]))
             if status == 200:
                 gesendet += 1
-                gemacht.append((projekt, g["token"], bis))
+                gemacht.append((projekt, g["token"], bis, zeiten[-1]))
             elif grund in ("BadDeviceToken", "Unregistered", "DeviceTokenNotForTopic"):
                 with db() as con:
                     con.execute("DELETE FROM push_geraete WHERE token=?", (g["token"],))
@@ -752,19 +766,20 @@ def push_runde(jetzt_s):
                 print("Mitteilung nicht zugestellt", status, grund, flush=True)  # nächste Runde nochmal
     if gemacht:
         with db() as con:
-            con.executemany("INSERT INTO push_stand (projekt, token, bis) VALUES (?,?,?) ON CONFLICT(projekt, token) "
-                            "DO UPDATE SET bis=excluded.bis", gemacht)
+            con.executemany("INSERT INTO push_stand (projekt, token, bis, letzte) VALUES (?,?,?,?) ON CONFLICT(projekt, token) "
+                            "DO UPDATE SET bis=excluded.bis, letzte=excluded.letzte", gemacht)
     if gesendet:
         print(f"Mitteilungen gesendet: {gesendet}", flush=True)
 
 
 def push_schleife():
     while True:
+        PUSH_WECKEN.clear()
         try:
             push_runde(time.time())
         except Exception as e:  # nie den Dienst mitreißen
             print("Mitteilungen Fehler:", type(e).__name__, flush=True)
-        time.sleep(30)
+        PUSH_WECKEN.wait(30)  # alle 30 s, ein neuer Kommentar sofort
 
 
 class Fehler(Exception):
@@ -1120,6 +1135,7 @@ class Api(BaseHTTPRequestHandler):
             con.execute("INSERT INTO verlauf (am, projekt, video, art, von, daten) VALUES (?,?,?,?,?,?)",
                         (jetzt(), projekt, video, "kommentar", name, json.dumps({"id": cur.lastrowid})))
             r = con.execute("SELECT * FROM kommentare WHERE id=?", (cur.lastrowid,)).fetchone()
+        PUSH_WECKEN.set()
         return als_dict(r, autor, team)
 
     def erledigt(self, projekt, kid, d, autor, team):
