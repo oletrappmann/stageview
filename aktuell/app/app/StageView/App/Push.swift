@@ -14,7 +14,12 @@ enum Push {
     /// Nach der Anmeldung und bei jedem Start: Erlaubnis (einmal fragt iOS), dann bei Apple registrieren
     static func start() {
         #if DEBUG
-        if Demo.isOn { return }
+        // Testbuild: nur mit SV_MITTEILUNGEN nach der Erlaubnis fragen (Test mit xcrun simctl push), nie beim Server anmelden
+        if Demo.isOn {
+            guard ProcessInfo.processInfo.environment["SV_MITTEILUNGEN"] != nil else { return }
+            Task { _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) }
+            return
+        }
         #endif
         Task {
             let center = UNUserNotificationCenter.current()
@@ -51,15 +56,25 @@ enum Push {
     }
 }
 
-/// Mitteilungen auch zeigen, wenn die App offen ist, und Antippen öffnet den Kommentar
+/// Mitteilungen auch zeigen, wenn die App offen ist, und Antippen öffnet den Kommentar.
+/// Mit Abschluss Block statt async (Absturz 25.11.2026 auf Oles iPhone, im Simulator nachgestellt mit testMitteilungEcht): Die
+/// async Fassung meldete iOS das Ende aus einem Nebenstrang (cooperative Thread), UIKit verlangt dafür den Hauptstrang und brach
+/// die App ab (NSAssertion in _updateSnapshotAndStateRestorationWithAction), sobald man eine Mitteilung aus dem Hintergrund antippte.
+/// Jetzt läuft alles auf dem Hauptstrang, der Abschluss Block kommt erst, wenn der Link geöffnet ist.
 final class PushDelegate: NSObject, UNUserNotificationCenterDelegate {
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async
-        -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .list, .sound])
     }
 
-    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        guard let link = response.notification.request.content.userInfo["link"] as? String, let url = URL(string: link) else { return }
-        await MainActor.run { Store.shared.open(url) }
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        let link = response.notification.request.content.userInfo["link"] as? String
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                if let link, let url = URL(string: link) { Store.shared.open(url) }
+            }
+            completionHandler()
+        }
     }
 }

@@ -651,6 +651,55 @@ final class BilderTests: XCTestCase {
         a.terminate()
     }
 
+    /// Mitteilung antippen, während schon ein Player offen ist (Ole, 25.11.2026: „draufgedrückt, dann wieder auf die
+    /// Benachrichtigung, dann ist die App abgestürzt“). Gleicher Weg wie die Mitteilung: Store.open mit ?k= und ?t=
+    func testMitteilungDoppelt() {
+        let a = app("liste")
+        Thread.sleep(forTimeInterval: 3)
+        let eins = URL(string: "stageview://menfeu/1?k=49&t=0")!
+        let drei = URL(string: "stageview://menfeu/3?k=52&t=16")!
+        func laeuft(_ schritt: String) {
+            XCTAssertEqual(a.state, .runningForeground, "abgestürzt nach: \(schritt)")
+        }
+        a.open(eins); bild("md1-erste", warten: 3); laeuft("erste Mitteilung")
+        a.open(eins); bild("md2-gleiche-nochmal", warten: 3); laeuft("gleiche Mitteilung bei offenem Player")
+        a.open(drei); bild("md3-andere", warten: 3); laeuft("andere Mitteilung bei offenem Player")
+        a.open(eins); a.open(drei); bild("md4-schnell", warten: 3); laeuft("zwei schnell hintereinander")
+        a.open(eins); Thread.sleep(forTimeInterval: 0.2); a.open(eins); bild("md5-im-uebergang", warten: 3); laeuft("während der Player aufgeht")
+        XCUIDevice.shared.press(.home); Thread.sleep(forTimeInterval: 1.5)
+        a.open(drei); bild("md6-aus-hintergrund", warten: 3); laeuft("aus dem Hintergrund")
+        a.buttons["player-schliessen"].firstMatch.tap(); Thread.sleep(forTimeInterval: 0.3)
+        a.open(eins); bild("md7-beim-schliessen", warten: 3); laeuft("während der Player zugeht")
+        a.terminate()
+    }
+
+    /// Echte Mitteilung antippen (Absturz 25.11.2026 auf Oles iPhone): scripts/mitteilungstest.sh schickt alle paar Sekunden eine
+    /// Mitteilung mit Link an den Simulator, der Test tippt das Banner an, einmal ohne und einmal mit offenem Player, dann aus dem
+    /// Hintergrund. Die App muss danach noch laufen und beim Kommentar stehen.
+    func testMitteilungEcht() {
+        let a = app("liste", env: ["SV_MITTEILUNGEN": "1"])
+        let sb = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        // Erlaubnis für Mitteilungen (fragt iOS beim ersten Start)
+        let erlauben = sb.buttons.matching(NSPredicate(format: "label IN {'Erlauben', 'Allow'}")).firstMatch
+        if erlauben.waitForExistence(timeout: 8) { erlauben.tap() }
+        func banner() -> XCUIElement {
+            sb.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Mitteilungstest'")).firstMatch
+        }
+        func antippen(_ schritt: String) {
+            let b = banner()
+            XCTAssertTrue(b.waitForExistence(timeout: 40), "kein Banner: \(schritt)")
+            b.tap()
+            bild("me-" + schritt, warten: 3)
+            XCTAssertEqual(a.state, .runningForeground, "abgestürzt nach: \(schritt)")
+        }
+        antippen("1-erste")
+        antippen("2-bei-offenem-player")
+        antippen("3-nochmal")
+        XCUIDevice.shared.press(.home)
+        antippen("4-aus-hintergrund")
+        a.terminate()
+    }
+
     /// Teilen Fenster wie im Web (22.11.2026): im Player mit „Ab 0:12 starten“, Kopiert, und in der Kundenansicht
     func testTeilen() {
         var a = app("player:8fykkr:1:12")

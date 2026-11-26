@@ -728,7 +728,8 @@ def push_nachricht(projekt, info, ks, nach=False):
     nr = info["videos"].get(erster["video"], (None,))[0]
     link = f"{BASIS_URL}/{projekt}"
     if nr:
-        link += f"/{nr}?k={erster['id']}" + (f"&t={int(erster['zeit'])}" if erster["zeit"] is not None else "")
+        # genaue Stelle (26.11.2026, vorher ganze Sekunden: ein Kommentar bei 16,6 s öffnete bei 16,0 s), App und Web lesen Kommazahlen
+        link += f"/{nr}?k={erster['id']}" + (f"&t={round(float(erster['zeit']), 2):g}" if erster["zeit"] is not None else "")
     return {"aps": {"alert": {"title": info["titel"], "body": text}, "sound": "default", "thread-id": f"stageview-{projekt}"},
             "link": link}
 
