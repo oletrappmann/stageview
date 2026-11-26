@@ -33,3 +33,4 @@ Eine Zeile pro Version, neueste unten. Ordner in `versionen/`, Wiederherstellen 
 | 2026-11-23_1325 | Daten, Code, App (Menü auf der ganzen Kommentar Karte, keine Textauswahl; Alle erledigt auf der S) |
 | 2026-11-24_0340 | Daten |
 | 2026-11-25_0340 | Daten, Code |
+| 2026-11-26_0340 | Daten, Code |

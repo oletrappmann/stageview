@@ -10,7 +10,9 @@ Claude Code (per ssh) nutzen denselben Befehl. Alles Wichtige steht in der SKILL
 Daten (nur auf VPS 2, ~/.hermes/data/stageview/):
   projekte/<schluessel>.json  ein Projekt (titel, kunde, firma, kunde_ordner, dreh, hinweis, videos), seit 22.11.2026 dazu
                               quellen (gewählte Drive Ordner), drive_weg (nicht mehr im Drive, ausgeblendet) und entfernt
-                              (von Hand von der Seite genommen, kommt nie von selbst zurück). Jedes Video merkt seinen Ordner
+                              (von Hand von der Seite genommen, kommt nie von selbst zurück). Jedes Video merkt seinen Ordner, seit 25.11.2026 auch
+                              datei (Name im Drive), md5 (Prüfsumme der Fassung bei Mux), vorher (frühere Drive Dateien nach
+                              einer neuen Fassung) und fassung_offen (Mux Asset der neuen Fassung, solange es noch läuft)
   codes.json                  schluessel → Code des Links (6 Zeichen, ersetzt das Passwort, ändert sich nie)
   nummern.json                pro Code: Video → feste Nummer für /<code>/<nr> (wird nie neu vergeben)
 Schlüssel: Mux in ~/.hermes/stageview.env (MUX_TOKEN_ID, MUX_TOKEN_SECRET), Team Schlüssel für Kommentare in
@@ -172,16 +174,14 @@ def mux(pfad, methode="GET", daten=None):
         fehler(f"Mux {methode} {pfad}: {e.code} {e.read().decode()[:300]}")
 
 
-STUFE_RANG = {"1080p": 1, "1440p": 2, "2160p": 3}
-
-
 def asset_rang(a):
-    """Fertig vor in Arbeit, dann die höhere Stufe (4K vor 1080p), dann das neuere."""
-    return (a.get("status") == "ready", STUFE_RANG.get(a.get("max_resolution_tier"), 0), int(a.get("created_at") or 0))
+    """Fertig vor in Arbeit, dann das neueste. Seit 25.11.2026 ohne Stufe: eine neue Fassung aus dem Drive gewinnt auch in 1080p
+    gegen eine ältere 4K Fassung. Hochstufen auf 4K bleibt gleich, die 4K Fassung ist dort immer die neuere."""
+    return (a.get("status") == "ready", int(a.get("created_at") or 0))
 
 
 def mux_assets(alle=False):
-    """Alle Mux Assets, nach Drive ID (passthrough drive:<id>). Gibt es mehrere zu einem Video (z.B. nach dem Umstieg auf 4K),
+    """Alle Mux Assets, nach Drive ID (passthrough drive:<id>). Gibt es mehrere zu einem Video (4K nach dem Umstieg, neue Fassung),
     gilt das beste nach asset_rang. alle=True: pro Drive ID die ganze Liste, das beste zuerst."""
     seite, karte = 1, {}
     while True:
@@ -338,7 +338,7 @@ def drive_token():
 
 
 ALLE = {"supportsAllDrives": True}
-FELDER = "id,name,mimeType,size,createdTime,modifiedTime,parents,driveId,webViewLink,videoMediaMetadata(width,height,durationMillis)"
+FELDER = "id,name,mimeType,size,md5Checksum,createdTime,modifiedTime,parents,driveId,webViewLink,videoMediaMetadata(width,height,durationMillis)"
 
 
 def drive_datei(did):
@@ -806,6 +806,8 @@ def projekt_bauen(schluessel, projekt, assets, seite, version, stand):
     for _, v in reihe:
         if v.get("drive"):
             a = assets.get(v["drive"])
+            if not a or a.get("status") != "ready":  # neue Datei (neue Fassung) noch bei Mux: bis dahin die bisherige
+                a = next((assets[x] for x in reversed(v.get("vorher") or []) if (assets.get(x) or {}).get("status") == "ready"), a)
             if not a or a.get("status") != "ready":
                 fehlt.append(v.get("titel") or v["drive"])
                 continue
@@ -1359,14 +1361,14 @@ def eintraege_aus(args):
         namen = [f["name"] for f, _ in paare]
         for f, pfad in sorted(paare, key=lambda x: (x[1][:1], not ist_quer(x[0]), [t.lower() for t in x[1]], x[0]["name"].lower())):
             e = {"drive": f["id"], "titel": titel_aus_dateiname(f["name"], namen), "groesse": int(f.get("size") or 0) or None,
-                 "ordner": (f.get("parents") or [None])[0]}
+                 "ordner": (f.get("parents") or [None])[0], "datei": f["name"], "md5": f.get("md5Checksum")}
             if nach_ordnern and pfad:
                 e["gruppe"] = gruppe_aus_ordner(pfad[0])
             eintraege.append(e)
     for v in args.video or []:
         f = drive_datei(drive_id(v))
         eintraege.append({"drive": f["id"], "titel": titel_aus_dateiname(f["name"]), "groesse": int(f.get("size") or 0) or None,
-                          "ordner": (f.get("parents") or [None])[0]})
+                          "ordner": (f.get("parents") or [None])[0], "datei": f["name"], "md5": f.get("md5Checksum")})
     if getattr(args, "gruppe", None):  # feste Kategorie für alles, was dieser Aufruf dazu nimmt
         for e in eintraege:
             e["gruppe"] = args.gruppe.strip()
@@ -1532,7 +1534,8 @@ def b_vorbereiten(a):
 def drive_info(did):
     """(datei, klar): datei None und klar True heißt gelöscht oder nicht mehr sichtbar, klar False heißt Fehler, nichts ändern."""
     try:
-        return drive().files().get(fileId=did, fields="id,name,parents,trashed,createdTime,size,mimeType", **ALLE).execute(), True
+        return drive().files().get(fileId=did, fields="id,name,parents,trashed,createdTime,modifiedTime,size,md5Checksum,mimeType",
+                                   **ALLE).execute(), True
     except Exception as e:
         return None, ("404" in str(e) or "notFound" in str(e))
 
@@ -1544,11 +1547,41 @@ def zeitpunkt(iso):
         return None
 
 
+def name_kern(name):
+    """Dateiname zum Vergleichen: ohne Video Endung, klein, Leerzeichen zusammengefasst („Reel 3.MOV“ = „reel 3“)."""
+    n = unicodedata.normalize("NFC", str(name or "")).strip().lower()
+    return " ".join(re.sub(r"\.(mp4|mov|m4v|webm)$", "", n).split())
+
+
+def neue_fassung_melden(code, video, alt=None, still=False):
+    """Kommentar Dienst: mit alt Kommentare, Freigabe Status und Verlauf auf die neue Drive Datei umziehen, ohne still ein Eintrag im
+    Verlauf. None, wenn der Dienst nicht antwortet (dann bleibt alles, wie es ist, und der nächste Abgleich versucht es noch einmal)."""
+    team = env_datei(HAUS / "videos-api.env").get("VIDEOS_TEAM_KEY", "")
+    daten = {"video": video, **({"alt": alt} if alt else {}), **({"still": True} if still else {})}
+    req = urllib.request.Request(f"{API}/admin/projekt/{code}/neue-fassung", method="POST", data=json.dumps(daten).encode(),
+                                 headers={"Content-Type": "application/json", "X-Team": team})
+    try:
+        return json.load(urllib.request.urlopen(req, timeout=20))
+    except Exception as e:
+        print(f"  Hinweis: Kommentar Dienst nicht erreicht ({type(e).__name__}), neue Fassung beim nächsten Abgleich", flush=True)
+        return None
+
+
 def drive_abgleich(s, neue=False, trocken=False, warten=0, leise=False):
-    """Gleicht einen Link mit dem Drive ab. Gibt {weg, zurueck, neu, hinweis} mit Titeln zurück."""
+    """Gleicht einen Link mit dem Drive ab. Gibt {weg, zurueck, neu, ersetzt, fertig, hinweis} mit Titeln zurück.
+
+    Neue Fassung (seit 25.11.2026, Ole: „wenn das alte Video mit einem neuen Video mit dem selben Namen replaced wurde, erkennt das
+    StageView noch nicht“), zwei Wege:
+      a) dieselbe Drive Datei mit neuem Inhalt (Drive „Vorhandene Datei ersetzen“, neuer Export über Google Drive am Mac), erkannt an
+         der Prüfsumme (md5). Videos von vorher haben noch keine: dann zählt eine andere Größe, wenn die Datei nach dem letzten Mux
+         Upload geändert wurde, sonst wird die Prüfsumme nur nachgetragen.
+      b) eine neue Datei mit demselben Namen im selben Ordner. Die alte liegt im Papierkorb, ist gelöscht (beides prüft auch der Cron)
+         oder liegt noch daneben (nur mit --neue, also über den Knopf, und nur wenn die neue später kam).
+    Beides ersetzt das Video an seinem Platz: Nummer, Link, Titel, Kommentare und Freigabe Status bleiben. Bis Mux fertig ist, spielt
+    die Seite die bisherige Fassung (fassung_offen, bei b über vorher), danach wechselt sie von selbst (spätestens im nächsten Cron)."""
     p = lesen_json(projekt_datei(s), {})
     code = code_fuer(s, False)
-    raus = {"weg": [], "zurueck": [], "neu": [], "hinweis": None}
+    raus = {"weg": [], "zurueck": [], "neu": [], "ersetzt": [], "fertig": [], "hinweis": None}
     if not code:
         return raus
     vids = [v for v in p.get("videos", []) if v.get("drive")]
@@ -1557,9 +1590,11 @@ def drive_abgleich(s, neue=False, trocken=False, warten=0, leise=False):
         return raus
     bekannte_ordner = {v["ordner"] for v in vids + ausgeblendet if v.get("ordner")} | {q["ordner"] for q in p.get("quellen") or []}
 
-    stand, ordner_neu = {}, {}  # drive → da | weg | unklar | weg404 ; drive → Ordner (nachgetragen oder verschoben innerhalb)
+    stand, ordner_neu, infos = {}, {}, {}  # drive → da | weg | unklar | weg404 ; drive → Ordner ; drive → Datei im Drive
     for v in vids + ausgeblendet:
         f, klar = drive_info(v["drive"])
+        if f:
+            infos[v["drive"]] = f
         if not klar:
             stand[v["drive"]] = "unklar"
         elif f is None:
@@ -1582,16 +1617,34 @@ def drive_abgleich(s, neue=False, trocken=False, warten=0, leise=False):
     sichtbar = any(stand.get(v["drive"]) == "da" for v in vids + ausgeblendet)
     # 404 zählt nur, wenn der Agent im selben Link andere Videos sieht (sonst eher Zugriff verloren als gelöscht)
     weg = [v for v in vids if stand.get(v["drive"]) == "weg" or (stand.get(v["drive"]) == "weg404" and sichtbar)]
-    if vids and len(weg) == len(vids):
-        raus["hinweis"] = (f"Alle {len(vids)} Videos fehlen im Drive (Papierkorb oder kein Zugriff). Die Seite bleibt, wie sie ist, "
-                           "bitte prüfen, ob das so gewollt ist")
-        weg = []
     zurueck = [w for w in ausgeblendet if stand.get(w["drive"]) == "da"]
+    nummern = lesen_json(DATEN / "nummern.json", {}).get(code) or {}
+    bekannt = ({v["drive"] for v in vids} | {w["drive"] for w in ausgeblendet} | set(nummern) | set(p.get("entfernt") or [])
+               | {x for v in vids + ausgeblendet for x in v.get("vorher") or []})
+
+    # a) dieselbe Datei, neuer Inhalt. Nebenbei Prüfsumme, Größe und Dateiname nachtragen (nachtrag, ohne neu zu bauen)
+    neu_inhalt, nachtrag, mux_alle = [], {}, None
+    for v in vids:
+        f = infos.get(v["drive"])
+        if stand.get(v["drive"]) != "da" or not f:
+            continue
+        md5, groesse = f.get("md5Checksum"), int(f.get("size") or 0) or None
+        if v.get("md5"):
+            if md5 and md5 != v["md5"]:
+                neu_inhalt.append(v)
+        elif md5 and v.get("groesse") and groesse and groesse != v["groesse"]:
+            if mux_alle is None:
+                mux_alle = mux_assets(alle=True)
+            zuletzt = max((int(x.get("created_at") or 0) for x in mux_alle.get(v["drive"]) or []), default=0)
+            geaendert = zeitpunkt(f.get("modifiedTime"))
+            if zuletzt and geaendert and geaendert.timestamp() > zuletzt + 60:
+                neu_inhalt.append(v)
+        werte = {k: w for k, w in (("md5", md5), ("groesse", groesse), ("datei", f.get("name"))) if w}
+        if any(v.get(k) != w for k, w in werte.items()):
+            nachtrag[v["drive"]] = werte
 
     kandidaten = []
     if neue:
-        nummern = lesen_json(DATEN / "nummern.json", {}).get(code) or {}
-        bekannt = ({v["drive"] for v in vids} | {w["drive"] for w in ausgeblendet} | set(nummern) | set(p.get("entfernt") or []))
         if p.get("quellen"):  # gewählte Ordner: alles Neue darin, wie beim Anlegen (Unterordner, Kategorien)
             for q in p["quellen"]:
                 ns = argparse.Namespace(ordner=[q["ordner"]], video=None, quelle=None, unterordner=q.get("tief"),
@@ -1606,8 +1659,8 @@ def drive_abgleich(s, neue=False, trocken=False, warten=0, leise=False):
             ordner = {ordner_neu.get(v["drive"]) or v.get("ordner") for v in vids if stand.get(v["drive"]) == "da"} - {None}
             for o in sorted(ordner):
                 kinder = [f for f in drive_kinder(o) if ist_video(f) and f["id"] not in andere]
-                vorher = [f for f in kinder if angelegt and (zeitpunkt(f.get("createdTime")) or angelegt) <= angelegt]
-                if not angelegt or any(f["id"] not in bekannt for f in vorher):
+                frueher = [f for f in kinder if angelegt and (zeitpunkt(f.get("createdTime")) or angelegt) <= angelegt]
+                if not angelegt or any(f["id"] not in bekannt for f in frueher):
                     continue
                 gruppen = [v.get("gruppe") for v in vids if (ordner_neu.get(v["drive"]) or v.get("ordner")) == o]
                 gruppe = max(set(gruppen), key=gruppen.count) if gruppen else None
@@ -1615,12 +1668,74 @@ def drive_abgleich(s, neue=False, trocken=False, warten=0, leise=False):
                 for f in kinder:
                     if f["id"] not in bekannt:
                         kandidaten.append({"drive": f["id"], "titel": titel_aus_dateiname(f["name"], namen),
-                                           "groesse": int(f.get("size") or 0) or None, "ordner": o, "gruppe": gruppe})
-    raus.update(weg=[v.get("titel") or v["drive"] for v in weg], zurueck=[w.get("titel") or w["drive"] for w in zurueck],
-                neu=[k["titel"] for k in kandidaten])
+                                           "groesse": int(f.get("size") or 0) or None, "ordner": o, "gruppe": gruppe,
+                                           "datei": f["name"], "md5": f.get("md5Checksum")})
+
+    # b) neue Datei mit demselben Namen im selben Ordner. Ohne --neue nur in den Ordnern von Videos, die gerade fehlen
+    fehlen, zurueck_ids = {v["drive"] for v in weg}, {w["drive"] for w in zurueck}
+    alte = [(v, "weg" if v["drive"] in fehlen else "da") for v in vids if v["drive"] in fehlen or (neue and stand.get(v["drive"]) == "da")]
+    alte += [(w, "aus") for w in ausgeblendet if w["drive"] not in zurueck_ids]
+    ordner_von = lambda v: ordner_neu.get(v["drive"]) or v.get("ordner") or ((infos.get(v["drive"]) or {}).get("parents") or [None])[0]
+    frische = list(kandidaten)
+    for o in sorted({ordner_von(v) for v, art in alte if art != "da"} - {None}):
+        try:
+            kinder = drive_kinder(o)
+        except Exception:
+            continue
+        for f in kinder:
+            if ist_video(f) and f["id"] not in bekannt and f["id"] not in {k["drive"] for k in frische}:
+                frische.append({"drive": f["id"], "groesse": int(f.get("size") or 0) or None, "ordner": o, "datei": f["name"],
+                                "md5": f.get("md5Checksum")})
+    paare = []
+    for k in frische:
+        kern = name_kern(k.get("datei"))
+        if not kern or sum(1 for x in frische if x["ordner"] == k["ordner"] and name_kern(x.get("datei")) == kern) != 1:
+            continue
+        def passt(v):
+            alt_name = v.get("datei") or (infos.get(v["drive"]) or {}).get("name")
+            if alt_name:
+                return name_kern(alt_name) == kern
+            return name_kern(v.get("titel")) == name_kern(titel_aus_dateiname(k["datei"]))  # endgültig gelöscht, ohne gemerkten Namen
+        treffer = [(v, art) for v, art in alte if ordner_von(v) == k["ordner"] and passt(v)]
+        if len(treffer) != 1 or any(v is pv for pv, _, _ in paare):
+            continue
+        v, art = treffer[0]
+        if art == "da":  # die alte Datei liegt noch daneben: nur, wenn die neue später ins Drive kam
+            alt_t = zeitpunkt((infos.get(v["drive"]) or {}).get("createdTime"))
+            neu_t = zeitpunkt((drive_info(k["drive"])[0] or {}).get("createdTime"))
+            if not (alt_t and neu_t and neu_t > alt_t):
+                continue
+        paare.append((v, k, art))
+    ersetzt_ids = {v["drive"] for v, _, _ in paare}
+    weg = [v for v in weg if v["drive"] not in ersetzt_ids]
+    kandidaten = [k for k in kandidaten if k["drive"] not in {k2["drive"] for _, k2, _ in paare}]
+    if vids and weg and len(weg) == len(vids):
+        raus["hinweis"] = (f"Alle {len(vids)} Videos fehlen im Drive (Papierkorb oder kein Zugriff). Die Seite bleibt, wie sie ist, "
+                           "bitte prüfen, ob das so gewollt ist")
+        weg = []
+
+    # Neue Fassungen von früher, die bei Mux inzwischen fertig sind (oder gescheitert)
+    fertig_ids, fehl_ids = set(), set()
+    for v in vids:
+        if v.get("fassung_offen") and v["drive"] not in {x["drive"] for x in neu_inhalt} | ersetzt_ids:
+            try:
+                st = mux(f"/video/v1/assets/{v['fassung_offen']}")["data"].get("status")
+            except SystemExit:
+                st = "errored"
+            if st == "ready":
+                fertig_ids.add(v["drive"])
+            elif st == "errored":
+                fehl_ids.add(v["drive"])
+                print(f"  Mux konnte die neue Fassung von {v.get('titel')} nicht verarbeiten, die bisherige läuft weiter", flush=True)
+
+    titel = lambda v: v.get("titel") or v["drive"]
+    raus.update(weg=[titel(v) for v in weg], zurueck=[titel(w) for w in zurueck], neu=[k["titel"] for k in kandidaten],
+                ersetzt=[titel(v) for v in neu_inhalt] + [titel(v) for v, _, _ in paare],
+                fertig=[titel(v) for v in vids if v["drive"] in fertig_ids])
     # Hinweis am Link merken (App und Dashboard zeigen ihn), ins Protokoll nur, wenn er neu ist
     raus["hinweis_neu"] = bool(raus["hinweis"]) and raus["hinweis"] != p.get("drive_hinweis")
-    if not trocken and raus["hinweis"] != p.get("drive_hinweis") and not (weg or zurueck or kandidaten or ordner_neu):
+    etwas = weg or zurueck or kandidaten or ordner_neu or nachtrag or neu_inhalt or paare or fertig_ids or fehl_ids
+    if not trocken and raus["hinweis"] != p.get("drive_hinweis") and not etwas:
         with Sperre():
             p = lesen_json(projekt_datei(s), {})
             if raus["hinweis"]:
@@ -1628,24 +1743,90 @@ def drive_abgleich(s, neue=False, trocken=False, warten=0, leise=False):
             else:
                 p.pop("drive_hinweis", None)
             schreiben_json(projekt_datei(s), p)
-    if trocken or not (weg or zurueck or kandidaten or ordner_neu):
+    if trocken or not etwas:
         return raus
 
+    # Neue Fassungen zu Mux, bevor etwas am Link geändert wird (klappt das nicht, versucht es der nächste Abgleich)
+    hochgeladen = {}  # Drive Datei der neuen Fassung → Mux Asset
+    for did, name in [(v["drive"], titel(v)) for v in neu_inhalt] + [(k["drive"], titel(v)) for v, k, _ in paare]:
+        try:
+            if link_freigeben(did):
+                print(f"  Drive Link freigegeben: {name}")
+        except Exception as e:
+            print(f"  Hinweis: Freigabe für {name} nicht geprüft ({str(e)[:120]})")
+        try:
+            hochgeladen[did] = mux_neu(did, name)["id"]
+            print(f"  neue Fassung zu Mux: {name}", flush=True)
+        except (SystemExit, Exception) as e:
+            print(f"  neue Fassung von {name} nicht zu Mux ({type(e).__name__}), beim nächsten Abgleich noch einmal", flush=True)
+    for v in neu_inhalt:
+        if v["drive"] not in hochgeladen:
+            nachtrag.pop(v["drive"], None)  # Prüfsumme nicht nachtragen, sonst sähe der nächste Abgleich die Änderung nicht mehr
+
     jetzt_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    weg_ids, zurueck_ids = {v["drive"] for v in weg}, {w["drive"] for w in zurueck}
+    doppelt, umgezogen, inhalt_ok = [], [], {}
+    # ausblenden: was fehlt (nach der Prüfung „alle fehlen“) und fehlende, deren neue Fassung gerade nicht zu Mux kam
+    weg_ids = {v["drive"] for v in weg} | {v["drive"] for v, k, art in paare if art == "weg" and k["drive"] not in hochgeladen}
     with Sperre():  # frisch lesen, damit nichts überschrieben wird, was in der Zwischenzeit dazukam
         p = lesen_json(projekt_datei(s), {})
+        alle_nr = lesen_json(DATEN / "nummern.json", {})
+        feste = alle_nr.setdefault(code, {})
+        jetzt_da = {v.get("drive"): v for v in p.get("videos", []) + (p.get("drive_weg") or []) if v.get("drive")}
+        ersatz = {}
+        for v, k, art in paare:
+            if k["drive"] not in hochgeladen:
+                continue
+            if v["drive"] not in jetzt_da or k["drive"] in jetzt_da:  # ein anderer Abgleich war schneller
+                doppelt.append(hochgeladen[k["drive"]])
+                continue
+            if neue_fassung_melden(code, k["drive"], alt=v["drive"]) is None:  # Kommentare zuerst, sonst hingen sie an der alten Datei
+                doppelt.append(hochgeladen[k["drive"]])
+                continue
+            ersatz[v["drive"]] = k
+            umgezogen.append((v["drive"], k["drive"]))
+        for v in neu_inhalt:
+            jetzt = jetzt_da.get(v["drive"])
+            if v["drive"] not in hochgeladen:
+                continue
+            if not jetzt or (jetzt.get("md5") and jetzt["md5"] == (nachtrag.get(v["drive"]) or {}).get("md5")):
+                doppelt.append(hochgeladen[v["drive"]])  # schon von einem anderen Abgleich ersetzt
+                continue
+            inhalt_ok[v["drive"]] = hochgeladen[v["drive"]]
+
+        def tauschen(v):
+            k, alt = ersatz[v["drive"]], v["drive"]
+            v["vorher"] = [x for x in v.get("vorher") or [] if x not in (alt, k["drive"])] + [alt]
+            v.update({x: k[x] for x in ("drive", "ordner", "groesse", "md5", "datei") if k.get(x)})
+            v["fassung_offen"] = hochgeladen[k["drive"]]
+            if alt in feste and k["drive"] not in feste:  # gleiche Nummer, gleicher Link /<code>/<nr>
+                feste[k["drive"]] = feste.pop(alt)
+            return v
+
         bleibt, raus_neu = [], []
         for i, v in enumerate(p.get("videos", [])):
-            if v.get("drive") in ordner_neu:
-                v["ordner"] = ordner_neu[v["drive"]]
-            if v.get("drive") in weg_ids:
+            did = v.get("drive")
+            if did in ordner_neu:
+                v["ordner"] = ordner_neu[did]
+            if did in ersatz:
+                bleibt.append(tauschen(v))
+                continue
+            if did in nachtrag:
+                v.update(nachtrag[did])
+            if did in fertig_ids or did in fehl_ids:
+                v.pop("fassung_offen", None)
+            if did in inhalt_ok:
+                v["fassung_offen"] = inhalt_ok[did]
+                (DATEN / "transkripte" / f"{did}.json").unlink(missing_ok=True)  # Transkript der alten Fassung
+            if did in weg_ids:
                 raus_neu.append({**v, "stelle": i, "weg_am": jetzt_iso})
             else:
                 bleibt.append(v)
         rest = []
         for w in sorted(p.get("drive_weg") or [], key=lambda w: w.get("stelle", 0)):
-            if w.get("drive") in zurueck_ids and w["drive"] not in {v.get("drive") for v in bleibt}:
+            if w.get("drive") in ersatz:
+                v = tauschen({k: x for k, x in w.items() if k not in ("stelle", "weg_am")})
+                bleibt.insert(min(w.get("stelle", len(bleibt)), len(bleibt)), v)
+            elif w.get("drive") in zurueck_ids and w["drive"] not in {v.get("drive") for v in bleibt}:
                 v = {k: x for k, x in w.items() if k not in ("stelle", "weg_am")}
                 if w["drive"] in ordner_neu:
                     v["ordner"] = ordner_neu[w["drive"]]
@@ -1663,9 +1844,37 @@ def drive_abgleich(s, neue=False, trocken=False, warten=0, leise=False):
             p.pop("drive_weg", None)
         videos_aufnehmen(p, kandidaten)
         schreiben_json(projekt_datei(s), p)
+        if ersatz:
+            schreiben_json(DATEN / "nummern.json", alle_nr)
+    for aid in doppelt:  # nur, was dieser Lauf eben selbst angelegt hat und nirgends steckt
+        try:
+            mux(f"/video/v1/assets/{aid}", "DELETE")
+        except SystemExit:
+            pass
+    raus["ersetzt"] = [titel(v) for v in neu_inhalt if v["drive"] in inhalt_ok] + [titel(v) for v, _, _ in paare if v["drive"] in ersatz]
+    for did in inhalt_ok:
+        neue_fassung_melden(code, did)
+    neu_bauen = weg_ids or zurueck or kandidaten or ersatz or inhalt_ok or fertig_ids
+    if ersatz:  # sofort bauen: die Kommentare hängen schon an der neuen Datei, die Seite spielt bis Mux fertig ist die alte
+        with Sperre():
+            bauen(s)
+        for alt, neu in umgezogen:  # was in den Sekunden dazwischen noch an der alten Datei landete
+            neue_fassung_melden(code, neu, alt=alt, still=True)
     if kandidaten:
         nach_mux(p, warten)
-    if weg or zurueck or kandidaten:
+    offen_ids = [a for d, a in hochgeladen.items() if a not in doppelt and (d in inhalt_ok or d in {k["drive"] for k in ersatz.values()})]
+    if offen_ids and warten:
+        fertig_jetzt = set(offen_ids) - mux_warten(offen_ids, warten)
+        if fertig_jetzt:
+            with Sperre():
+                p = lesen_json(projekt_datei(s), {})
+                for v in p.get("videos", []):
+                    if v.get("fassung_offen") in fertig_jetzt:
+                        v.pop("fassung_offen", None)
+                schreiben_json(projekt_datei(s), p)
+        elif not kandidaten:
+            print("  neue Fassung noch bei Mux in Arbeit, bis dahin läuft die bisherige, danach wechselt die Seite von selbst", flush=True)
+    if neu_bauen:
         with Sperre():
             ergebnis = bauen(s)
         if not leise:
@@ -1675,6 +1884,12 @@ def drive_abgleich(s, neue=False, trocken=False, warten=0, leise=False):
 
 def abgleich_text(r):
     teile = []
+    if r.get("ersetzt"):
+        n = len(r["ersetzt"])
+        teile.append(f"{n} {'Video durch eine neue Fassung' if n == 1 else 'Videos durch neue Fassungen'} ersetzt")
+    if r.get("fertig"):
+        n = len(r["fertig"])
+        teile.append(f"{n} {'neue Fassung' if n == 1 else 'neue Fassungen'} jetzt auf der Seite")
     if r["neu"]:
         teile.append(f"{len(r['neu'])} {'neues Video' if len(r['neu']) == 1 else 'neue Videos'} dazu")
     if r["weg"]:
@@ -1707,7 +1922,7 @@ def b_drive_abgleich(a):
         liste = [s for s in alle_projekte() if code_fuer(s, False)]
     else:
         liste = [schluessel_fuer(a.projekt or fehler("Link angeben oder --alle"))]
-    summe = {"weg": 0, "zurueck": 0, "neu": 0}
+    summe = {"weg": 0, "zurueck": 0, "neu": 0, "ersetzt": 0}
     for s in liste:
         try:
             r = drive_abgleich(s, neue=a.neue and not a.alle, trocken=a.trocken, warten=a.warten, leise=a.alle)
@@ -1724,6 +1939,8 @@ def b_drive_abgleich(a):
                 print(f"{datetime.now().isoformat(timespec='seconds')} {code_fuer(s, False)}: {text or 'Hinweis'}"
                       f"{' (Probe)' if a.trocken else ''}", flush=True)
             continue
+        for titel in r["ersetzt"]:
+            print(f"  neue Fassung: {titel}")
         for titel in r["neu"]:
             print(f"  neu: {titel}")
         for titel in r["weg"]:
@@ -1731,7 +1948,7 @@ def b_drive_abgleich(a):
         for titel in r["zurueck"]:
             print(f"  wieder da: {titel}")
         print("@ " + json.dumps({"phase": "fertig", **{k: len(r[k]) for k in summe}, "hinweis": r["hinweis"]}, ensure_ascii=False))
-        ende = text or ("keine neuen Videos im Ordner, alles aktuell" if a.neue else "alles aktuell")
+        ende = text or ("keine neuen Videos oder Fassungen im Ordner, alles aktuell" if a.neue else "alles aktuell")
         if r["hinweis"]:  # letzte Zeile zeigen App und Dashboard, deshalb der Hinweis dort
             ende = f"{text}. {r['hinweis']}" if text else r["hinweis"]
         print(f"Drive geprüft{' (Probe, nichts geändert)' if a.trocken else ''}: {ende}", flush=True)
@@ -2197,12 +2414,22 @@ def b_mux(a):
     alle = mux_assets(alle=True)
     if a.aufraeumen:
         # Ältere Fassungen eines Videos (z.B. 1080p nach dem Umstieg auf 4K) löschen, nur wenn die beste fertig ist
-        weg = [(did, x) for did, liste in alle.items() if liste[0].get("status") == "ready" for x in liste[1:]]
+        weg = [(did, x, f"behalten: {liste[0].get('max_resolution_tier')}") for did, liste in alle.items()
+               if liste[0].get("status") == "ready" for x in liste[1:]]
+        # Neue Fassung als neue Drive Datei (seit 25.11.2026): die Assets der früheren Datei, sobald die neue fertig ist
+        projekte = alle_projekte().values()
+        benutzt = {v.get("drive") for p in projekte for v in p.get("videos", []) + (p.get("drive_weg") or [])}
+        for p in projekte:
+            for v in p.get("videos", []) + (p.get("drive_weg") or []):
+                if v.get("vorher") and (alle.get(v.get("drive")) or [{}])[0].get("status") == "ready":
+                    weg += [(alt, x, "alte Datei, die neue Fassung ist fertig") for alt in v["vorher"] if alt not in benutzt
+                            for x in alle.get(alt) or []]
+        weg = list({x["id"]: (did, x, grund) for did, x, grund in weg}.values())
         if not weg:
             print("Nichts aufzuräumen, pro Video gibt es nur eine Fassung bei Mux")
             return
-        for did, x in weg:
-            print(f"{'lösche' if a.ja else 'würde löschen'}: {x.get('max_resolution_tier')} {x['status']} drive:{did} (behalten: {alle[did][0].get('max_resolution_tier')})")
+        for did, x, grund in weg:
+            print(f"{'lösche' if a.ja else 'würde löschen'}: {x.get('max_resolution_tier')} {x['status']} drive:{did} ({grund})")
             if a.ja:
                 mux(f"/video/v1/assets/{x['id']}", "DELETE")
         if not a.ja:

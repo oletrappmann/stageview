@@ -62,6 +62,10 @@ Aufträge (neuer Link, Videos dazu) als eigener systemd Dienst.
   POST   /api/admin/push                      {token, umgebung: sandbox|production} iPhone der StageView App meldet sich für
                                               Mitteilungen an (seit 22.11.2026), hängt am angemeldeten Zugang
   DELETE /api/admin/push                      {token} beim Abmelden in der App
+  POST   /api/admin/projekt/<code>/neue-fassung {video, alt?, still?} nur Team Schlüssel (stageview drive-abgleich, seit 25.11.2026):
+                                              ein Video hat im Drive eine neue Fassung. Mit alt (neue Drive Datei mit gleichem Namen)
+                                              ziehen Kommentare, Freigabe Status, Verlauf und Fehlermeldungen von alt nach video um.
+                                              Ohne still ein Eintrag „neue fassung“ im Verlauf
 
 Mitteilungen bei neuen Kommentaren (seit 22.11.2026, seit 24.11.2026 als Sitzung, Ole: „Bei dem ersten Kommentar kommt direkt
 schon mal eine Benachrichtigung, ab da erstmal keine weiteren. Erst wieder nach 10 Minuten, wenn es ruhig ist, kommt noch mal eine
@@ -119,6 +123,7 @@ APNS_TEAM = "9ZM98AMD7M"
 APNS_THEMA = "media.stagecraft.stageview"
 APNS_HOSTS = {"production": "https://api.push.apple.com", "sandbox": "https://api.sandbox.push.apple.com"}
 CODE_RE = re.compile(r"^[a-z0-9]{6}$")
+DRIVE_RE = re.compile(r"^[A-Za-z0-9_-]{10,100}$")
 
 STATUS = ("zur-freigabe", "aenderung", "freigegeben")
 PROJEKT_RE = re.compile(r"^(?:[a-z0-9-]+-)?[a-z0-9]{6}$")  # seit 13.11.2026 meist nur der Code
@@ -679,6 +684,25 @@ def projekt_info(projekt):
     return {"titel": pj.get("titel") or "StageView", "videos": {v["id"]: (v.get("nr"), v.get("titel") or "Video") for v in pj.get("videos", [])}}
 
 
+def neue_fassung(code, d):
+    """Drive Abgleich (seit 25.11.2026, Ole: „das alte Video mit einem neuen Video mit dem selben Namen replaced“): Mit alt zieht alles,
+    was an der alten Drive Datei hing, auf die neue um, nichts geht verloren. Ohne still ein Eintrag im Verlauf (letzte Aktivität)."""
+    video, alt = str(d.get("video") or ""), str(d.get("alt") or "")
+    if not CODE_RE.match(code) or not DRIVE_RE.match(video) or (alt and not DRIVE_RE.match(alt)):
+        raise Fehler(400, "Angaben fehlen")
+    n = 0
+    with db() as con:
+        if alt and alt != video:
+            n = con.execute("UPDATE kommentare SET video=? WHERE projekt=? AND video=?", (video, code, alt)).rowcount
+            con.execute("UPDATE OR REPLACE status SET video=? WHERE projekt=? AND video=?", (video, code, alt))
+            con.execute("UPDATE verlauf SET video=? WHERE projekt=? AND video=?", (video, code, alt))
+            con.execute("UPDATE fehler SET video=? WHERE projekt=? AND video=?", (video, code, alt))
+        if not d.get("still"):
+            con.execute("INSERT INTO verlauf (am, projekt, video, art, von, daten) VALUES (?,?,?,?,?,?)",
+                        (jetzt(), code, video, "neue fassung", "Drive", json.dumps({"alt": alt} if alt else {})))
+    return {"ok": True, "kommentare": n}
+
+
 def kurz(text, laenge):
     text = " ".join(str(text).split())
     return text if len(text) <= laenge else text[: laenge - 1].rstrip() + "…"
@@ -991,6 +1015,11 @@ class Api(BaseHTTPRequestHandler):
         if methode != "POST" or (herkunft and herkunft not in HERKUNFT):
             raise Fehler(403, "nicht erlaubt")
         d = self.koerper()
+        if len(rest) == 3 and rest[0] == "projekt" and rest[2] == "neue-fassung":  # nur stageview mit Team Schlüssel (25.11.2026)
+            k = self.headers.get("X-Team") or ""
+            if not (TEAM_KEY and k and hmac.compare_digest(k, TEAM_KEY)):
+                raise Fehler(403, "nicht erlaubt")
+            return self.antwort(200, neue_fassung(rest[1], d))
         if rest == ["vorbereiten"]:
             q = str(d.get("quelle") or "").strip()
             if not q:
