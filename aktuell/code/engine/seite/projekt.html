@@ -269,6 +269,9 @@
   .viewer:not(.pausiert) .mitte, .viewer.spult .mitte { opacity: 0; pointer-events: none; transform: scale(1.18); }
   /* Pausiert auf einen Kommentar gesprungen: kein großer Play Knopf (Ole, 23.11.2026), bis wieder abgespielt wird */
   .viewer.still-gesprungen .mitte { opacity: 0; pointer-events: none; }
+  /* Beim Pausieren kein großer Play Knopf (Ole, 27.11.2026: „wenn man Pause macht, dieser große Play Button nicht da“): er steht
+     nur da, bis ein Video zum ersten Mal läuft. Danach bleibt das Bild frei, auch am Ende, bis ein anderes Video kommt */
+  .viewer.schon-gelaufen .mitte { opacity: 0; pointer-events: none; }
   /* Play und Pause in der Leiste springen beim Wechsel kurz auf */
   @keyframes knopf-auf { from { transform: scale(.6); opacity: .3; } to { transform: none; opacity: 1; } }
   .reihe media-play-button svg { animation: knopf-auf .26s cubic-bezier(.34,1.42,.5,1); }
@@ -1026,7 +1029,7 @@
     'aenderung': { t: 'Änderung gewünscht', c: '#C4855A', h: 'Wir passen das Video nach euren Kommentaren an' },
     'freigegeben': { t: 'Freigegeben', c: '#93AA98', h: 'Passt so, kann gepostet werden' },
   };
-  let P = null, AKT = null, mv = null, filter = 'alle', K = { kommentare: [], status: {}, team: false }, KOK = true;
+  let P = null, AKT = null, mv = null, gelaufen = null, filter = 'alle', K = { kommentare: [], status: {}, team: false }, KOK = true;
   const statusVon = id => (K.status[id] && K.status[id].wert) || 'zur-freigabe';
   const istTeam = () => !!K.team;
 
@@ -1248,7 +1251,7 @@
     else neu.addEventListener('play', () => setTimeout(() => { if (!geladen && !document.hidden) umschalten('nach Play 15 s nichts geladen'); }, 15000), { once: true });
     $('poster').setAttribute('src', bild(v, 720));
     $('video-box').style.setProperty('--ar', v.seitenverhaeltnis || .5625);
-    const zustand = () => { viewer.classList.toggle('pausiert', mv.paused); if (!mv.paused) { $('weiter').hidden = true; viewer.classList.remove('still-gesprungen'); } wach(); };
+    const zustand = () => { viewer.classList.toggle('pausiert', mv.paused); if (!mv.paused) { $('weiter').hidden = true; viewer.classList.remove('still-gesprungen'); gelaufen = v.nr; viewer.classList.add('schon-gelaufen'); } wach(); };
     ['play', 'pause', 'seeking'].forEach(ev => mv.addEventListener(ev, zustand));
     // Hinter der Übersicht spielt nie ein Video (egal von wo der Start kam: später Ladeversuch, Wechsel auf nativ, Qualität)
     const nieVersteckt = () => { if ($('videoseite').hidden && !document.pictureInPictureElement) neu.pause(); };
@@ -1263,7 +1266,7 @@
     vorschauLaden(v);
     const t = opt.t ?? +new URLSearchParams(location.search).get('t');
     if (t > 0) { mv.addEventListener('loadedmetadata', () => { mv.currentTime = t; }, { once: true }); if (location.search) history.replaceState(history.state, '', location.pathname); }
-    viewer.classList.add('pausiert'); viewer.classList.remove('still-gesprungen'); $('weiter').hidden = true;
+    viewer.classList.add('pausiert'); viewer.classList.remove('still-gesprungen'); viewer.classList.toggle('schon-gelaufen', gelaufen === v.nr); $('weiter').hidden = true;
     $('zeit-chip').classList.add('an'); $('zeit-chip-text').textContent = zeit(t || 0);
   }
   function videoKopf(v) {
