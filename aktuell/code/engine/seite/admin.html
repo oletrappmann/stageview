@@ -718,6 +718,9 @@
       freigabeDrueber();
       zeigen('dashboard'); zeichnen(); kontoZeichnen();
       if (OFFEN && $('projekt-dialog').open && !dialogBeschaeftigt()) projektZeichnen();
+      // „Im Dashboard öffnen“ von einer Kundenseite (26.11.2026): /admin#link=<code> öffnet gleich das Fenster dieses Links
+      const ziel = location.hash.match(/^#link=([a-z0-9]{6})$/);
+      if (ziel) { history.replaceState(null, '', location.pathname); const p = D.projekte.find(x => x.code === ziel[1]); if (p) projektAuf(p.schluessel); }
     } catch (e) {
       if (e instanceof NichtAngemeldet) { D = null; return zeigen('anmeldung'); }
       if (!still) toast(e.message || 'Keine Verbindung', true);

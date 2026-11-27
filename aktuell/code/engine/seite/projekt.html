@@ -732,6 +732,50 @@
   .teilen-dialog .ab-stelle input { width: 20px; height: 20px; padding: 0; margin: 0; background: none; box-shadow: none; accent-color: var(--akzent); flex: none; }
   .teilen-dialog .klein { margin: 14px 0 0; font-size: 13px; color: var(--leise); }
 
+  /* Verwalten fürs Team (seit 26.11.2026, Ole wählte Entwurf B): neben Teilen und genauso hoch (Übersicht 40 px wie die Teilen Pille,
+     Videoseite am Rechner 44 px wie der runde Teilen Knopf). Nur mit Anmeldung im Admin Dashboard, Kunden sehen nichts davon */
+  .verwalten-knopf { gap: 4px; padding: 0 10px 0 16px; background: #3E4A41; box-shadow: inset 0 0 0 1px rgba(147,170,152,.45); --s: 18px; }
+  .verwalten-knopf:hover, .verwalten-knopf[aria-expanded="true"] { background: #46544A; }
+  .verwalten-knopf > span { display: inline-flex; transition: transform .2s; }
+  .verwalten-knopf[aria-expanded="true"] > span { transform: rotate(180deg); }
+  .verwalten-knopf.laeuft::before { content: ""; width: 7px; height: 7px; margin-right: 4px; border-radius: 50%; background: var(--akzent); animation: v-puls .9s ease-in-out infinite alternate; }
+  @keyframes v-puls { from { opacity: .35; } }
+  .kopf .verwalten-knopf { height: 44px; font-size: 14.5px; }
+  .verwalten-menue { width: 320px; }
+  .verwalten-menue button, .verwalten-menue a { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 12px; border-radius: 12px; text-align: left;
+    color: var(--text); text-decoration: none; --s: 20px; box-sizing: border-box; }
+  .verwalten-menue a:hover, .verwalten-menue button:hover:not(:disabled) { background: var(--panel-2); }
+  .verwalten-menue button svg, .verwalten-menue a svg { margin-left: 0; color: var(--text); }
+  .verwalten-menue button:disabled { opacity: .45; cursor: default; }
+  .verwalten-menue .gefahr, .verwalten-menue .gefahr svg { color: #E3A27C; }
+  .verwalten-menue .abschnitt { padding: 8px 12px 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .verwalten-menue hr { border: 0; height: 1px; margin: 4px 12px; background: var(--linie); }
+  .verwalten-menue b { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; }
+  .verwalten-menue small { display: block; font-size: 13px; color: var(--muted); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
+  .verwalten-dialog { width: min(500px, calc(100vw - 32px)); }
+  .verwalten-dialog .wer { margin-bottom: 16px; }
+  .v-feld { display: flex; flex-direction: column; gap: 6px; margin: 0 0 12px; min-width: 0; }
+  .v-feld > span { font-size: 13px; color: var(--muted); }
+  .v-zwei { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  @media (max-width: 480px) { .v-zwei { grid-template-columns: 1fr; } }
+  .verwalten-dialog textarea, .verwalten-dialog select { width: 100%; border: 0; outline: 0; background: var(--panel-2); color: var(--text); font: inherit; font-size: 16px;
+    padding: 12px 14px; border-radius: 12px; box-sizing: border-box; resize: vertical; }
+  .verwalten-dialog select { -webkit-appearance: none; appearance: none; padding-right: 36px; cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 20px) 52%, calc(100% - 14px) 52%; background-size: 6px 6px; background-repeat: no-repeat; }
+  .verwalten-dialog textarea:focus, .verwalten-dialog select:focus { box-shadow: 0 0 0 2px var(--akzent); }
+  .verwalten-dialog .klein { margin: 2px 0 0; }
+  .verwalten-dialog .kopieren:disabled { opacity: .4; cursor: default; transform: none; }
+  .verwalten-dialog .knoepfe { display: flex; gap: 8px; }
+  .verwalten-dialog .knoepfe .gefahr-knopf { background: #C4855A; color: #fff; }
+  .v-lauf { display: flex; align-items: center; gap: 14px; margin-top: 6px; padding: 14px 16px; border-radius: 14px; background: var(--panel-2); }
+  .v-lauf .kreis { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid var(--spur); border-top-color: var(--akzent); animation: v-dreh .8s linear infinite; flex: none; }
+  .v-lauf.fertig .kreis { animation: none; border-color: var(--akzent); background: var(--akzent); }
+  .v-lauf.fehler .kreis { animation: none; border-color: #C4855A; }
+  @keyframes v-dreh { to { transform: rotate(360deg); } }
+  .v-lauf b { display: block; font-size: 15px; }
+  .v-lauf small { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+
   .toast { position: fixed; left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translate(-50%, 12px); opacity: 0; pointer-events: none; z-index: 200;
     background: var(--text); color: var(--bg); border-radius: 999px; padding: 10px 16px; font-size: 13.5px; font-weight: 500; transition: opacity .2s, transform .2s;
     white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
@@ -752,6 +796,7 @@
       <div class="mitte-titel" id="leiste-titel"></div>
       <div class="knoepfe">
         <button class="pille" data-teilen title="Link teilen" data-i="link">Teilen</button>
+        <div class="status-wahl verwalten-wahl" data-verwalten hidden><button type="button" class="pille verwalten-knopf" aria-haspopup="menu" aria-expanded="false">Verwalten<span data-i="chevron-down"></span></button><div class="status-menue verwalten-menue" role="menu" hidden></div></div>
       </div>
     </header>
     <section class="held">
@@ -787,6 +832,7 @@
           <div class="vw-tipp" id="vw-tipp" hidden><img alt=""><div><small></small><b></b></div></div>
         </div>
         <button class="rund" data-teilen title="Link teilen" aria-label="Link teilen" data-i="link"></button>
+        <div class="status-wahl verwalten-wahl oben" data-verwalten hidden><button type="button" class="pille verwalten-knopf" aria-haspopup="menu" aria-expanded="false">Verwalten<span data-i="chevron-down"></span></button><div class="status-menue verwalten-menue" role="menu" hidden></div></div>
         <div class="status-wahl oben"><button class="status-knopf" data-status-knopf aria-haspopup="menu"><span class="punkt"></span><span data-status-text>Zur Freigabe</span><span data-i="chevron-down"></span></button><div class="status-menue" role="menu" hidden></div></div>
         <a class="dl-pill" id="dl" href="#" rel="noopener"><span data-i="download"></span>Download <span id="dl-groesse"></span></a>
         <a class="rund nur-handy" id="dl-rund" href="#" rel="noopener" title="Download" aria-label="Download" data-i="download"></a>
@@ -883,6 +929,7 @@
   <p class="klein">Jeder mit dem Link kann die Videos ansehen und kommentieren.</p>
   <button type="button" class="kopieren" id="teilen-kopieren"><span class="ic ic-link" data-i="link"></span><span class="ic ic-ok" data-i="check"></span><span class="text">Link kopieren</span></button>
 </dialog>
+<dialog id="verwalten-dialog" class="teilen-dialog verwalten-dialog" aria-label="Verwalten" tabindex="-1"></dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -1270,7 +1317,8 @@
   $('weiter').addEventListener('click', () => { autoStart = true; gehe(videoLink(naechstes(1))); });
 
   // Status oben (Zur Freigabe, Änderung gewünscht, Freigegeben)
-  const menueZu = () => { document.querySelectorAll('.status-menue').forEach(m => (m.hidden = true)); $('zahnrad').setAttribute('aria-expanded', 'false'); };
+  const menueZu = () => { document.querySelectorAll('.status-menue').forEach(m => (m.hidden = true)); $('zahnrad').setAttribute('aria-expanded', 'false');
+    document.querySelectorAll('.verwalten-knopf').forEach(k => k.setAttribute('aria-expanded', 'false')); };
   function statusZeichnen() {
     if (!AKT) return; const s = STATUS[statusVon(AKT.id)];
     document.querySelectorAll('[data-status-knopf]').forEach(b => { b.style.setProperty('--c', s.c); b.querySelector('[data-status-text]').textContent = s.t; });
@@ -1471,6 +1519,7 @@
     } catch { KOK = false; $('stoerung').hidden = false; if (still) return; }
     alsZeichnen();
     if ($('videoseite').hidden) uebersichtZeichnen(); else { statusZeichnen(); zeichnen(still); weitereZeichnen(); }
+    teamPruefen();
   }
   setInterval(() => { if (!document.hidden) laden(true); }, 15000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { laden(true); neueFassung(); } });
@@ -2211,6 +2260,198 @@
     else if (taste === 'n' || taste === 'p') videoWechseln(taste === 'n' ? 1 : -1);  // N nächstes, P Video davor (20.11.2026)
   }, true);
   addEventListener('keyup', e => { if (genommen.delete(e.code)) { e.preventDefault(); e.stopPropagation(); } }, true);
+
+  // ---------- Verwalten fürs Team (seit 26.11.2026, Ole wählte Entwurf B von vier: „Verwalten“ neben Teilen, genauso hoch)
+  // Zu sehen nur mit Anmeldung im Admin Dashboard (Cookie, GET /api/admin/ich), Kunden sehen nichts. Ole: „entscheide, ob auf
+  // derselben Seite oder im Dashboard“: Bearbeiten, Videos hinzufügen, Umbenennen und Von der Seite nehmen als Fenster hier auf der
+  // Seite, Drive abgleichen ohne Fenster mit Meldung, alles Seltene (Kategorien, Darstellung, Link löschen) im Dashboard im neuen Tab.
+  // Alles über dieselben Wege wie das Dashboard (/api/admin/projekt/<code>/…), danach lädt die Seite neu (nie mitten im Video)
+  const CODE = ORDNER.split('-').pop();
+  const STANDARD_HINWEIS = 'Tippe auf ein Video, um es anzusehen. Was geändert werden soll, schreibst du direkt an die Stelle im Video.';
+  let ICH = null, VJOB = null;
+  const vDialog = $('verwalten-dialog');
+  async function adminApi(pfad, opt = {}) {
+    const r = await fetch('/api/admin/' + pfad, { method: opt.method || 'GET', headers: opt.body ? { 'Content-Type': 'application/json' } : {},
+      body: opt.body ? JSON.stringify(opt.body) : undefined, cache: 'no-store', credentials: 'same-origin' });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 401) throw new Error('Bitte im Admin Dashboard neu anmelden');
+    if (!r.ok) throw new Error(d.fehler || 'Das hat nicht geklappt');
+    return d;
+  }
+  async function teamPruefen() {
+    if (ICH !== null || !istTeam()) return;
+    ICH = false;
+    try { ICH = (await adminApi('ich')).ich || false; } catch { ICH = false; }
+    if (ICH) document.querySelectorAll('[data-verwalten]').forEach(w => (w.hidden = false));
+  }
+  function seiteNeu() {
+    if (mv && !mv.paused && !$('videoseite').hidden) { mv.addEventListener('pause', seiteNeu, { once: true }); return; }
+    const stelle = mv && !$('videoseite').hidden ? Math.floor(mv.currentTime || 0) : 0;
+    stelle > 1 ? location.replace(location.pathname + '?t=' + stelle) : location.reload();
+  }
+  function schoen(z) {
+    z = String(z || '');
+    const m = z.match(/warte auf Mux: (.*)/);
+    if (m) { const p = [...m[1].matchAll(/(\d+) %/g)].map(x => +x[1]); return p.length ? `Mux bereitet vor: ${Math.round(p.reduce((a, b) => a + b, 0) / p.length)} %` : 'Mux bereitet vor'; }
+    if (/zu Mux/.test(z)) return 'Videos gehen zu Mux';
+    if (/Mux fertig/.test(z)) return 'Mux fertig, Seite wird gebaut';
+    return z.replace(/^\s+/, '') || 'startet';
+  }
+  function verwaltenMenue(w) {
+    const aufVideo = !$('videoseite').hidden && AKT;
+    const zeile = (aktion, ic, titel, text, extra = '') => `<button type="button" role="menuitem" data-verwalten-aktion="${aktion}"${extra}>${icon(ic)}<span><b>${titel}</b>${text ? `<small>${text}</small>` : ''}</span></button>`;
+    const laeuft = !!VJOB;
+    let html = '';
+    if (aufVideo) {
+      const n = K.kommentare.filter(k => k.video === AKT.id).length;
+      html += '<div class="abschnitt">Dieses Video</div>' + zeile('umbenennen', 'rename', 'Umbenennen', esc(AKT.titel))
+        + (n ? `<a role="menuitem" href="/api/admin/projekt/${CODE}/video/${AKT.nr}/marker?format=edl" download>${icon('flag')}<span><b>Marker für DaVinci</b><small>${n === 1 ? '1 Kommentar' : n + ' Kommentare'} als .edl</small></span></a>`
+          : zeile('marker', 'flag', 'Marker für DaVinci', 'Noch keine Kommentare', ' disabled'))
+        + zeile('entfernen', 'remove', 'Von der Seite nehmen', '', ' class="gefahr"') + '<hr><div class="abschnitt">Ganzer Link</div>';
+    }
+    html += zeile('bearbeiten', 'pencil', 'Bearbeiten', 'Titel, Kunde und Hinweis')
+      + zeile('dazu', 'plus', 'Videos hinzufügen', laeuft && VJOB.art === 'dazu' ? 'Läuft gerade …' : 'Ordner oder Video aus dem Drive', laeuft ? ' disabled' : '')
+      + zeile('drive', 'repeat', 'Drive abgleichen', laeuft && VJOB.art === 'drive' ? 'Läuft gerade …' : 'Neue Videos und Fassungen holen', laeuft ? ' disabled' : '')
+      + `<hr><a role="menuitem" href="/admin#link=${CODE}" target="_blank" rel="noopener">${icon('external')}<span><b>Im Dashboard öffnen</b><small>Alle Einstellungen dieses Links</small></span></a>`
+      + `<div class="von">Nur für das Team sichtbar · angemeldet als ${esc((ICH && ICH.name) || 'Team')}</div>`;
+    w.querySelector('.verwalten-menue').innerHTML = html;
+  }
+  document.querySelectorAll('[data-verwalten]').forEach(w => {
+    const knopf = w.querySelector('.verwalten-knopf'), menue = w.querySelector('.verwalten-menue');
+    knopf.addEventListener('click', e => {
+      e.stopPropagation(); const auf = menue.hidden; menueZu();
+      if (auf) { verwaltenMenue(w); menue.hidden = false; knopf.setAttribute('aria-expanded', 'true'); }
+    });
+    menue.addEventListener('click', e => {
+      const b = e.target.closest('[data-verwalten-aktion]'), a = e.target.closest('a');
+      if (!b && !a) return;
+      if (b && b.disabled) return;
+      menueZu();
+      if (b) verwaltenAktion(b.dataset.verwaltenAktion);
+    });
+  });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && document.querySelector('.verwalten-menue:not([hidden])')) menueZu(); });
+  function laufZeigen() { document.querySelectorAll('.verwalten-knopf').forEach(k => k.classList.toggle('laeuft', !!VJOB)); }
+  function vFenster(html) {
+    vDialog.innerHTML = `<button type="button" class="rund zu" data-zu title="Schließen" aria-label="Schließen">${icon('x-mark')}</button>` + html;
+    fensterAuf(vDialog); vDialog.focus();
+  }
+  vDialog.addEventListener('click', e => {
+    if (e.target.closest('[data-zu]')) return vDialog.close();
+    if (e.target !== vDialog) return; const r = vDialog.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) vDialog.close();  // Klick daneben schließt
+  });
+  async function verwaltenAktion(aktion) {
+    if (aktion === 'bearbeiten') {
+      let D; try { D = await adminApi('uebersicht'); } catch (err) { return toast(err.message); }
+      const p = D.projekte.find(x => x.code === CODE); if (!p) return toast('Diesen Link gibt es im Dashboard nicht');
+      const k = D.kunden.find(k => p.kunde_ordner === k.id || (!p.kunde_ordner && (p.kunde || '') === k.name)), kid = k ? k.id : '';
+      const gruppen = (P.gruppen || []).length > 0;
+      vFenster(`<h3>Link bearbeiten</h3><p class="wer">${esc([p.titel, p.kunde].filter(Boolean).join(' · '))}</p>
+        <form id="v-bearbeiten" data-kunde="${esc(kid)}" data-darstellung="${esc(p.darstellung || 'abschnitte')}">
+          <label class="v-feld"><span>Titel</span><input name="titel" maxlength="120" required value="${esc(p.titel)}" autocomplete="off"></label>
+          <div class="v-zwei">
+            <label class="v-feld"><span>Kunde</span><select name="kunde_id">${kid ? '' : '<option value="" selected>Ohne Kunde</option>'}${D.kunden.map(x => `<option value="${esc(x.id)}"${x.id === kid ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+            <label class="v-feld"><span>Firma oder Zusatz</span><input name="firma" maxlength="80" value="${esc(p.firma)}" autocomplete="off"></label>
+          </div>
+          <label class="v-feld"><span>Hinweis oben auf der Seite (leer für den Standard)</span><textarea name="hinweis" rows="3" maxlength="400" placeholder="${esc(STANDARD_HINWEIS)}">${esc(p.hinweis)}</textarea></label>
+          ${gruppen ? `<label class="v-feld"><span>Darstellung der Kategorien</span><select name="darstellung"><option value="abschnitte"${p.darstellung !== 'youtube' ? ' selected' : ''}>Abschnitte (Standard)</option><option value="youtube"${p.darstellung === 'youtube' ? ' selected' : ''}>YouTube Video groß, Shorts daneben</option></select></label>` : ''}
+          <p class="klein">Der Link bleibt gleich, auch wenn sich der Titel ändert.</p>
+          <button type="submit" class="kopieren" disabled>Speichern</button>
+        </form>`);
+      const f = $('v-bearbeiten'), alt = { titel: p.titel || '', firma: p.firma || '', hinweis: p.hinweis || '' };
+      const geaendert = () => {
+        const fd = new FormData(f), body = {};
+        Object.keys(alt).forEach(x => { const w = (fd.get(x) || '').trim(); if (w !== alt[x].trim()) body[x] = w; });
+        if (fd.get('kunde_id') && fd.get('kunde_id') !== f.dataset.kunde) body.kunde_id = fd.get('kunde_id');
+        if (fd.get('darstellung') && fd.get('darstellung') !== f.dataset.darstellung) body.darstellung = fd.get('darstellung');
+        return body;
+      };
+      f.addEventListener('input', e => {
+        const fd = new FormData(f);
+        if (e.target.name === 'kunde_id') { const x = D.kunden.find(y => y.id === fd.get('kunde_id')); if (x && x.firma) f.elements.firma.value = x.firma; }
+        f.querySelector('[type=submit]').disabled = !Object.keys(geaendert()).length || !(fd.get('titel') || '').trim();
+      });
+      f.addEventListener('submit', async e => {
+        e.preventDefault(); const knopf = f.querySelector('[type=submit]'), body = geaendert(); if (!Object.keys(body).length) return;
+        knopf.disabled = true; knopf.textContent = 'Speichert …';
+        try { await adminApi('projekt/' + CODE, { method: 'POST', body }); vDialog.close(); toast('Gespeichert'); setTimeout(seiteNeu, 600); }
+        catch (err) { knopf.disabled = false; knopf.textContent = 'Speichern'; toast(err.message); }
+      });
+      setTimeout(() => f.elements.titel.focus(), 60);
+    }
+    if (aktion === 'dazu') {
+      vFenster(`<h3>Videos hinzufügen</h3><p class="wer">${esc(P.titel)}</p>
+        <form id="v-dazu">
+          <label class="v-feld"><span>Drive Link zu einem Ordner oder Video</span><input name="quellen" required autocomplete="off" placeholder="https://drive.google.com/…"></label>
+          <label class="v-feld"><span>Titel (nur bei einem einzelnen Video, sonst aus dem Dateinamen)</span><input name="titel" maxlength="120" autocomplete="off"></label>
+          <p class="klein">Nur Videos, die noch nicht auf der Seite sind, gehen zu Mux. Das dauert ein paar Minuten, danach stehen sie von selbst hier.</p>
+          <button type="submit" class="kopieren">Hinzufügen</button>
+        </form>
+        <div class="v-lauf" hidden><span class="kreis"></span><div><b>Videos werden hinzugefügt</b><small data-lauf-text>startet</small></div></div>`);
+      const f = $('v-dazu');
+      f.addEventListener('submit', async e => {
+        e.preventDefault(); const fd = new FormData(f), knopf = f.querySelector('[type=submit]');
+        knopf.disabled = true; knopf.textContent = 'Startet …';
+        try {
+          const a = await adminApi(`projekt/${CODE}/dazu`, { method: 'POST', body: { quellen: fd.get('quellen'), titel: fd.get('titel') } });
+          f.hidden = true; vDialog.querySelector('.v-lauf').hidden = false; auftragFolgen(a.id, 'dazu');
+        } catch (err) { knopf.disabled = false; knopf.textContent = 'Hinzufügen'; toast(err.message); }
+      });
+      setTimeout(() => f.elements.quellen.focus(), 60);
+    }
+    if (aktion === 'drive') {
+      try { const a = await adminApi(`projekt/${CODE}/drive`, { method: 'POST', body: {} }); toast('Drive wird abgeglichen …'); auftragFolgen(a.id, 'drive'); }
+      catch (err) { toast(err.message); }
+    }
+    if (aktion === 'umbenennen' && AKT) {
+      const v = AKT;
+      vFenster(`<h3>Video umbenennen</h3><p class="wer">${esc(P.titel)} · Video ${v.nr}</p>
+        <form id="v-umbenennen"><label class="v-feld"><span>Titel</span><input name="titel" maxlength="120" required value="${esc(v.titel)}" autocomplete="off"></label>
+        <button type="submit" class="kopieren" disabled>Speichern</button></form>`);
+      const f = $('v-umbenennen'), feld = f.elements.titel;
+      f.addEventListener('input', () => { f.querySelector('[type=submit]').disabled = !feld.value.trim() || feld.value.trim() === v.titel; });
+      f.addEventListener('submit', async e => {
+        e.preventDefault(); const knopf = f.querySelector('[type=submit]'); knopf.disabled = true; knopf.textContent = 'Speichert …';
+        try { await adminApi(`projekt/${CODE}/video/${v.nr}`, { method: 'POST', body: { titel: feld.value.trim() } }); vDialog.close(); toast('Umbenannt'); setTimeout(seiteNeu, 600); }
+        catch (err) { knopf.disabled = false; knopf.textContent = 'Speichern'; toast(err.message); }
+      });
+      setTimeout(() => { feld.focus(); feld.select(); }, 60);
+    }
+    if (aktion === 'entfernen' && AKT) {
+      const v = AKT;
+      vFenster(`<h3>Von der Seite nehmen?</h3><p class="wer">${esc(v.titel)}</p>
+        <p>Das Video verschwindet für den Kunden. Drive, Mux und Kommentare bleiben. Zurück holt es „Videos hinzufügen“ mit demselben Drive Link.</p>
+        <div class="knoepfe"><button type="button" data-zu>Abbrechen</button><button type="button" class="gefahr-knopf" data-v-entfernen>Von der Seite nehmen</button></div>`);
+      vDialog.querySelector('[data-v-entfernen]').addEventListener('click', async e => {
+        e.currentTarget.disabled = true;
+        try { await adminApi(`projekt/${CODE}/video/${v.nr}/entfernen`, { method: 'POST', body: {} }); vDialog.close(); toast('Von der Seite genommen'); setTimeout(() => location.replace(GALERIE), 600); }
+        catch (err) { e.currentTarget.disabled = false; toast(err.message); }
+      });
+    }
+  }
+  // Auftrag (Videos hinzufügen, Drive abgleichen) verfolgen: Fortschritt im Fenster, Punkt am Knopf, am Ende Meldung und neu laden
+  async function auftragFolgen(id, art) {
+    VJOB = { id, art }; laufZeigen();
+    for (let fehlversuche = 0; fehlversuche < 40;) {
+      await new Promise(r => setTimeout(r, 3000));
+      let a; try { a = await adminApi('auftrag/' + id); fehlversuche = 0; } catch { fehlversuche++; continue; }
+      const lauf = vDialog.open && vDialog.querySelector('.v-lauf'), text = lauf && lauf.querySelector('[data-lauf-text]');
+      if (a.laeuft) { if (text) text.textContent = schoen(a.zuletzt); continue; }
+      VJOB = null; laufZeigen();
+      if (a.fehler || !a.ok) {
+        const t = a.fehler || 'Das hat nicht geklappt';
+        if (lauf) { lauf.classList.add('fehler'); lauf.querySelector('b').textContent = 'Nicht geklappt'; text.textContent = t; } else toast(t);
+        return;
+      }
+      const ergebnis = art === 'drive' ? String(a.zuletzt || '').replace(/^Drive geprüft:\s*/, '') : 'Die neuen Videos sind auf der Seite';
+      const satz = ergebnis.charAt(0).toUpperCase() + ergebnis.slice(1);
+      if (lauf) { lauf.classList.add('fertig'); lauf.querySelector('b').textContent = 'Fertig'; text.textContent = satz; } else toast(satz);
+      if (art === 'dazu' || !/alles aktuell/.test(ergebnis)) setTimeout(() => { if (vDialog.open) vDialog.close(); seiteNeu(); }, 1600);
+      return;
+    }
+    VJOB = null; laufZeigen(); toast('Keine Verbindung zum Dashboard, der Auftrag läuft weiter');
+  }
 
   // ---------- Start
   (async () => {

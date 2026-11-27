@@ -39,6 +39,8 @@ Aufträge (neuer Link, Videos dazu) als eigener systemd Dienst.
                                                [{zugang, name, rolle, reihe, bild}]}, ohne Anmeldung
   POST   /api/admin/anmelden                  {zugang: jedes Konto aus /profile, passwort, geraet} → Cookie, {name}
   POST   /api/admin/abmelden                  meldet das Gerät bei der Brücke ab, löscht das Cookie
+  GET    /api/admin/ich                       wer im Admin Dashboard angemeldet ist ({ich: {zugang, name}} oder ich null bei nur Team
+                                              Schlüssel), für „Verwalten“ auf den Kundenseiten (seit 26.11.2026)
   GET    /api/admin/uebersicht                alle Projekte mit Videos, Freigabe, offenen Kommentaren, Kunden, Aufträgen
   POST   /api/admin/projekt/<code>            {titel, kunde, firma, hinweis, darstellung}
   POST   /api/admin/projekt/<code>/video/<nr> {titel}
@@ -969,6 +971,8 @@ class Api(BaseHTTPRequestHandler):
             return self.antwort(200, {"ok": True}, {"Set-Cookie": f"{COOKIE}=; Path=/api/; Max-Age=0; HttpOnly; Secure; SameSite=Strict"})
         if not self.ist_team():
             raise Fehler(401, "Bitte anmelden")
+        if methode == "GET" and rest == ["ich"]:  # „Verwalten“ auf den Kundenseiten zeigt sich nur mit Anmeldung (26.11.2026)
+            return self.antwort(200, {"ich": self.admin_sitzung()})
         if rest == ["push"] and methode in ("POST", "DELETE"):  # iPhone der StageView App für Mitteilungen (22.11.2026)
             self.schreib_pruefung()
             ich, d = self.admin_sitzung(), self.koerper()

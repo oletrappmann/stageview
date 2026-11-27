@@ -35,3 +35,4 @@ Eine Zeile pro Version, neueste unten. Ordner in `versionen/`, Wiederherstellen 
 | 2026-11-25_0340 | Daten, Code |
 | 2026-11-26_0340 | Daten, Code |
 | 2026-11-26_0620 | Daten, Code, App (Mitteilung antippen stürzt nicht mehr ab: Abschluss Block auf dem Hauptstrang s) |
+| 2026-11-27_0340 | Daten, Code |
