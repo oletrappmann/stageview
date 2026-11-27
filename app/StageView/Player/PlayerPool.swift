@@ -20,6 +20,9 @@ final class PlayerPool {
     /// Pausiert auf einen Kommentar gesprungen: großen Play Knopf nicht zeigen (Ole, 23.11.2026), bis wieder abgespielt oder
     /// selbst angehalten wird oder ein anderes Video kommt
     var quietPause = false
+    /// Schon einmal gelaufen: beim Pausieren kein großer Play Knopf (Ole, 27.11.2026: „wenn man Pause macht, dieser große Play
+    /// Button nicht da“). Er steht nur da, bis ein Video zum ersten Mal läuft, bis ein anderes Video kommt
+    var hasPlayed = false
     /// Endlosschleife (Ole, 23.11.2026: „bei Einstellungen eine Endlosschleife, standardmäßig nicht aktiviert“): am Ende von vorn,
     /// pro Gerät gemerkt, gilt für jedes Video und auch im Vollbild
     static let loopKey = "sv.schleife"
@@ -90,6 +93,7 @@ final class PlayerPool {
             duration = video.duration
             ended = false
             quietPause = false
+            hasPlayed = false
             if let start { seek(to: start) } else if let saved = positions[video.id], saved > 1, saved < video.duration - 1 { seek(to: saved) }
         } else if let start {
             seek(to: start)
@@ -247,7 +251,7 @@ final class PlayerPool {
                 Task { @MainActor in
                     guard let self, self.observed === p else { return }
                     self.playing = p.timeControlStatus != .paused
-                    if self.playing { self.quietPause = false }
+                    if self.playing { self.quietPause = false; self.hasPlayed = true }
                     self.buffering = p.timeControlStatus == .waitingToPlayAtSpecifiedRate
                 }
             },

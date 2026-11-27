@@ -1124,7 +1124,7 @@ private struct Stage: View {
 
     @ViewBuilder
     private var overlays: some View {
-        if !pool.playing && !pool.ended && !pool.quietPause && ready {
+        if !pool.playing && !pool.ended && !pool.quietPause && !pool.hasPlayed && ready {
             PlayDisc(size: 56).allowsHitTesting(false).transition(.opacity.combined(with: .scale(scale: 0.85)))
         }
         if pool.buffering && pool.playing {
