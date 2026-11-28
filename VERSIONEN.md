@@ -37,3 +37,4 @@ Eine Zeile pro Version, neueste unten. Ordner in `versionen/`, Wiederherstellen 
 | 2026-11-26_0620 | Daten, Code, App (Mitteilung antippen stürzt nicht mehr ab: Abschluss Block auf dem Hauptstrang s) |
 | 2026-11-27_0340 | Daten, Code |
 | 2026-11-27_1113 | Code, App (Beim Pausieren kein großer Play Knopf mehr, nur bis zum ersten Abspielen) |
+| 2026-11-28_0340 | Code |

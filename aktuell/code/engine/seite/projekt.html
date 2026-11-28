@@ -272,6 +272,20 @@
   /* Beim Pausieren kein großer Play Knopf (Ole, 27.11.2026: „wenn man Pause macht, dieser große Play Button nicht da“): er steht
      nur da, bis ein Video zum ersten Mal läuft. Danach bleibt das Bild frei, auch am Ende, bis ein anderes Video kommt */
   .viewer.schon-gelaufen .mitte { opacity: 0; pointer-events: none; }
+  /* Kurz aufblitzen beim Anhalten und Weiterspielen von Hand (Ole, 27.11.2026: „kommt der Play-Button kurz, aber dann relativ leicht,
+     relativ schnell wieder verschwindet“), wie in der StageView App: Glaskreis wie der Knopf in der Mitte mit dem Symbol der Aktion
+     (Pause beim Anhalten, Play beim Weiterspielen), 0,12 s rein, knapp eine halbe Sekunde stehen, 0,3 s weich größer werdend raus */
+  .blitz { position: absolute; left: 50%; top: 50%; z-index: 3; width: 72px; height: 72px; margin: -36px 0 0 -36px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center; pointer-events: none; color: #fff; background: rgba(22,22,20,.46);
+    backdrop-filter: blur(18px) saturate(1.5); -webkit-backdrop-filter: blur(18px) saturate(1.5);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.16), inset 0 1px 0 rgba(255,255,255,.24), 0 12px 32px rgba(0,0,0,.34);
+    opacity: 0; transform: scale(1.2); transition: opacity .3s ease-out, transform .3s ease-out; }
+  .blitz.an { opacity: 1; transform: none; transition-duration: .12s; }
+  .blitz > span { display: flex; }
+  .blitz svg.i { --s: 32px; }
+  .blitz .b-play svg { transform: translateX(1.5px); }
+  .blitz:not(.spielt) .b-play, .blitz.spielt .b-pause { display: none; }
+  @container app (max-width: 899px) { .blitz { width: 54px; height: 54px; margin: -27px 0 0 -27px; } .blitz svg.i { --s: 28px; } }
   /* Play und Pause in der Leiste springen beim Wechsel kurz auf */
   @keyframes knopf-auf { from { transform: scale(.6); opacity: .3; } to { transform: none; opacity: 1; } }
   .reihe media-play-button svg { animation: knopf-auf .26s cubic-bezier(.34,1.42,.5,1); }
@@ -784,7 +798,7 @@
     white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
   .toast.zeigen { opacity: 1; transform: translate(-50%, 0); }
   .fehlt { padding: 120px 24px; text-align: center; color: var(--muted); }
-  @media (prefers-reduced-motion: reduce) { .reihe media-play-button svg { animation: none; } .mitte, .marker, .toast, .kachel .bild img, .video-box, .reihe .zahnrad svg { transition: none; } .km.neu { animation: none; }
+  @media (prefers-reduced-motion: reduce) { .reihe media-play-button svg { animation: none; } .mitte, .blitz, .marker, .toast, .kachel .bild img, .video-box, .reihe .zahnrad svg { transition: none; } .km.neu { animation: none; }
     .app.blatt-modus .seite { transition-duration: .15s; } }
 </style>
 </head>
@@ -847,6 +861,7 @@
         <div class="video-flaeche" id="flaeche">
           <div class="licht" id="licht" aria-hidden="true"><canvas></canvas><canvas></canvas></div>
           <div class="video-box" id="video-box"><div class="zweifach" id="zweifach" aria-hidden="true"><span>2×</span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6.2v11.6c0 .8.9 1.3 1.6.8l8.3-5.8c.6-.4.6-1.2 0-1.6L4.6 5.4C3.9 4.9 3 5.4 3 6.2zm9.5 0v11.6c0 .8.9 1.3 1.6.8l8.3-5.8c.6-.4.6-1.2 0-1.6l-8.3-5.8c-.7-.5-1.6 0-1.6.8z"/></svg></div>
+            <div class="blitz" id="blitz" aria-hidden="true"><span class="b-pause" data-i="pause"></span><span class="b-play" data-i="play"></span></div>
             <media-controller id="mc" autohide="-1" fullscreenelement="viewer">
               <media-poster-image slot="poster" id="poster"></media-poster-image>
               <media-loading-indicator slot="centered-chrome" noautohide></media-loading-indicator>
@@ -1029,7 +1044,7 @@
     'aenderung': { t: 'Änderung gewünscht', c: '#C4855A', h: 'Wir passen das Video nach euren Kommentaren an' },
     'freigegeben': { t: 'Freigegeben', c: '#93AA98', h: 'Passt so, kann gepostet werden' },
   };
-  let P = null, AKT = null, mv = null, gelaufen = null, filter = 'alle', K = { kommentare: [], status: {}, team: false }, KOK = true;
+  let P = null, AKT = null, mv = null, gelaufen = null, blitzBis = 0, blitzUhr = 0, filter = 'alle', K = { kommentare: [], status: {}, team: false }, KOK = true;
   const statusVon = id => (K.status[id] && K.status[id].wert) || 'zur-freigabe';
   const istTeam = () => !!K.team;
 
@@ -1252,6 +1267,7 @@
     $('poster').setAttribute('src', bild(v, 720));
     $('video-box').style.setProperty('--ar', v.seitenverhaeltnis || .5625);
     const zustand = () => { viewer.classList.toggle('pausiert', mv.paused); if (!mv.paused) { $('weiter').hidden = true; viewer.classList.remove('still-gesprungen'); gelaufen = v.nr; viewer.classList.add('schon-gelaufen'); } wach(); };
+    ['play', 'pause'].forEach(ev => neu.addEventListener(ev, () => { if (mv === neu && performance.now() < blitzBis && !neu.ended && viewer.classList.contains('schon-gelaufen')) blitzen(ev); }));
     ['play', 'pause', 'seeking'].forEach(ev => mv.addEventListener(ev, zustand));
     // Hinter der Übersicht spielt nie ein Video (egal von wo der Start kam: später Ladeversuch, Wechsel auf nativ, Qualität)
     const nieVersteckt = () => { if ($('videoseite').hidden && !document.pictureInPictureElement) neu.pause(); };
@@ -1825,6 +1841,12 @@
   // einen Klick an dieselbe Stelle. Der traf den Play Knopf, der beim Anhalten genau dort erscheint, und startete das Video sofort
   // wieder. Darum schluckt klickSperre den Klick danach. Fest gedrückt (bis 1 s) zählt auch, ohne Apples Menü beim langen Drücken
   let tipp = null;
+  // Aufblitzen nur, wenn Anhalten oder Weiterspielen von Hand kam (Klick, Tipp, Leertaste aufs Video), nicht beim Spulen, 2× oder Springen
+  const vonHand = () => { blitzBis = performance.now() + 400; };
+  function blitzen(art) { const b = $('blitz'); b.classList.toggle('spielt', art === 'play'); b.classList.add('an'); clearTimeout(blitzUhr); blitzUhr = setTimeout(() => b.classList.remove('an'), 450); }
+  $('video-box').addEventListener('pointerup', e => {  // Maus: das Umschalten macht media-chrome selbst
+    if (e.pointerType === 'mouse' && e.button === 0 && !(halten && halten.an) && !e.target.closest('media-play-button, button, a, .wechsel, media-control-bar')) vonHand();
+  });
   $('video-box').addEventListener('pointerdown', e => {
     tipp = menueSchluckt || e.pointerType === 'mouse' || !e.isPrimary || e.target.closest('media-play-button, button, a, .wechsel') ? null
       : { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp };
@@ -1832,7 +1854,7 @@
   $('video-box').addEventListener('pointerup', e => {
     const t = tipp; tipp = null;
     if (!t || t.id !== e.pointerId || !mv || (geste && geste.art) || e.timeStamp - t.t > 1000 || Math.hypot(e.clientX - t.x, e.clientY - t.y) > 15) return;
-    klickSperre = performance.now() + 600;
+    klickSperre = performance.now() + 600; vonHand();
     if (mv.paused) { const p = mv.play(); if (p && p.catch) p.catch(() => {}); } else mv.pause();
   });
   $('video-box').addEventListener('pointercancel', () => { tipp = null; });
@@ -2255,7 +2277,7 @@
     else if (![' ', 'k', 'f', 'n', 'p'].includes(taste)) { if (taste === 'Escape') menueZu(); return; }
     e.preventDefault(); e.stopPropagation(); genommen.add(e.code);
     if (e.repeat && taste !== 'ArrowRight' && taste !== 'ArrowLeft') return;
-    if (taste === ' ' || taste === 'k') mv.paused ? mv.play().catch(() => {}) : mv.pause();
+    if (taste === ' ' || taste === 'k') { vonHand(); mv.paused ? mv.play().catch(() => {}) : mv.pause(); }
     else if ((taste === 'ArrowRight' || taste === 'ArrowLeft') && mv.paused) bildSchritt(taste === 'ArrowRight' ? 1 : -1);
     else if (taste === 'ArrowRight') mv.currentTime = Math.min(mv.duration || 1e9, mv.currentTime + 5);
     else if (taste === 'ArrowLeft') mv.currentTime = Math.max(0, mv.currentTime - 5);
